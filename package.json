@@ -1,0 +1,19 @@
+{
+  "name": "stepwise",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "dev": "npm run dev --workspace @stepwise/demo",
+    "test": "npm run test --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present"
+  },
+  "devDependencies": {
+    "@types/react-dom": "^19.3.0",
+    "driver.js": "^1.10.2",
+    "gsap": "^3.15.0"
+  }
+}
