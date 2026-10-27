@@ -16,13 +16,14 @@ export interface ChaptersApi {
 export { flattenChapters };
 
 /**
- * Scroll-tracked chapter navigation for multi-section pages. The active
- * chapter is the last section whose top has crossed the sticky-header offset;
- * `goTo` smooth-scrolls with the same offset applied. Composed on useSteps —
+ * Scroll-tracked chapter navigation for multi-section pages. Active = the
+ * section containing the viewport center: a chapter becomes active when it
+ * reaches the middle of the screen, not the moment its top scrolls past an
+ * offset. Sections are resolved by DOM id; give each section CSS scroll-mt
+ * so `goTo`'s scrollIntoView clears any sticky header. Composed on useSteps —
  * the scroll position is an external input driving the cursor.
  */
-export function useChapters(chapters: Chapter[], opts?: { offset?: number }): ChaptersApi {
-  const offset = opts?.offset ?? 120;
+export function useChapters(chapters: Chapter[]): ChaptersApi {
   const [mounted, setMounted] = useState(false);
   const chaptersRef = useRef(chapters);
   chaptersRef.current = chapters;
@@ -40,11 +41,22 @@ export function useChapters(chapters: Chapter[], opts?: { offset?: number }): Ch
     const update = () => {
       raf = 0;
       const flat = flattenChapters(chaptersRef.current);
-      let best = 0;
+      const mid = window.innerHeight / 2;
+      let best = -1;
       for (let i = 0; i < flat.length; i++) {
         const el = document.getElementById(flat[i].chapter.id);
         if (!el) continue;
-        if (el.getBoundingClientRect().top - offset <= 0) best = i;
+        const rect = el.getBoundingClientRect();
+        if (rect.top <= mid && rect.bottom >= mid) best = i;
+      }
+      if (best === -1) {
+        // No section contains the center (tall gap or beyond the ends): keep
+        // the deepest section whose top is above center, else the first.
+        for (let i = 0; i < flat.length; i++) {
+          const el = document.getElementById(flat[i].chapter.id);
+          if (el && el.getBoundingClientRect().top <= mid) best = i;
+        }
+        if (best === -1) best = 0;
       }
       if (best !== activeRef.current) {
         setActive(best);
@@ -62,7 +74,7 @@ export function useChapters(chapters: Chapter[], opts?: { offset?: number }): Ch
       window.removeEventListener("resize", onScroll);
       if (raf) cancelAnimationFrame(raf);
     };
-  }, [offset, mounted, core]);
+  }, [mounted, core]);
 
   useEffect(() => setMounted(true), []);
 
@@ -75,10 +87,9 @@ export function useChapters(chapters: Chapter[], opts?: { offset?: number }): Ch
       core.go(i);
       const el = document.getElementById(entry.chapter.id);
       if (!el) return;
-      const top = el.getBoundingClientRect().top + window.scrollY - offset;
-      window.scrollTo({ top, behavior: "smooth" });
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
     },
-    [offset, core]
+    [core]
   );
 
   const next = useCallback(() => {

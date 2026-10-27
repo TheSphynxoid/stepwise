@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
-import { StepButton, useStepPlayer, useGlobalKeys, CodeBlock, type StepTone } from "@sphynx/stepwise";
+import { useStepPlayer, useGlobalKeys, PlayerBar, CodeBlock, type StepTone } from "@sphynx/stepwise";
+import { useState, useCallback } from "react";
 
-// A tiny bubble-sort trace — each step swaps two elements.
 const ITEMS = [5, 2, 8, 1, 9, 3];
 const STEPS: { tone: StepTone; label: string; code: string[]; a: number; b: number; arr: number[] }[] = [];
 
@@ -25,21 +24,23 @@ const STEPS: { tone: StepTone; label: string; code: string[]; a: number; b: numb
 })();
 
 export default function EvictionDemo() {
-  const [kind, setKind] = useState<"bubble" | "insertion">("bubble");
-  const player = useStepPlayer({ total: STEPS.length });
+  const player = useStepPlayer({ total: STEPS.length, autoPlay: true });
+
+  const run = useCallback(() => {
+    player.seek(0);
+    player.setPlaying(true);
+  }, [player]);
 
   useGlobalKeys({
     ArrowRight: () => player.next(),
     ArrowLeft: () => player.prev(),
-    " ": () => player.toggle(trace),
-    Enter: trace,
+    " ": () => player.toggle(run),
+    Enter: run,
   });
 
-  const trace = useCallback(() => player.start(), [player]);
-
-  const frame = player.index >= 0 ? player.index : STEPS.length - 1;
-  const step = STEPS[Math.min(frame, STEPS.length - 1)];
-  const arr = step?.arr ?? ITEMS;
+  const frame = player.index >= 0 ? Math.min(player.index, STEPS.length - 1) : 0;
+  const step = STEPS[frame];
+  const arr = step.arr;
 
   return (
     <main className="min-h-screen bg-background text-foreground pt-20 pb-16">
@@ -67,18 +68,17 @@ export default function EvictionDemo() {
               );
             })}
           </div>
-          {step && (
-            <div className="text-[11px] font-mono text-foreground/50">
-              step {player.index + 1}/{STEPS.length} — {step.label}
-            </div>
-          )}
+          <div className="text-[11px] font-mono text-foreground/50">
+            step {player.index + 1}/{STEPS.length} — {step.label}
+          </div>
         </div>
 
         <div className="border border-border rounded-md bg-card mb-4">
           <PlayerBar
             player={player}
             toneAt={(i) => STEPS[i]?.tone ?? "neutral"}
-            onEmpty={trace}
+            titleAt={(i) => STEPS[i]?.label ?? `step ${i + 1}`}
+            onEmpty={run}
             emptyHint="press Run"
             className="p-2"
           />

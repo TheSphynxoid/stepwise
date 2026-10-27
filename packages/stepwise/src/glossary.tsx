@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -92,9 +93,11 @@ export function Term({ id, children, className }: { id: string; children?: React
     closeTimer.current = window.setTimeout(closeNow, CLOSE_GRACE_MS);
   }, [closeNow]);
 
-  // Position: to the right of the trigger, flipping left at the viewport edge,
-  // vertically clamped. Recomputed while open (scroll + resize), rAF-throttled.
-  useEffect(() => {
+  // Position: below the trigger by default, flipped above when there is no
+  // room beneath, horizontally clamped inside the viewport. Runs as a layout
+  // effect so the card is measured before paint (no flash), then tracked on
+  // scroll + resize, rAF-throttled.
+  useLayoutEffect(() => {
     if (!open) {
       setPos(null);
       return;
@@ -102,16 +105,22 @@ export function Term({ id, children, className }: { id: string; children?: React
     let raf = 0;
     const update = () => {
       raf = 0;
-      const el = triggerRef.current;
-      if (!el) return;
-      const r = el.getBoundingClientRect();
+      const trigger = triggerRef.current;
+      const card = cardRef.current;
+      if (!trigger) return;
+      const r = trigger.getBoundingClientRect();
       const margin = 8;
-      let left = r.right + 10;
-      if (left + CARD_WIDTH > window.innerWidth - margin) {
-        left = Math.max(margin, r.left - CARD_WIDTH - 10);
+      const gap = 8;
+      const cw = card?.offsetWidth ?? CARD_WIDTH;
+      const ch = card?.offsetHeight ?? 160;
+      let top = r.bottom + gap;
+      if (top + ch > window.innerHeight - margin) {
+        // Not enough room below — flip above the trigger.
+        top = r.top - gap - ch;
+        if (top < margin) top = margin; // no room either way: pin to the top
       }
-      let top = r.top - 6;
-      top = Math.max(margin, Math.min(top, window.innerHeight - 60));
+      let left = r.left;
+      left = Math.max(margin, Math.min(left, window.innerWidth - cw - margin));
       setPos({ left, top });
     };
     const onMove = () => {
@@ -172,7 +181,7 @@ export function Term({ id, children, className }: { id: string; children?: React
         role: "button" as const,
         tabIndex: 0,
         "aria-expanded": open,
-        "aria-describedby": open && pos ? tipId : undefined,
+        "aria-describedby": open ? tipId : undefined,
         onMouseEnter: scheduleOpen,
         onMouseLeave: scheduleClose,
         onFocus: () => openNow(),
@@ -219,7 +228,6 @@ export function Term({ id, children, className }: { id: string; children?: React
         {display}
       </span>
       {open &&
-        pos !== null &&
         createPortal(
           <DepthContext.Provider value={depth + 1}>
             <span
@@ -237,10 +245,15 @@ export function Term({ id, children, className }: { id: string; children?: React
               onMouseEnter={interactive ? () => window.clearTimeout(closeTimer.current) : undefined}
               onMouseLeave={interactive ? scheduleClose : undefined}
               className={cn(
-                "fixed z-50 block w-72 rounded-sm border border-white/15 bg-popover p-3 shadow-2xl outline-none motion-reduce:transition-none",
-                "transition-opacity duration-150"
+                "fixed z-50 block w-72 max-w-[calc(100vw-1rem)] rounded-sm border border-white/15 bg-popover p-3 shadow-2xl outline-none motion-reduce:transition-none",
+                "transition-opacity duration-150",
+                pos === null && "invisible"
               )}
-              style={{ left: pos.left, top: pos.top, maxHeight: "min(60vh, 20rem)", overflowY: "auto" }}
+              style={
+                pos
+                  ? { left: pos.left, top: pos.top, maxHeight: "min(60vh, 20rem)", overflowY: "auto" }
+                  : { visibility: "hidden" }
+              }
             >
               <span className="mb-1 block font-mono text-[11px] uppercase tracking-widest text-primary/90">
                 {entry.term}

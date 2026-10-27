@@ -371,7 +371,8 @@ export function TourSpotlight({ target }: { target: string | null }) {
     let last = "";
     const tick = () => {
       if (!el) {
-        el = document.querySelector(`[data-tour="${target}"]`);
+        // Resolve by DOM id first (most common), then by data-tour attribute.
+        el = document.getElementById(target) ?? document.querySelector(`[data-tour="${target}"]`);
         if (el && !scrolled) {
           scrolled = true;
           el.scrollIntoView({ block: "center", behavior: "smooth", inline: "nearest" });
@@ -463,7 +464,7 @@ export function TourCard({
           ×
         </StepButton>
       </div>
-      <p className="text-sm font-playfair font-bold text-foreground/95 mb-1.5">{step.title}</p>
+      <p className="text-sm font-bold text-foreground/95 mb-1.5">{step.title}</p>
       <div className="text-[12px] font-mono text-foreground/70 leading-relaxed">{step.body}</div>
       {step.waitHint && <p className="text-[11px] font-mono text-accent mt-2 animate-pulse">{step.waitHint}</p>}
       <div className="flex items-center gap-2 mt-3 pt-3 border-t border-white/10">
@@ -501,7 +502,7 @@ export function ShortcutsDialog({
         className="w-full max-w-md border border-white/15 bg-card rounded-sm p-5 shadow-2xl"
       >
         <div className="flex items-center justify-between mb-4">
-          <h3 className="font-playfair text-lg text-primary">{title}</h3>
+          <h3 className="text-lg text-primary">{title}</h3>
           <StepButton
             type="button"
             onClick={onClose}

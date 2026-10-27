@@ -19,3 +19,14 @@ npm run build     # builds all packages
 ## License
 
 MIT
+
+## Tailwind CSS v4 consumers
+
+The components ship className strings, so your Tailwind build must scan the
+library source. Tailwind v4's automatic detection skips node_modules — register
+the source explicitly in your CSS entry:
+
+``css
+@import "tailwindcss";
+@source "../node_modules/@sphynx/stepwise/src";
+``
