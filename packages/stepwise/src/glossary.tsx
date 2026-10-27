@@ -35,6 +35,8 @@ const CLOSE_GRACE_MS = 120;
 
 interface GlossaryContextValue {
   byId: Map<string, GlossaryEntry>;
+  /** Original declaration order — the auto-appendix renders this. */
+  entries: GlossaryEntry[];
 }
 
 const GlossaryContext = createContext<GlossaryContextValue | null>(null);
@@ -42,8 +44,11 @@ const DepthContext = createContext(0);
 const AppendixContext = createContext(false);
 
 export function GlossaryProvider({ entries, children }: { entries: GlossaryEntry[]; children: ReactNode }) {
-  const byId = useMemo(() => new Map(entries.map((e) => [e.id, e])), [entries]);
-  return <GlossaryContext.Provider value={{ byId }}>{children}</GlossaryContext.Provider>;
+  const value = useMemo(
+    () => ({ byId: new Map(entries.map((e) => [e.id, e])), entries }),
+    [entries]
+  );
+  return <GlossaryContext.Provider value={value}>{children}</GlossaryContext.Provider>;
 }
 
 export function Term({ id, children, className }: { id: string; children?: ReactNode; className?: string }) {
@@ -270,23 +275,48 @@ export function Term({ id, children, className }: { id: string; children?: React
 }
 
 /**
- * The notebook's glossary appendix: every entry rendered as an anchored row,
- * placed after the last chapter. Inside it, <Term> references resolve to
- * in-page anchor links instead of tooltips. Opt out by not rendering it.
+ * The glossary appendix: every entry rendered as an anchored row, placed
+ * after the last chapter. Entries default to the provider's declarations —
+ * define them once and the appendix follows automatically; pass `entries`
+ * explicitly to override or to render without a provider. Inside it, <Term>
+ * references resolve to in-page anchor links instead of tooltips.
+ *
+ * Customization hooks: `intro`/`footer` render arbitrary nodes around the
+ * grid, `renderEntry` replaces the whole row renderer, `className` and
+ * `entryClassName` style the section and each row. Opt out of the appendix
+ * entirely by not rendering it.
  */
 export function GlossaryAppendix({
   entries,
   title = "Glossary",
+  intro,
+  footer,
   columns = 2,
   bare = false,
+  className,
+  entryClassName,
+  renderEntry,
 }: {
-  entries: GlossaryEntry[];
+  /** Override the row list; defaults to the provider's entries. */
+  entries?: GlossaryEntry[];
   title?: string;
+  /** Rendered between the title and the grid — an introduction, usage notes, scope, … */
+  intro?: ReactNode;
+  /** Rendered after the grid. */
+  footer?: ReactNode;
   columns?: 1 | 2;
   /** Omit the section chrome (title/border) — the host provides its own. */
   bare?: boolean;
+  className?: string;
+  entryClassName?: string;
+  /** Replace the default row renderer entirely. */
+  renderEntry?: (entry: GlossaryEntry) => ReactNode;
 }) {
-  if (entries.length === 0) return null;
+  const ctxEntries = useContext(GlossaryContext)?.entries;
+  const list = entries ?? ctxEntries;
+
+  if (!list || list.length === 0) return null;
+
   const grid = (
     <div
       className={cn(
@@ -294,26 +324,45 @@ export function GlossaryAppendix({
         columns === 2 ? "xl:grid-cols-2" : "grid-cols-1"
       )}
     >
-      {entries.map((entry) => (
-        <div key={entry.id} id={`glossary-${entry.id}`} className="scroll-mt-40">
-          <h3 className="font-mono text-[11px] uppercase tracking-widest text-primary/90 mb-1.5">
-            {entry.term}
-          </h3>
-          <div className="text-[12px] font-mono text-foreground/60 leading-relaxed [&_strong]:text-foreground/80">
-            {entry.definition}
+      {list.map((entry) =>
+        renderEntry ? (
+          <div key={entry.id} id={`glossary-${entry.id}`} className="scroll-mt-40">
+            {renderEntry(entry)}
           </div>
-        </div>
-      ))}
+        ) : (
+          <div key={entry.id} id={`glossary-${entry.id}`} className={cn("scroll-mt-40", entryClassName)}>
+            <h3 className="font-mono text-[11px] uppercase tracking-widest text-primary/90 mb-1.5">
+              {entry.term}
+            </h3>
+            <div className="text-[12px] font-mono text-foreground/60 leading-relaxed [&_strong]:text-foreground/80">
+              {entry.definition}
+            </div>
+          </div>
+        )
+      )}
     </div>
   );
+
+  const body = (
+    <>
+      {intro && (
+        <div className="mb-8 text-[12px] font-mono text-foreground/55 leading-relaxed max-w-3xl [&_a]:text-accent [&_a]:underline [&_a]:underline-offset-4">
+          {intro}
+        </div>
+      )}
+      {grid}
+      {footer && <div className="mt-8">{footer}</div>}
+    </>
+  );
+
   if (bare) {
-    return <AppendixContext.Provider value={true}>{grid}</AppendixContext.Provider>;
+    return <AppendixContext.Provider value={true}>{body}</AppendixContext.Provider>;
   }
   return (
     <AppendixContext.Provider value={true}>
-      <section aria-label={title} className="mt-16 border-t border-white/10 pt-10">
+      <section aria-label={title} className={cn("mt-16 border-t border-white/10 pt-10", className)}>
         <p className="text-[11px] font-mono uppercase tracking-widest text-foreground/40 mb-6">{title}</p>
-        {grid}
+        {body}
       </section>
     </AppendixContext.Provider>
   );

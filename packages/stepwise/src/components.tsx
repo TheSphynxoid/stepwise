@@ -79,6 +79,7 @@ export function StepScrubber({
   className,
   theme = defaultTheme,
   labels,
+  groupOf,
 }: {
   count: number;
   index: number;
@@ -89,6 +90,13 @@ export function StepScrubber({
   className?: string;
   theme?: StepwiseTheme;
   labels?: ScrubberLabels;
+  /**
+   * Groups consecutive segments into one proportional wrapper — a chapter
+   * with sub-chapters spans the width of its whole subtree and only the
+   * active inner segment fills, so a chapter reads as "halfway" while its
+   * children play. Segments must be group-contiguous (flattenChapters order).
+   */
+  groupOf?: (i: number) => number;
 }) {
   const onKey = (e: React.KeyboardEvent) => {
     if (count === 0) return;
@@ -121,6 +129,46 @@ export function StepScrubber({
 
   const valueText = labels?.frame ? labels.frame(index) : (titleAt?.(index) ?? `frame ${index + 1} of ${count}`);
 
+  const segment = (i: number) => (
+    <div
+      key={i}
+      aria-hidden="true"
+      title={titleAt ? titleAt(i) : `frame ${i + 1}`}
+      onClick={() => onSeek(i)}
+      className={cn(
+        "h-3.5 flex-1 min-w-[3px] rounded-[2px] transition-all cursor-pointer",
+        theme.toneSegment[toneAt?.(i) ?? "neutral"],
+        i === index && "ring-2 ring-primary scale-y-150"
+      )}
+    />
+  );
+
+  // Grouped mode: consecutive segments sharing a groupOf value render inside
+  // one wrapper whose flex-grow equals its unit count — subtrees occupy
+  // proportional width and the group fills segment by segment.
+  let rows: ReactNode;
+  if (groupOf) {
+    const groups: number[][] = [];
+    for (let i = 0; i < count; i++) {
+      const g = groupOf(i);
+      const lastGroup = groups[groups.length - 1];
+      if (lastGroup && groupOf(lastGroup[0]) === g) lastGroup.push(i);
+      else groups.push([i]);
+    }
+    rows = groups.map((units, gi) => (
+      <div
+        key={gi}
+        aria-hidden="true"
+        className="flex-1 min-w-[3px] flex gap-[2px] items-center"
+        style={{ flexGrow: units.length }}
+      >
+        {units.map(segment)}
+      </div>
+    ));
+  } else {
+    rows = Array.from({ length: count }, (_, i) => segment(i));
+  }
+
   return (
     <div
       role="slider"
@@ -137,19 +185,7 @@ export function StepScrubber({
         className
       )}
     >
-      {Array.from({ length: count }, (_, i) => (
-        <div
-          key={i}
-          aria-hidden="true"
-          title={titleAt ? titleAt(i) : `frame ${i + 1}`}
-          onClick={() => onSeek(i)}
-          className={cn(
-            "h-3.5 flex-1 min-w-[3px] rounded-[2px] transition-all cursor-pointer",
-            theme.toneSegment[toneAt?.(i) ?? "neutral"],
-            i === index && "ring-2 ring-primary scale-y-150"
-          )}
-        />
-      ))}
+      {rows}
     </div>
   );
 }

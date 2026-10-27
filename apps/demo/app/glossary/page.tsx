@@ -122,7 +122,20 @@ export default function GlossaryDemo() {
             </p>
           </div>
 
-          <GlossaryAppendix entries={ENTRIES} columns={1} />
+          <GlossaryAppendix
+            title="Glossary"
+            intro={
+              <>
+                Six entries defined once at the provider — the appendix
+                collects them automatically; no list is passed by hand. Each
+                definition cross-references other terms, so the chain{" "}
+                HTTP → HTTPS → TLS → CA runs four levels deep before the
+                depth cap closes it. Inside the appendix, references become
+                anchor links instead of tooltips.
+              </>
+            }
+            columns={1}
+          />
         </div>
       </main>
     </GlossaryProvider>
