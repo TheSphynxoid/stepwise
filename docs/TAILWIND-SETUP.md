@@ -13,7 +13,7 @@ Register the library source explicitly in your CSS entry:
 
 ```css
 @import "tailwindcss";
-@source "../node_modules/@sphynxoid/stepwise/src";
+@source "../node_modules/@sphynxoid/stepwise/dist";
 ```
 
 The `@source` path is **relative to the CSS file that declares it**. Count
@@ -27,12 +27,17 @@ is covered by detection (`@source` it too).
 
 ### Monorepo example (this repo)
 
+The demo vendors the package by path, so it scans the *source* directly:
+
 `apps/demo/app/globals.css`:
 
 ```css
 @import "tailwindcss";
 @source "../../../packages/stepwise/src";
 ```
+
+npm consumers scan the shipped **dist** (the tarball contains `dist`, not
+`src`) — see the v4 snippet above.
 
 ## Tailwind v3
 
@@ -43,7 +48,7 @@ Add the source to `content`:
 module.exports = {
   content: [
     "./app/**/*.{ts,tsx}",
-    "./node_modules/@sphynxoid/stepwise/src/**/*.{ts,tsx}",
+    "./node_modules/@sphynxoid/stepwise/dist/**/*.{js}",
   ],
   // ...
 };

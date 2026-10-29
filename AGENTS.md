@@ -60,7 +60,7 @@ flow at the page bottom, the tour card is a full-width strip, the spotlight's
 
 ```css
 @import "tailwindcss";
-@source "../node_modules/@sphynxoid/stepwise/src";
+@source "../node_modules/@sphynxoid/stepwise/dist";
 ```
 
 In this monorepo the demo does `@source "../../../packages/stepwise/src";` —

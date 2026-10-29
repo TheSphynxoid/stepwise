@@ -30,7 +30,7 @@ completely unstyled.
 
 ```css
 @import "tailwindcss";
-@source "../node_modules/@sphynxoid/stepwise/src";
+@source "../node_modules/@sphynxoid/stepwise/dist";
 ```
 
 Components are also fully usable without Tailwind if you bring your own

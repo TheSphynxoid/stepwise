@@ -36,7 +36,7 @@ the source explicitly in your CSS entry:
 
 ```css
 @import "tailwindcss";
-@source "../node_modules/@sphynxoid/stepwise/src";
+@source "../node_modules/@sphynxoid/stepwise/dist";
 ```
 
 Details, v3 setup, and the "everything is unstyled" troubleshooting checklist:
