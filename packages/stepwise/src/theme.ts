@@ -3,6 +3,10 @@ import type { StepTone } from "./types";
 // Optional styled layer. The hooks are headless; these Tailwind classes are
 // the DEFAULTS the styled components ship with, overridable per component
 // via the `theme` prop — swap in any design system without touching the kit.
+//
+// The tokens cover every non-CSS-variable color the components hardcode
+// (white/black overlays, borders, code backgrounds), so a consumer theme can
+// flip the whole kit — not just the buttons — for light hosts.
 
 export interface StepwiseTheme {
   /** Timeline-segment styling per tone. */
@@ -13,6 +17,24 @@ export interface StepwiseTheme {
   buttonBase: string;
   /** Per-variant appearance for internal buttons. */
   buttonVariants: Record<"ghost" | "outline" | "primary", string>;
+  /**
+   * Panel chrome for nav bars, cards, dialogs, and tooltip popovers.
+   * Components pass their own border/background overrides after this token,
+   * so it stays a base, not a contract.
+   */
+  surface: string;
+  /** Full-screen dimmed backdrop behind modal surfaces. */
+  overlay: string;
+  /** Code block frame — its own background, border, and type scale. */
+  codeBlock: string;
+  /** Comment / dimmed lines inside the code block. */
+  codeMuted: string;
+  /** Keyboard chip (ShortcutsDialog). */
+  kbd: string;
+  /** Ring + rounding around the tour spotlight target. */
+  spotlight: string;
+  /** Dimmed meta text — counters, hints, empty states. */
+  muted: string;
 }
 
 export const defaultTheme: StepwiseTheme = {
@@ -39,4 +61,12 @@ export const defaultTheme: StepwiseTheme = {
     outline: "border border-primary/40 bg-background/40 text-foreground/85 hover:border-primary/70 hover:text-foreground",
     primary: "border border-primary bg-primary/90 text-primary-foreground hover:bg-primary",
   },
+  surface: "border border-white/10 bg-background/85 backdrop-blur-md",
+  overlay: "bg-black/70 backdrop-blur-sm",
+  codeBlock:
+    "rounded-sm border border-white/10 bg-black/40 px-2.5 py-2 font-mono text-[11px] leading-5 overflow-x-auto",
+  codeMuted: "text-foreground/35",
+  kbd: "font-mono text-[10px] px-1.5 py-0.5 border border-white/20 bg-white/5 rounded-sm text-foreground/80",
+  spotlight: "rounded-sm ring-2 ring-primary/80 transition-all duration-300",
+  muted: "text-foreground/40",
 };

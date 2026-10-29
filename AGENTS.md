@@ -25,7 +25,10 @@ npm run build -w @sphynx/stepwise             # build library → packages/stepw
 npm run dev                                   # demo app (same as: npm run dev -w @stepwise/demo)
 
 # tests — run from the package directory, NOT the root
-cd packages/stepwise && npx vitest run        # 18 tests (14 useSteps + 4 flatten)
+cd packages/stepwise && npx vitest run        # 76 tests (14 useSteps, 15 player, 28 tour, 9 discoveries, 6 chapters, 4 flatten)
+
+# demo lint (eslint flat config, no interactive prompt)
+cd apps/demo && npm run lint
 
 # demo production build
 cd apps/demo && npm run build
@@ -74,7 +77,12 @@ types.ts ── schema (StepTone, StepwiseStep, TourStepInput, Chapter)
 CORE      use-steps.ts      THE primitive: clamped cursor, stable callbacks,
                             re-clamps when count changes
 POLICIES  use-step-player   timer, speed, seek, #hash deep-link, engine port
-          use-guided-tour   onEnter effects over app state, driver port
+          use-guided-tour   onEnter effects over app state, driver port;
+                            conditional tours: when (skip), gate (block next,
+                            exposes `blocked`), next edges by step id, gotoId
+          use-discoveries   persisted discovery ledger (localStorage default,
+                            cookie/memory seams) — pair with a tour for
+                            show-once feature tutorials
           use-chapters      scroll → cursor (viewport-center containment)
           use-global-keys / use-focus-trap / use-prefers-reduced-motion
 PRESENT   components.tsx    PlayerBar, StepScrubber (groupOf!), ChapterNav,
@@ -135,12 +143,35 @@ What each page must keep showcasing (the feature matrix):
 
 | Page       | Showcases                                                                      |
 |------------|--------------------------------------------------------------------------------|
-| `/`        | Landing linking all demos                                                      |
+| `/`        | SaaS landing: live hero player (`HeroPlayer`), one-primitive band, feature grid, theming section, light/dark toggle |
 | `/eviction`| `useStepPlayer` autoPlay, `PlayerBar`, `useGlobalKeys`, `CodeBlock`, tones     |
 | `/tour`    | `useGuidedTour` + `TourSpotlight` + `TourCard`, id targets, `waitHint`, live interactive step |
+| `/discovery`| `useDiscoveries` ledger auto-starts a tour once; `when` skips done steps, `gate` blocks Next, reset/replay controls |
 | `/glossary`| `Term` chains (HTTP→HTTPS→TLS→CA hits the depth cap), appendix auto-injection + `intro` |
 | `/scroll`  | `useChapters` center tracking, scrubber `groupOf` sub-chapter grouping, recursive `ChapterNav`, glossary tooltips + auto-appendix with `intro`/`footer` |
-| `/minimal` | Bare `PlayerBar`, custom labels, **light theme** (proves theme is injected, not baked in) |
+| `/minimal` | Bare `PlayerBar`, custom labels, **standalone light theme** (proves theme is injected, not baked in) |
+
+## Demo site theming (apps/demo)
+
+The demo is dark-first with a real light/dark toggle, and the mechanism IS
+the library's theming story:
+
+- `app/globals.css` — two CSS-variable palettes; `[data-theme="light"]`
+  overrides `:root`. An inline pre-paint script in `layout.tsx` sets
+  `data-theme` from localStorage / `prefers-color-scheme` (no flash).
+- `app/site-themes.ts` — the two `StepwiseTheme` objects (per-mode tokens).
+  **No "use client"** — pure data, so server components (the landing) can
+  import them.
+- `app/theme-provider.tsx` — client context (`useSiteTheme()`), persists the
+  mode, exposes `ThemeToggle`. Demo pages pass `theme` from the context into
+  every library component.
+- The landing's code sample stays dark in both modes via literal-color panel
+  tokens + a scoped `style={{ "--foreground": … }}` override around it.
+- The scroll page's sticky scrubber bar sits at `top-14` to clear the global
+  `SiteHeader` (sticky, h-14, z-50).
+- Screenshots: headless Edge `--blink-settings=preferredColorScheme=1` forces
+  light — pass a dedicated `--user-data-dir` or a still-running previous
+  instance can swallow the flag and render dark.
 
 ## Verification playbook
 
@@ -161,6 +192,9 @@ What each page must keep showcasing (the feature matrix):
    `Get-Process` has no `CommandLine`; a stale server serves stale CSS and
    fakes "the fix didn't work".
 
+CI (`.github/workflows/ci.yml`) runs the same sequence on every push/PR:
+install → build library → test library → lint demo → build demo.
+
 ## Known debt / next moves
 
 - **Portfolio sync debt**: the portfolio repo (`custom_portfolio/lib/stepwise/`)
@@ -171,10 +205,14 @@ What each page must keep showcasing (the feature matrix):
 - Not yet on GitHub / npm / Vercel. Vercel import: **Root Directory =
   `apps/demo`**. `next.config.ts` in the portfolio carries
   `ignoreBuildErrors`/`ignoreLint` — don't copy that habit here.
+  **Before publishing**: the `repository`/`homepage`/`bugs` URLs in
+  `packages/stepwise/package.json`, `SITE_URL` in `apps/demo/app/layout.tsx`,
+  and the LICENSE copyright line are placeholders — fill in the real ones.
 - No E2E tests; the "verification playbook" is manual. Playwright would slot
   in naturally against the demo pages.
-- Consider renaming `/eviction` → `/player` and adding `exports` for
-  `./adapters/*` so adapter imports don't pull driver.js types into bundles.
+- Consider renaming `/eviction` → `/player`. (The adapter `exports` split is
+  done: `./adapters/*` are subpath exports and the root barrel imports no
+  adapter code, so optional peers are never required imports.)
 
 ## Where to look first
 

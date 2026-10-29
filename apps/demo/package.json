@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "eslint ."
   },
   "dependencies": {
     "@sphynx/stepwise": "*",
@@ -16,8 +16,11 @@
     "lucide-react": "^0.454.0"
   },
   "devDependencies": {
+    "@eslint/eslintrc": "^3.1.0",
     "@types/react": "^19.0.0",
     "@types/node": "^22.0.0",
+    "eslint": "^9.0.0",
+    "eslint-config-next": "^15.2.4",
     "typescript": "^5.0.0",
     "tailwindcss": "^4.1.0",
     "@tailwindcss/postcss": "^4.1.0",

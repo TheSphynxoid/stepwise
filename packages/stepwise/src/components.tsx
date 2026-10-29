@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ButtonHTMLAttributes, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { cn } from "./cn";
 import { flattenChapters } from "./flatten";
 import { defaultTheme, type StepwiseTheme } from "./theme";
@@ -30,14 +31,22 @@ function StepButton({
 
 // ─── Code block ──────────────────────────────────────────────────────────────
 
-export function CodeBlock({ lines }: { lines: string[] }) {
+export function CodeBlock({
+  lines,
+  theme = defaultTheme,
+  className,
+}: {
+  lines: string[];
+  theme?: StepwiseTheme;
+  className?: string;
+}) {
   return (
-    <div className="rounded-sm border border-white/10 bg-black/40 px-2.5 py-2 font-mono text-[11px] leading-5 overflow-x-auto">
+    <div className={cn(theme.codeBlock, className)}>
       {lines.map((line, i) => {
         const commentStart = line.indexOf("//");
         if (commentStart === 0) {
           return (
-            <div key={i} className="whitespace-pre text-foreground/35">
+            <div key={i} className={cn("whitespace-pre", theme.codeMuted)}>
               {line}
             </div>
           );
@@ -46,7 +55,7 @@ export function CodeBlock({ lines }: { lines: string[] }) {
           return (
             <div key={i} className="whitespace-pre">
               <span className="text-foreground/85">{line.slice(0, commentStart)}</span>
-              <span className="text-foreground/35">{line.slice(commentStart)}</span>
+              <span className={theme.codeMuted}>{line.slice(commentStart)}</span>
             </div>
           );
         }
@@ -122,7 +131,7 @@ export function StepScrubber({
   if (count === 0) {
     return (
       <div className={cn("flex-1 flex items-center min-w-0", className)}>
-        {emptyHint && <span className="text-xs font-mono text-foreground/40 px-2">{emptyHint}</span>}
+        {emptyHint && <span className={cn("text-xs font-mono px-2", theme.muted)}>{emptyHint}</span>}
       </div>
     );
   }
@@ -198,7 +207,8 @@ export function PlayerBar({
   onEmpty,
   emptyHint,
   className,
-  theme,
+  theme = defaultTheme,
+  groupOf,
   labels,
 }: {
   player: {
@@ -219,6 +229,11 @@ export function PlayerBar({
   emptyHint?: string;
   className?: string;
   theme?: StepwiseTheme;
+  /**
+   * Forwarded to the scrubber — group consecutive segments into one
+   * proportional wrapper (see StepScrubber).
+   */
+  groupOf?: (i: number) => number;
   labels?: {
     previous?: string;
     play?: string;
@@ -256,8 +271,9 @@ export function PlayerBar({
         onSeek={(i) => player.seek(i)}
         emptyHint={emptyHint}
         theme={theme}
+        groupOf={groupOf}
       />
-      <span className="text-[10px] font-mono text-foreground/40 w-11 text-right shrink-0">
+      <span className={cn("text-[10px] font-mono w-11 text-right shrink-0", theme.muted)}>
         {player.total > 0 ? `${player.index + 1}/${player.total}` : "—"}
       </span>
     </div>
@@ -272,12 +288,14 @@ export function ChapterNav({
   onNavigate,
   hint,
   className,
+  theme = defaultTheme,
 }: {
   chapters: Chapter[];
   active: number;
   onNavigate: (i: number) => void;
   hint?: string;
   className?: string;
+  theme?: StepwiseTheme;
 }) {
   const flat = flattenChapters(chapters);
 
@@ -325,20 +343,21 @@ export function ChapterNav({
     <nav
       aria-label="Chapters"
       className={cn(
-        "sticky top-20 md:top-24 z-30 rounded-sm border border-white/10 bg-background/85 backdrop-blur-md shadow-[0_8px_24px_rgba(0,0,0,0.35)]",
+        "sticky top-20 md:top-24 z-30 rounded-sm shadow-[0_8px_24px_rgba(0,0,0,0.35)]",
+        theme.surface,
         className
       )}
     >
       <div className="p-1.5">
         <div className="flex items-center gap-1 overflow-x-auto">
-          <span className="shrink-0 px-2 text-[9px] font-mono uppercase tracking-widest text-foreground/30">
+          <span className={cn("shrink-0 px-2 text-[9px] font-mono uppercase tracking-widest", theme.muted)}>
             Chapters
           </span>
           {renderRow(chapters, 0)}
         </div>
         {hint && (
           <div className="flex justify-end px-2 pt-1.5">
-            <span className="text-[10px] font-mono text-foreground/30 hidden md:inline">{hint}</span>
+            <span className={cn("text-[10px] font-mono hidden md:inline", theme.muted)}>{hint}</span>
           </div>
         )}
       </div>
@@ -365,7 +384,6 @@ export function LessonPager({
     <div className={cn("flex items-center gap-2", className)}>
       <StepButton
         variant="outline"
-       
         onClick={() => onNavigate("prev")}
         disabled={!prev}
         title={prev?.hint ?? prev?.label}
@@ -376,7 +394,6 @@ export function LessonPager({
       </StepButton>
       <StepButton
         variant="outline"
-       
         onClick={() => onNavigate("next")}
         disabled={!next}
         title={next?.hint ?? next?.label}
@@ -391,7 +408,13 @@ export function LessonPager({
 
 // ─── Guided tour ─────────────────────────────────────────────────────────────
 
-export function TourSpotlight({ target }: { target: string | null }) {
+export function TourSpotlight({
+  target,
+  theme = defaultTheme,
+}: {
+  target: string | null;
+  theme?: StepwiseTheme;
+}) {
   const [rect, setRect] = useState<DOMRect | null>(null);
 
   useEffect(() => {
@@ -433,7 +456,7 @@ export function TourSpotlight({ target }: { target: string | null }) {
   return (
     <div className="fixed inset-0 z-40 pointer-events-none">
       <div
-        className="absolute rounded-sm ring-2 ring-primary/80 transition-all duration-300"
+        className={cn("absolute", theme.spotlight)}
         style={{
           top: rect.top - pad,
           left: rect.left - pad,
@@ -454,6 +477,9 @@ export function TourCard({
   onBack,
   onEnd,
   labels,
+  className,
+  theme = defaultTheme,
+  nextDisabled = false,
 }: {
   step: TourStepInput;
   index: number;
@@ -468,6 +494,10 @@ export function TourCard({
     finish?: string;
     end?: string;
   };
+  className?: string;
+  theme?: StepwiseTheme;
+  /** Disable the primary (Next/Finish) button — pair with tour.blocked. */
+  nextDisabled?: boolean;
 }) {
   const L = {
     title: labels?.title ?? "Guided tour",
@@ -485,7 +515,12 @@ export function TourCard({
       aria-modal="true"
       aria-label={`${L.title} · ${index + 1}/${total}`}
       tabIndex={-1}
-      className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[min(92vw,26rem)] border border-primary/30 bg-background/95 backdrop-blur-md rounded-sm p-4 shadow-2xl outline-none"
+      className={cn(
+        "fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[min(92vw,26rem)] rounded-sm p-4 outline-none",
+        theme.surface,
+        "border-primary/30 bg-background/95 shadow-2xl",
+        className
+      )}
     >
       <div className="flex items-center justify-between mb-2">
         <span className="text-[10px] font-mono uppercase tracking-widest text-primary/70">
@@ -507,7 +542,12 @@ export function TourCard({
         <StepButton variant="outline" onClick={onBack} disabled={index === 0} className="h-7 px-3 text-[11px]">
           {L.back}
         </StepButton>
-        <StepButton variant="primary" onClick={onNext} className="h-7 px-4 text-[11px] ml-auto">
+        <StepButton
+          variant="primary"
+          onClick={onNext}
+          disabled={nextDisabled}
+          className="h-7 px-4 text-[11px] ml-auto"
+        >
           {index === total - 1 ? L.finish : L.next}
         </StepButton>
       </div>
@@ -522,20 +562,52 @@ export function ShortcutsDialog({
   onClose,
   items,
   title = "Keyboard shortcuts",
+  className,
+  theme = defaultTheme,
 }: {
   open: boolean;
   onClose: () => void;
   items: ShortcutItem[];
   title?: string;
+  className?: string;
+  theme?: StepwiseTheme;
 }) {
-  if (!open) return null;
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={onClose}>
+  // SSR-safe portal: render only after mount (invariant: no portals during
+  // SSR), and hooks run unconditionally before the early return.
+  const [mounted, setMounted] = useState(false);
+  const trapRef = useFocusTrap(open);
+
+  useEffect(() => setMounted(true), []);
+
+  // Escape closes from anywhere; Tab containment comes from the focus trap.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+
+  if (!open || !mounted) return null;
+
+  return createPortal(
+    <div
+      className={cn("fixed inset-0 z-50 flex items-center justify-center p-4", theme.overlay, className)}
+      onClick={onClose}
+    >
       <div
+        ref={trapRef}
         role="dialog"
+        aria-modal="true"
         aria-label={title}
+        tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md border border-white/15 bg-card rounded-sm p-5 shadow-2xl"
+        className={cn(
+          "w-full max-w-md rounded-sm p-5 shadow-2xl outline-none",
+          theme.surface,
+          "border-white/15 bg-card"
+        )}
       >
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg text-primary">{title}</h3>
@@ -552,16 +624,15 @@ export function ShortcutsDialog({
           {items.map((s) => (
             <div key={s.keys} className="flex items-center justify-between gap-4">
               <dt>
-                <kbd className="font-mono text-[10px] px-1.5 py-0.5 border border-white/20 bg-white/5 rounded-sm text-foreground/80">
-                  {s.keys}
-                </kbd>
+                <kbd className={theme.kbd}>{s.keys}</kbd>
               </dt>
               <dd className="font-mono text-[11px] text-foreground/60 text-right">{s.action}</dd>
             </div>
           ))}
         </dl>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

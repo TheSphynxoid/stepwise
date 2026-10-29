@@ -14,6 +14,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "./cn";
+import { defaultTheme, type StepwiseTheme } from "./theme";
 
 // Glossary + Paradox-style recursive tooltips. Define entries once, reference
 // them inline with <Term id="…">; definitions are ReactNode, so they may
@@ -37,16 +38,27 @@ interface GlossaryContextValue {
   byId: Map<string, GlossaryEntry>;
   /** Original declaration order — the auto-appendix renders this. */
   entries: GlossaryEntry[];
+  /** Theme for the tooltip card; injectable per provider. */
+  theme: StepwiseTheme;
 }
 
 const GlossaryContext = createContext<GlossaryContextValue | null>(null);
 const DepthContext = createContext(0);
 const AppendixContext = createContext(false);
 
-export function GlossaryProvider({ entries, children }: { entries: GlossaryEntry[]; children: ReactNode }) {
+export function GlossaryProvider({
+  entries,
+  theme = defaultTheme,
+  children,
+}: {
+  entries: GlossaryEntry[];
+  /** Styling for tooltip cards (see StepwiseTheme). */
+  theme?: StepwiseTheme;
+  children: ReactNode;
+}) {
   const value = useMemo(
-    () => ({ byId: new Map(entries.map((e) => [e.id, e])), entries }),
-    [entries]
+    () => ({ byId: new Map(entries.map((e) => [e.id, e])), entries, theme }),
+    [entries, theme]
   );
   return <GlossaryContext.Provider value={value}>{children}</GlossaryContext.Provider>;
 }
@@ -164,6 +176,7 @@ export function Term({ id, children, className }: { id: string; children?: React
   const capped = depth >= MAX_DEPTH;
   const inAppendix = useContext(AppendixContext);
   const interactive = !capped && !inAppendix;
+  const t = ctx?.theme ?? defaultTheme;
 
   // Inside a glossary appendix, references become anchor links to the entry's
   // row instead of nested tooltips.
@@ -250,8 +263,10 @@ export function Term({ id, children, className }: { id: string; children?: React
               onMouseEnter={interactive ? () => window.clearTimeout(closeTimer.current) : undefined}
               onMouseLeave={interactive ? scheduleClose : undefined}
               className={cn(
-                "fixed z-50 block w-72 max-w-[calc(100vw-1rem)] rounded-sm border border-white/15 bg-popover p-3 shadow-2xl outline-none motion-reduce:transition-none",
+                "fixed z-50 block w-72 max-w-[calc(100vw-1rem)] rounded-sm p-3 shadow-2xl outline-none motion-reduce:transition-none",
                 "transition-opacity duration-150",
+                t.surface,
+                "border-white/15 bg-popover",
                 pos === null && "invisible"
               )}
               style={
@@ -313,6 +328,7 @@ export function GlossaryAppendix({
   renderEntry?: (entry: GlossaryEntry) => ReactNode;
 }) {
   const ctxEntries = useContext(GlossaryContext)?.entries;
+  const theme = useContext(GlossaryContext)?.theme ?? defaultTheme;
   const list = entries ?? ctxEntries;
 
   if (!list || list.length === 0) return null;
@@ -361,7 +377,7 @@ export function GlossaryAppendix({
   return (
     <AppendixContext.Provider value={true}>
       <section aria-label={title} className={cn("mt-16 border-t border-white/10 pt-10", className)}>
-        <p className="text-[11px] font-mono uppercase tracking-widest text-foreground/40 mb-6">{title}</p>
+        <p className={cn("text-[11px] font-mono uppercase tracking-widest mb-6", theme.muted)}>{title}</p>
         {body}
       </section>
     </AppendixContext.Provider>

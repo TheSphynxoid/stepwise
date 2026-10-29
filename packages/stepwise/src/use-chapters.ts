@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSteps } from "./use-steps";
 import { flattenChapters } from "./flatten";
 import type { Chapter } from "./types";
@@ -25,22 +25,30 @@ export { flattenChapters };
  */
 export function useChapters(chapters: Chapter[]): ChaptersApi {
   const [mounted, setMounted] = useState(false);
-  const chaptersRef = useRef(chapters);
-  chaptersRef.current = chapters;
+  const flat = useMemo(() => flattenChapters(chapters), [chapters]);
+  const flatRef = useRef(flat);
+  flatRef.current = flat;
   const [active, setActive] = useState(0);
   const activeRef = useRef(0);
   activeRef.current = active;
 
-  const flatCount = flattenChapters(chapters).length;
-  const core = useSteps(flatCount, { initialIndex: 0 });
+  const core = useSteps(flat.length, { initialIndex: 0 });
+  // core.go is referentially stable; the tracker reaches it through a ref so
+  // the effect below never depends on the core identity (which churns with
+  // the index).
+  const coreGoRef = useRef(core.go);
+  coreGoRef.current = core.go;
 
-  // Scroll → cursor (external input drives the sequence).
+  // Scroll → cursor (external input drives the sequence). Depending only on
+  // `mounted` (+ the chapter count) matters: if this effect re-ran on every
+  // cursor change, a programmatic goTo would be snapped back to the rect-
+  // derived chapter before the smooth scroll has moved the viewport.
   useEffect(() => {
     if (!mounted) return;
     let raf = 0;
     const update = () => {
       raf = 0;
-      const flat = flattenChapters(chaptersRef.current);
+      const flat = flatRef.current;
       const mid = window.innerHeight / 2;
       let best = -1;
       for (let i = 0; i < flat.length; i++) {
@@ -60,7 +68,7 @@ export function useChapters(chapters: Chapter[]): ChaptersApi {
       }
       if (best !== activeRef.current) {
         setActive(best);
-        core.go(best);
+        coreGoRef.current(best);
       }
     };
     const onScroll = () => {
@@ -74,30 +82,26 @@ export function useChapters(chapters: Chapter[]): ChaptersApi {
       window.removeEventListener("resize", onScroll);
       if (raf) cancelAnimationFrame(raf);
     };
-  }, [mounted, core]);
+  }, [mounted, flat.length]);
 
   useEffect(() => setMounted(true), []);
 
-  const goTo = useCallback(
-    (i: number) => {
-      const flat = flattenChapters(chaptersRef.current);
-      const entry = flat[i];
-      if (!entry) return;
-      setActive(i);
-      core.go(i);
-      const el = document.getElementById(entry.chapter.id);
-      if (!el) return;
-      el.scrollIntoView({ behavior: "smooth", block: "start" });
-    },
-    [core]
-  );
+  const goTo = useCallback((i: number) => {
+    const entry = flatRef.current[i];
+    if (!entry) return;
+    setActive(i);
+    coreGoRef.current(i);
+    const el = document.getElementById(entry.chapter.id);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
 
   const next = useCallback(() => {
-    if (core.canNext) goTo(activeRef.current + 1);
-  }, [goTo, core]);
+    if (activeRef.current < flatRef.current.length - 1) goTo(activeRef.current + 1);
+  }, [goTo]);
   const prev = useCallback(() => {
-    if (core.canPrev) goTo(activeRef.current - 1);
-  }, [goTo, core]);
+    if (activeRef.current > 0) goTo(activeRef.current - 1);
+  }, [goTo]);
 
   return { active: core.index, goTo, next, prev };
 }

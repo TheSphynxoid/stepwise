@@ -18,10 +18,17 @@
 //   theme.ts          — injectable default styling for the styled components
 //   components        — PlayerBar, StepScrubber, CodeBlock, ChapterNav,
 //                       LessonPager, TourSpotlight, TourCard, ShortcutsDialog
-//   adapters/         — optional integrations via the ports:
-//     gsap.ts           PlayerEngine driven by a GSAP tween (GSAP is a peer)
-//     driver-js.ts      TourDriver backed by driver.js (driver.js is a peer)
-//     scroll.ts         PlayerEngine driven by scroll progress (dependency-free)
+//   adapters/         — optional integrations via the ports, imported from
+//                       dedicated subpaths (NOT the root barrel — the barrel
+//                       stays dependency-free so optional peers never become
+//                       required imports):
+//     @sphynx/stepwise/adapters/gsap       PlayerEngine driven by a GSAP tween
+//     @sphynx/stepwise/adapters/driver-js  TourDriver backed by driver.js
+//     @sphynx/stepwise/adapters/scroll     PlayerEngine driven by scroll progress
+//
+//   use-discoveries   — persisted discovery ledger + storage seam: pair with
+//                       useGuidedTour for show-once tutorials and led
+//                       discovery (auto-start the first undiscovered tour).
 //
 // Consumers own the domain: produce an array of steps (the trace) from their
 // engine, then present it with the player; tours receive callbacks that drive
@@ -55,6 +62,8 @@ export type { ChaptersApi } from "./use-chapters";
 export type { FlatChapter } from "./flatten";
 export { useGlobalKeys } from "./use-global-keys";
 export type { GlobalKeysOptions, KeyMap } from "./use-global-keys";
+export { useDiscoveries, localStorageStore, cookieStore, memoryStore } from "./use-discoveries";
+export type { DiscoveryStore, Discoveries, DiscoveriesOptions } from "./use-discoveries";
 export { useFocusTrap } from "./use-focus-trap";
 export { usePrefersReducedMotion } from "./use-prefers-reduced-motion";
 export { GlossaryProvider, Term, GlossaryAppendix } from "./glossary";
@@ -73,9 +82,3 @@ export {
   TourCard,
   TourSpotlight,
 } from "./components";
-export { createGsapPlayerEngine } from "./adapters/gsap";
-export type { GsapEngineOptions } from "./adapters/gsap";
-export { createDriverJsTourDriver } from "./adapters/driver-js";
-export type { DriverJsTourOptions } from "./adapters/driver-js";
-export { createScrollPlayerEngine } from "./adapters/scroll";
-export type { ScrollEngineOptions } from "./adapters/scroll";

@@ -20,6 +20,24 @@ export interface TourStepInput {
   target?: string;
   onEnter?: () => void;
   waitHint?: string;
+  /**
+   * Conditional step: when it returns false, the cursor never lands here —
+   * arrival walks past it in the direction of travel. Evaluated on arrival
+   * only (event-driven), not on every render.
+   */
+  when?: () => boolean;
+  /**
+   * Guard: while it returns false, `next()` is a no-op and the tour reports
+   * `blocked` — "do this before continuing". Only restricts `next`;
+   * goto/gotoId remain free (programmatic navigation).
+   */
+  gate?: () => boolean;
+  /**
+   * Edge override: advance to the step with this id instead of index+1.
+   * Return null (or omit) for linear order. Enables branching and loops;
+   * an edge from the last step keeps the tour alive instead of exiting.
+   */
+  next?: () => string | null;
 }
 
 export interface ShortcutItem {

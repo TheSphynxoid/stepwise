@@ -3,6 +3,28 @@
   "version": "0.1.0",
   "description": "A kit for interactive, narrated, step-driven visualizations — one primitive (useSteps) at every scale.",
   "license": "MIT",
+  "author": "The Sphynx <jmail.hamza@gmail.com>",
+  "homepage": "https://github.com/TheSphynxoid/stepwise#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TheSphynxoid/stepwise.git"
+  },
+  "bugs": "https://github.com/TheSphynxoid/stepwise/issues",
+  "keywords": [
+    "react",
+    "hooks",
+    "step",
+    "player",
+    "tour",
+    "guided-tour",
+    "scrollytelling",
+    "chapters",
+    "visualization",
+    "interactive",
+    "narrated",
+    "glossary",
+    "tailwind"
+  ],
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -10,13 +32,32 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./adapters/gsap": {
+      "types": "./dist/adapters/gsap.d.ts",
+      "import": "./dist/adapters/gsap.js"
+    },
+    "./adapters/driver-js": {
+      "types": "./dist/adapters/driver-js.d.ts",
+      "import": "./dist/adapters/driver-js.js"
+    },
+    "./adapters/scroll": {
+      "types": "./dist/adapters/scroll.d.ts",
+      "import": "./dist/adapters/scroll.js"
     }
   },
-  "files": ["dist"],
+  "sideEffects": [
+    "./dist/adapters/driver-js.js"
+  ],
+  "files": ["dist", "README.md"],
   "scripts": {
-    "build": "tsup src/index.ts --format esm --dts --external react --external react-dom --external driver.js --external gsap",
+    "build": "tsup",
     "test": "vitest run",
+    "prepublishOnly": "npm run test && npm run build",
     "clean": "rimraf dist"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "peerDependencies": {
     "react": "^18.0.0 || ^19.0.0",
