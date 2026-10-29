@@ -1,0 +1,6 @@
+{
+  "buildCommand": "npm run build -w @sphynx/stepwise && npm run build -w @stepwise/demo",
+  "outputDirectory": "apps/demo/.next",
+  "installCommand": "npm install",
+  "framework": "nextjs"
+}
