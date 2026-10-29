@@ -156,6 +156,120 @@ describe("useStepPlayer — deep linking", () => {
   });
 });
 
+describe("useStepPlayer — end state", () => {
+  it("ended becomes true when the timer plays through the final frame", () => {
+    vi.useFakeTimers();
+    const { result } = renderHook(() =>
+      useStepPlayer({ total: 2, autoPlay: true, baseDelayMs: 100 })
+    );
+    act(() => {
+      vi.advanceTimersByTime(200);
+    });
+    expect(result.current.index).toBe(1);
+    expect(result.current.atEnd).toBe(true);
+    expect(result.current.ended).toBe(true);
+    expect(result.current.playing).toBe(false);
+  });
+
+  it("onEnd fires exactly once per playthrough", () => {
+    vi.useFakeTimers();
+    const onEnd = vi.fn();
+    const { result } = renderHook(() =>
+      useStepPlayer({ total: 3, autoPlay: true, baseDelayMs: 100, onEnd })
+    );
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
+    expect(result.current.ended).toBe(true);
+    expect(onEnd).toHaveBeenCalledTimes(1);
+  });
+
+  it("seeking to the last frame does NOT set ended (that's what atEnd is for)", () => {
+    const { result } = renderHook(() => useStepPlayer({ total: 3 }));
+    act(() => result.current.seek(2));
+    expect(result.current.atEnd).toBe(true);
+    expect(result.current.ended).toBe(false);
+  });
+
+  it("any cursor movement clears ended", () => {
+    vi.useFakeTimers();
+    const { result } = renderHook(() =>
+      useStepPlayer({ total: 2, autoPlay: true, baseDelayMs: 100 })
+    );
+    act(() => {
+      vi.advanceTimersByTime(200);
+    });
+    expect(result.current.ended).toBe(true);
+
+    act(() => result.current.seek(0));
+    expect(result.current.ended).toBe(false);
+
+    act(() => result.current.toggle()); // resume from frame 0
+    act(() => {
+      vi.advanceTimersByTime(100);
+    });
+    // played through again — ended until the next movement
+    expect(result.current.ended).toBe(true);
+    act(() => result.current.prev());
+    expect(result.current.ended).toBe(false);
+  });
+
+  it("toggle() at end replays and clears ended", () => {
+    vi.useFakeTimers();
+    const { result } = renderHook(() =>
+      useStepPlayer({ total: 2, autoPlay: true, baseDelayMs: 100 })
+    );
+    act(() => {
+      vi.advanceTimersByTime(200);
+    });
+    act(() => result.current.toggle());
+    expect(result.current.ended).toBe(false);
+    expect(result.current.index).toBe(0);
+    expect(result.current.playing).toBe(true);
+  });
+
+  it("engine onEnd sets ended and fires the callback; repeats are idempotent", () => {
+    const fake = createFakeEngine();
+    const onEnd = vi.fn();
+    const { result } = renderHook(() =>
+      useStepPlayer({ total: 3, engine: fake.engine, autoPlay: true, onEnd })
+    );
+    act(() => fake.emitEnd());
+    act(() => fake.emitEnd());
+    act(() => fake.emitEnd());
+    expect(result.current.ended).toBe(true);
+    expect(result.current.playing).toBe(false);
+    expect(onEnd).toHaveBeenCalledTimes(1);
+  });
+
+  it("engine frames reaching the last frame alone do not mark ended", () => {
+    const fake = createFakeEngine();
+    const { result } = renderHook(() =>
+      useStepPlayer({ total: 3, engine: fake.engine, autoPlay: true })
+    );
+    act(() => fake.emitFrame(2));
+    expect(result.current.atEnd).toBe(true);
+    expect(result.current.ended).toBe(false);
+  });
+
+  it("a new timeline clears completion", () => {
+    vi.useFakeTimers();
+    const { result, rerender } = renderHook(
+      ({ total }) => useStepPlayer({ total, autoPlay: true, baseDelayMs: 100 }),
+      { initialProps: { total: 2 } }
+    );
+    act(() => {
+      vi.advanceTimersByTime(200);
+    });
+    expect(result.current.ended).toBe(true);
+    rerender({ total: 5 });
+    expect(result.current.ended).toBe(false);
+  });
+});
+
 describe("useStepPlayer — custom engine", () => {
   it("connects on mount, frames drive the index, end pauses, disconnect on unmount", () => {
     const fake = createFakeEngine();

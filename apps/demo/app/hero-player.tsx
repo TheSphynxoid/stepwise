@@ -44,10 +44,17 @@ export function HeroPlayer() {
           <span className="ml-2 text-[11px] font-mono text-muted-foreground">
             release-pipeline - live player
           </span>
-          <span className="ml-auto flex items-center gap-1.5 text-[9px] font-mono uppercase tracking-widest text-accent">
-            <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
-            playing
-          </span>
+          {player.ended ? (
+            <span className="ml-auto flex items-center gap-1.5 text-[9px] font-mono uppercase tracking-widest text-accent">
+              <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+              complete
+            </span>
+          ) : (
+            <span className="ml-auto flex items-center gap-1.5 text-[9px] font-mono uppercase tracking-widest text-accent">
+              <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
+              playing
+            </span>
+          )}
         </div>
         <div className="p-4 space-y-3">
           <CodeBlock lines={cur.code} theme={theme} className="min-h-[64px]" />

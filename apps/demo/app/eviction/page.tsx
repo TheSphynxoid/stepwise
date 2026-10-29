@@ -100,6 +100,11 @@ export default function EvictionDemo() {
           <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
             <p className="text-sm font-semibold mb-2">{step.label}</p>
             <CodeBlock lines={step.code} theme={theme} />
+            {player.ended && (
+              <p className="mt-3 rounded-md border border-accent/40 bg-accent/10 px-3 py-2 text-[11px] font-mono text-accent">
+                sorted - playback complete (ended). Step or seek to clear it.
+              </p>
+            )}
           </div>
         )}
       </div>

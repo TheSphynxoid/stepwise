@@ -27,6 +27,10 @@ export function createGsapPlayerEngine(opts: GsapEngineOptions): PlayerEngine {
       const last = Math.max(0, opts.total - 1);
       const proxy = { frame: 0 };
       const duration = Math.max(0.001, (opts.total * (opts.baseDelayMs ?? 900)) / 1000);
+      // Port contract: onEnd fires once per run, on the transition into the
+      // final frame — not on every parked tick. Rewinding (seek below the
+      // last frame) re-arms it.
+      let endFired = false;
       const tween = gsap.to(proxy, {
         frame: last,
         duration,
@@ -35,7 +39,10 @@ export function createGsapPlayerEngine(opts: GsapEngineOptions): PlayerEngine {
         onUpdate: () => {
           const frame = Math.min(Math.max(Math.floor(proxy.frame), 0), api.total - 1);
           api.onFrame(frame);
-          if (frame >= api.total - 1) api.onEnd();
+          if (!endFired && frame >= api.total - 1) {
+            endFired = true;
+            api.onEnd();
+          }
         },
       });
       return {
@@ -47,6 +54,7 @@ export function createGsapPlayerEngine(opts: GsapEngineOptions): PlayerEngine {
         },
         seek: (frame) => {
           tween.pause(Math.min(frame, last));
+          if (frame < last) endFired = false;
         },
         setRate: (rate) => {
           tween.timeScale(rate);

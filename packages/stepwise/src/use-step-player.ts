@@ -22,6 +22,12 @@ export interface StepPlayerOptions {
    * The initial hash is honored once on mount.
    */
   syncHash?: string;
+  /**
+   * Fired once when playback runs to the final frame on its own (built-in
+   * timer or engine `onEnd`). Cleared by any cursor movement (seek/step/
+   * reset/new timeline) — the next full playthrough fires it again.
+   */
+  onEnd?: () => void;
 }
 
 export interface StepPlayer {
@@ -33,7 +39,14 @@ export interface StepPlayer {
   index: number;
   playing: boolean;
   speed: number;
+  /** Position flag: the cursor is parked on the final frame (seek counts too). */
   atEnd: boolean;
+  /**
+   * Completion state: playback ran to the final frame on its own and nothing
+   * has moved the cursor since. Unlike `atEnd`, a seek to the last frame does
+   * not set it — `toggle()` at `ended` replays from frame 0.
+   */
+  ended: boolean;
   /** Jump to frame 0 and play. */
   start: () => void;
   /** Clear the player (frame = -1, paused). */
@@ -49,11 +62,30 @@ export interface StepPlayer {
   setSpeed: (speed: number) => void;
 }
 
-export function useStepPlayer({ total, baseDelayMs = 900, autoPlay = false, engine, syncHash }: StepPlayerOptions): StepPlayer {
+export function useStepPlayer({ total, baseDelayMs = 900, autoPlay = false, engine, syncHash, onEnd }: StepPlayerOptions): StepPlayer {
   const core = useSteps(total);
   const [started, setStarted] = useState(autoPlay && total > 0);
   const [playing, setPlaying] = useState(autoPlay && total > 0);
   const [speed, setSpeed] = useState(1);
+  const [ended, setEnded] = useState(false);
+  const endedRef = useRef(false);
+  const onEndRef = useRef(onEnd);
+  onEndRef.current = onEnd;
+
+  // Completion transitions are idempotent: adapters may repeat `onEnd`
+  // (the port allows it); the option callback fires once per run.
+  const markEnded = useCallback(() => {
+    if (endedRef.current) return;
+    endedRef.current = true;
+    setEnded(true);
+    onEndRef.current?.();
+  }, []);
+
+  const clearEnded = useCallback(() => {
+    if (!endedRef.current) return;
+    endedRef.current = false;
+    setEnded(false);
+  }, []);
 
   const index = started && core.index >= 0 ? core.index : -1;
   const atEnd = total > 0 && index >= 0 && index >= total - 1;
@@ -77,7 +109,10 @@ export function useStepPlayer({ total, baseDelayMs = 900, autoPlay = false, engi
         return totalRef.current;
       },
       onFrame: (f) => core.go(f),
-      onEnd: () => setPlaying(false),
+      onEnd: () => {
+        markEnded();
+        setPlaying(false);
+      },
     });
     engineApiRef.current = {
       play: () => handle.play(),
@@ -97,6 +132,7 @@ export function useStepPlayer({ total, baseDelayMs = 900, autoPlay = false, engi
   const start = useCallback(() => {
     setStarted(true);
     setPlaying(true);
+    clearEnded();
     core.first();
     if (engineRef.current) {
       engineApiRef.current.seek?.(0);
@@ -107,21 +143,23 @@ export function useStepPlayer({ total, baseDelayMs = 900, autoPlay = false, engi
   const reset = useCallback(() => {
     setStarted(false);
     setPlaying(false);
+    clearEnded();
     if (engineRef.current) engineApiRef.current.pause?.();
-  }, []);
+  }, [clearEnded]);
 
   const seek = useCallback(
     (f: number) => {
       if (total === 0) return;
       setStarted(true);
       setPlaying(false);
+      clearEnded();
       core.go(Math.max(0, Math.min(f, total - 1)));
       if (engineRef.current) {
         engineApiRef.current.pause?.();
         engineApiRef.current.seek?.(f);
       }
     },
-    [total, core]
+    [total, core, clearEnded]
   );
 
   const next = useCallback(
@@ -132,23 +170,25 @@ export function useStepPlayer({ total, baseDelayMs = 900, autoPlay = false, engi
         return;
       }
       setStarted(true);
+      clearEnded();
       core.next();
       if (engineRef.current) {
         engineApiRef.current.pause?.();
         engineApiRef.current.seek?.(Math.min(core.index + 1, total - 1));
       }
     },
-    [total, core]
+    [total, core, clearEnded]
   );
 
   const prev = useCallback(() => {
     setPlaying(false);
+    clearEnded();
     core.prev();
     if (engineRef.current) {
       engineApiRef.current.pause?.();
       engineApiRef.current.seek?.(Math.max(0, core.index - 1));
     }
-  }, [core]);
+  }, [core, clearEnded]);
 
   const toggle = useCallback(
     (onEmpty?: () => void) => {
@@ -159,6 +199,7 @@ export function useStepPlayer({ total, baseDelayMs = 900, autoPlay = false, engi
       if (!playing && atEnd) {
         setStarted(true);
         setPlaying(true);
+        clearEnded();
         core.first();
         if (engineRef.current) {
           engineApiRef.current.seek?.(0);
@@ -174,7 +215,7 @@ export function useStepPlayer({ total, baseDelayMs = 900, autoPlay = false, engi
         else engineApiRef.current.pause?.();
       }
     },
-    [total, playing, atEnd, core]
+    [total, playing, atEnd, core, clearEnded]
   );
 
   const changeSpeed = useCallback((s: number) => {
@@ -182,17 +223,23 @@ export function useStepPlayer({ total, baseDelayMs = 900, autoPlay = false, engi
     if (engineRef.current) engineApiRef.current.rate?.(s);
   }, []);
 
+  // A new timeline wipes completion — the next playthrough ends it fresh.
+  useEffect(() => {
+    clearEnded();
+  }, [total, clearEnded]);
+
   // Built-in timer loop — skipped entirely when a custom engine takes over.
   useEffect(() => {
     if (engineRef.current) return;
     if (!playing || !started || total === 0) return;
     if (core.index >= total - 1) {
+      markEnded();
       setPlaying(false);
       return;
     }
     const id = setTimeout(() => core.next(), baseDelayMs / speed);
     return () => clearTimeout(id);
-  }, [playing, started, core, total, speed, baseDelayMs]);
+  }, [playing, started, core, total, speed, baseDelayMs, markEnded]);
 
   // Deep-linking: honor #<key>=<index> on mount and external hash edits only.
   // The hash values the player itself writes are ignored, and readHash never
@@ -239,6 +286,7 @@ export function useStepPlayer({ total, baseDelayMs = 900, autoPlay = false, engi
       playing,
       speed,
       atEnd,
+      ended,
       start,
       reset,
       seek,
@@ -248,6 +296,6 @@ export function useStepPlayer({ total, baseDelayMs = 900, autoPlay = false, engi
       setPlaying,
       setSpeed: changeSpeed,
     }),
-    [total, index, playing, speed, atEnd, start, reset, seek, next, prev, toggle, changeSpeed]
+    [total, index, playing, speed, atEnd, ended, start, reset, seek, next, prev, toggle, changeSpeed]
   );
 }

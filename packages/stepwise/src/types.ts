@@ -68,7 +68,12 @@ export interface PlayerEngineApi {
   readonly total: number;
   /** Engine → player: the playhead advanced to `frame` (0 ≤ frame < total). */
   onFrame(frame: number): void;
-  /** Engine → player: playback reached the end on its own; the player pauses. */
+  /**
+   * Engine → player: playback reached the end on its own — the player pauses
+   * and records completion. Fire on the transition INTO the final frame while
+   * playing, at most once per run; the player treats repeats as idempotent.
+   * Reaching the last frame via onFrame alone does not count — that's a seek.
+   */
   onEnd(): void;
 }
 

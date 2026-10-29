@@ -25,7 +25,7 @@ npm run build -w @sphynx/stepwise             # build library → packages/stepw
 npm run dev                                   # demo app (same as: npm run dev -w @stepwise/demo)
 
 # tests — run from the package directory, NOT the root
-cd packages/stepwise && npx vitest run        # 76 tests (14 useSteps, 15 player, 28 tour, 9 discoveries, 6 chapters, 4 flatten)
+cd packages/stepwise && npx vitest run        # 84 tests (14 useSteps, 23 player, 28 tour, 9 discoveries, 6 chapters, 4 flatten)
 
 # demo lint (eslint flat config, no interactive prompt)
 cd apps/demo && npm run lint
@@ -144,7 +144,7 @@ What each page must keep showcasing (the feature matrix):
 | Page       | Showcases                                                                      |
 |------------|--------------------------------------------------------------------------------|
 | `/`        | SaaS landing: live hero player (`HeroPlayer`), one-primitive band, feature grid, theming section, light/dark toggle |
-| `/eviction`| `useStepPlayer` autoPlay, `PlayerBar`, `useGlobalKeys`, `CodeBlock`, tones     |
+| `/eviction`| `useStepPlayer` autoPlay, `PlayerBar`, `useGlobalKeys`, `CodeBlock`, tones, `ended` completion banner |
 | `/tour`    | `useGuidedTour` + `TourSpotlight` + `TourCard`, id targets, `waitHint`, live interactive step |
 | `/discovery`| `useDiscoveries` ledger auto-starts a tour once; `when` skips done steps, `gate` blocks Next, reset/replay controls |
 | `/glossary`| `Term` chains (HTTP→HTTPS→TLS→CA hits the depth cap), appendix auto-injection + `intro` |

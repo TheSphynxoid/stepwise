@@ -31,6 +31,7 @@ const PLAYER_CODE = [
   '  const player = useStepPlayer({',
   '    total: FRAMES.length,',
   '    autoPlay: true,',
+  '    onEnd: () => console.log("done"),',
   '  });',
   '  const frame = FRAMES[Math.max(0, player.index)];',
   '',
@@ -38,6 +39,7 @@ const PLAYER_CODE = [
   '    <>',
   '      <CodeBlock lines={frame.code} />',
   '      <PlayerBar player={player} />',
+  '      {player.ended && <DoneBadge />}',
   '    </>  );',
   '} ',
 ];
@@ -60,6 +62,12 @@ function PlayerExample() {
       <p className="text-[11px] font-mono text-muted-foreground">
         frame {Math.max(0, player.index) + 1}/{PLAYER_FRAMES.length} - {frame.label}
       </p>
+      {player.ended && (
+        <p className="rounded-md border border-accent/40 bg-accent/10 px-3 py-2 text-[11px] font-mono leading-relaxed text-accent">
+          playback complete - ended is set and onEnd has fired. Replay moves the
+          cursor, which clears it.
+        </p>
+      )}
     </div>
   );
 }
