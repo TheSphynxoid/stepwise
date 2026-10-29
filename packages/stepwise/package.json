@@ -1,5 +1,5 @@
 {
-  "name": "@sphynx/stepwise",
+  "name": "@sphynxoid/stepwise",
   "version": "0.1.0",
   "description": "A kit for interactive, narrated, step-driven visualizations — one primitive (useSteps) at every scale.",
   "license": "MIT",

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import { useStepPlayer, useGlobalKeys, PlayerBar, CodeBlock, type StepTone } from "@sphynx/stepwise";
+import { useStepPlayer, useGlobalKeys, PlayerBar, CodeBlock, type StepTone } from "@sphynxoid/stepwise";
 import { useSiteTheme } from "../theme-provider";
 import { useCallback } from "react";
 

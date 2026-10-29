@@ -13,7 +13,7 @@ import {
   type Chapter,
   type GlossaryEntry,
   type StepTone,
-} from "@sphynx/stepwise";
+} from "@sphynxoid/stepwise";
 import { useCallback, useEffect, type ReactNode } from "react";
 import { useSiteTheme } from "../theme-provider";
 

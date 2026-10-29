@@ -9,7 +9,7 @@ import {
   TourSpotlight,
   TourCard,
   type TourStepInput,
-} from "@sphynx/stepwise";
+} from "@sphynxoid/stepwise";
 import { useSiteTheme } from "../theme-provider";
 import { useEffect, useRef, useState } from "react";
 

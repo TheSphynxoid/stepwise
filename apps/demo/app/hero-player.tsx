@@ -1,6 +1,6 @@
 "use client";
 
-import { CodeBlock, PlayerBar, useStepPlayer, type StepTone } from "@sphynx/stepwise";
+import { CodeBlock, PlayerBar, useStepPlayer, type StepTone } from "@sphynxoid/stepwise";
 import { useSiteTheme } from "./theme-provider";
 import { useCallback } from "react";
 
@@ -14,7 +14,7 @@ const FRAMES: Frame[] = [
   { tone: "write", label: "Build", code: ["$ npm run build", "// esm 41.7 kB - dts clean"] },
   { tone: "neutral", label: "Test", code: ["$ npm test", "// 76/76 passing - jsdom"] },
   { tone: "write", label: "Stage", code: ["$ npm pack --dry-run", "// dist + README + LICENSE"] },
-  { tone: "accent", label: "Publish", code: ["$ npm publish --access public", "// @sphynx/stepwise@0.1.0"] },
+  { tone: "accent", label: "Publish", code: ["$ npm publish --access public", "// @sphynxoid/stepwise@0.1.0"] },
   { tone: "good", label: "Live", code: ["// published - docs site live", "// runs in light and dark"] },
 ];
 

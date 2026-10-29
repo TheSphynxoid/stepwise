@@ -9,7 +9,7 @@ import {
   useStepPlayer,
   type StepTone,
   type TourStepInput,
-} from "@sphynx/stepwise";
+} from "@sphynxoid/stepwise";
 import { useSiteTheme } from "./theme-provider";
 import { darkCodePanelTheme } from "./site-themes";
 import { useState } from "react";

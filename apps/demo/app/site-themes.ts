@@ -1,4 +1,4 @@
-import { defaultTheme, type StepwiseTheme } from "@sphynx/stepwise";
+import { defaultTheme, type StepwiseTheme } from "@sphynxoid/stepwise";
 
 // The demo's two StepwiseTheme objects — pure data, NO "use client" here, so
 // both client components (theme-provider) and server components (landing)

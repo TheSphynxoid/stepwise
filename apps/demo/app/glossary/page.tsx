@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import { GlossaryProvider, GlossaryAppendix, Term } from "@sphynx/stepwise";
+import { GlossaryProvider, GlossaryAppendix, Term } from "@sphynxoid/stepwise";
 import { useSiteTheme } from "../theme-provider";
 
 const ENTRIES = [

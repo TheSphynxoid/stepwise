@@ -80,7 +80,7 @@ export function SiteFooter() {
                   GitHub
                 </a>
               </li>
-              <li><span className="font-mono text-[12px]">@sphynx/stepwise</span></li>
+              <li><span className="font-mono text-[12px]">@sphynxoid/stepwise</span></li>
               <li><span className="font-mono text-[12px]">MIT License</span></li>
               <li>
                 <Link href="/minimal" className="transition hover:text-primary">

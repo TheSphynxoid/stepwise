@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { Moon, Sun } from "lucide-react";
-import type { StepwiseTheme } from "@sphynx/stepwise";
+import type { StepwiseTheme } from "@sphynxoid/stepwise";
 import {
   SITE_THEME_STORAGE_KEY,
   darkStepwiseTheme,

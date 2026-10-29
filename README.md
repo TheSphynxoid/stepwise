@@ -6,7 +6,7 @@ Frames in a trace, chapters in a lesson, lessons in a notebook, and tour steps a
 
 ## Packages
 
-- `packages/stepwise` — the library (`@sphynx/stepwise`)
+- `packages/stepwise` — the library (`@sphynxoid/stepwise`)
 - `apps/demo` — the demo site (Next.js): bubble-sort player, guided tour, glossary chains, scroll-driven compiler pipeline with sub-chapters, minimal light-theme player
 
 ## Documentation
@@ -36,7 +36,7 @@ the source explicitly in your CSS entry:
 
 ```css
 @import "tailwindcss";
-@source "../node_modules/@sphynx/stepwise/src";
+@source "../node_modules/@sphynxoid/stepwise/src";
 ```
 
 Details, v3 setup, and the "everything is unstyled" troubleshooting checklist:

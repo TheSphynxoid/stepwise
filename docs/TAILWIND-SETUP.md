@@ -13,7 +13,7 @@ Register the library source explicitly in your CSS entry:
 
 ```css
 @import "tailwindcss";
-@source "../node_modules/@sphynx/stepwise/src";
+@source "../node_modules/@sphynxoid/stepwise/src";
 ```
 
 The `@source` path is **relative to the CSS file that declares it**. Count
@@ -43,7 +43,7 @@ Add the source to `content`:
 module.exports = {
   content: [
     "./app/**/*.{ts,tsx}",
-    "./node_modules/@sphynx/stepwise/src/**/*.{ts,tsx}",
+    "./node_modules/@sphynxoid/stepwise/src/**/*.{ts,tsx}",
   ],
   // ...
 };
@@ -109,5 +109,5 @@ remaining layout bug is in application code.
   stepwise** — the library uses only standard Tailwind + the semantic tokens
   above.
 - If you consume the package by path in a monorepo, you must still rebuild the
-  library (`npm run build -w @sphynx/stepwise`) because the app imports
+  library (`npm run build -w @sphynxoid/stepwise`) because the app imports
   `dist`, not `src` — stale `dist` mimics "my changes didn't apply".

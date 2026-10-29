@@ -6,7 +6,7 @@ debugging session.
 
 ## What this is
 
-`@sphynx/stepwise` — a small kit for interactive, narrated, step-driven
+`@sphynxoid/stepwise` — a small kit for interactive, narrated, step-driven
 visualizations. **One primitive at every scale**: `useSteps` is a clamped
 cursor over an ordered sequence; frames in a trace, chapters in a lesson,
 tour steps, and notebook lessons are all that cursor with different policies
@@ -21,7 +21,7 @@ layered on top. The demo site (`apps/demo`) is the living documentation.
 ```bash
 # from repo root
 npm install                                   # workspace install (root + all workspaces)
-npm run build -w @sphynx/stepwise             # build library → packages/stepwise/dist
+npm run build -w @sphynxoid/stepwise             # build library → packages/stepwise/dist
 npm run dev                                   # demo app (same as: npm run dev -w @stepwise/demo)
 
 # tests — run from the package directory, NOT the root
@@ -60,7 +60,7 @@ flow at the page bottom, the tour card is a full-width strip, the spotlight's
 
 ```css
 @import "tailwindcss";
-@source "../node_modules/@sphynx/stepwise/src";
+@source "../node_modules/@sphynxoid/stepwise/src";
 ```
 
 In this monorepo the demo does `@source "../../../packages/stepwise/src";` —
@@ -175,7 +175,7 @@ the library's theming story:
 
 ## Verification playbook
 
-1. Library: `npm run build -w @sphynx/stepwise` → "ESM ⚡ Build success" +
+1. Library: `npm run build -w @sphynxoid/stepwise` → "ESM ⚡ Build success" +
    "DTS ⚡ Build success". Tests from `packages/stepwise`.
 2. Demo: `cd apps/demo && npm run build` → "9/9 static pages" (7 routes).
 3. **Visual check via headless Edge** (Chrome is not installed here):

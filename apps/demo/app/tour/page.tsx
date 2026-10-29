@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import { useGuidedTour, TourSpotlight, TourCard, type TourStepInput } from "@sphynx/stepwise";
+import { useGuidedTour, TourSpotlight, TourCard, type TourStepInput } from "@sphynxoid/stepwise";
 import { useSiteTheme } from "../theme-provider";
 import { useState } from "react";
 

@@ -9,7 +9,7 @@ import {
   Play,
   Sparkles,
 } from "lucide-react";
-import { CodeBlock } from "@sphynx/stepwise";
+import { CodeBlock } from "@sphynxoid/stepwise";
 import { HeroPlayer } from "./hero-player";
 import { CodeDemo } from "./code-demo";
 import { ThemeToggle } from "./theme-provider";

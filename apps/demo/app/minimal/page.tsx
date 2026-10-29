@@ -8,7 +8,7 @@ import {
   defaultTheme,
   type StepTone,
   type StepwiseTheme,
-} from "@sphynx/stepwise";
+} from "@sphynxoid/stepwise";
 import { useCallback, useEffect } from "react";
 
 interface Frame {

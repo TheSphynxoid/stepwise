@@ -22,9 +22,9 @@
 //                       dedicated subpaths (NOT the root barrel — the barrel
 //                       stays dependency-free so optional peers never become
 //                       required imports):
-//     @sphynx/stepwise/adapters/gsap       PlayerEngine driven by a GSAP tween
-//     @sphynx/stepwise/adapters/driver-js  TourDriver backed by driver.js
-//     @sphynx/stepwise/adapters/scroll     PlayerEngine driven by scroll progress
+//     @sphynxoid/stepwise/adapters/gsap       PlayerEngine driven by a GSAP tween
+//     @sphynxoid/stepwise/adapters/driver-js  TourDriver backed by driver.js
+//     @sphynxoid/stepwise/adapters/scroll     PlayerEngine driven by scroll progress
 //
 //   use-discoveries   — persisted discovery ledger + storage seam: pair with
 //                       useGuidedTour for show-once tutorials and led

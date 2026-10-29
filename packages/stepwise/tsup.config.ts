@@ -2,7 +2,7 @@ import { defineConfig } from "tsup";
 
 // One entry per public subpath. The root barrel (src/index.ts) must stay free
 // of adapter imports so optional peers (gsap, driver.js) are never pulled in
-// by `import { … } from "@sphynx/stepwise"` — adapters are separate chunks
+// by `import { … } from "@sphynxoid/stepwise"` — adapters are separate chunks
 // behind the ./adapters/* export subpaths.
 export default defineConfig({
   entry: ["src/index.ts", "src/adapters/gsap.ts", "src/adapters/driver-js.ts", "src/adapters/scroll.ts"],

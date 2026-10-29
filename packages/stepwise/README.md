@@ -1,4 +1,4 @@
-# @sphynx/stepwise
+# @sphynxoid/stepwise
 
 A kit for interactive, narrated, step-driven visualizations — one primitive (`useSteps`) at every scale.
 
@@ -10,15 +10,15 @@ Frames in a trace, chapters in a lesson, lessons in a notebook, and tour steps a
 ## Install
 
 ```bash
-npm install @sphynx/stepwise
+npm install @sphynxoid/stepwise
 ```
 
 Optional adapters (install only what you use):
 
 ```bash
-npm install gsap        # @sphynx/stepwise/adapters/gsap
-npm install driver.js   # @sphynx/stepwise/adapters/driver-js
-# @sphynx/stepwise/adapters/scroll is dependency-free
+npm install gsap        # @sphynxoid/stepwise/adapters/gsap
+npm install driver.js   # @sphynxoid/stepwise/adapters/driver-js
+# @sphynxoid/stepwise/adapters/scroll is dependency-free
 ```
 
 ## Required: Tailwind CSS setup
@@ -30,7 +30,7 @@ completely unstyled.
 
 ```css
 @import "tailwindcss";
-@source "../node_modules/@sphynx/stepwise/src";
+@source "../node_modules/@sphynxoid/stepwise/src";
 ```
 
 Components are also fully usable without Tailwind if you bring your own
@@ -40,7 +40,7 @@ presentation — the hooks are headless.
 
 ```tsx
 "use client";
-import { useStepPlayer, PlayerBar, CodeBlock, type StepTone } from "@sphynx/stepwise";
+import { useStepPlayer, PlayerBar, CodeBlock, type StepTone } from "@sphynxoid/stepwise";
 
 const frames: { tone: StepTone; label: string; code: string[] }[] = [
   { tone: "write", label: "Initialize", code: ["let i = 0;"] },
@@ -111,9 +111,9 @@ The ledger is a set of opaque ids behind a `DiscoveryStore` seam: `localStorageS
 Import adapters from their subpaths — never from the root barrel:
 
 ```ts
-import { createGsapPlayerEngine } from "@sphynx/stepwise/adapters/gsap";
-import { createDriverJsTourDriver } from "@sphynx/stepwise/adapters/driver-js";
-import { createScrollPlayerEngine } from "@sphynx/stepwise/adapters/scroll";
+import { createGsapPlayerEngine } from "@sphynxoid/stepwise/adapters/gsap";
+import { createDriverJsTourDriver } from "@sphynxoid/stepwise/adapters/driver-js";
+import { createScrollPlayerEngine } from "@sphynxoid/stepwise/adapters/scroll";
 ```
 
 An adapter plugs into a tiny port (`PlayerEngine` / `TourDriver`), so you can write your own for Shepherd, Framer Motion, or anything else without touching the kit.
