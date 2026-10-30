@@ -14,7 +14,9 @@ layered on top. The demo site (`apps/demo`) is the living documentation.
 
 - **Library**: `packages/stepwise` (ESM, `"use client"` modules, React 18/19 peer)
 - **Demo**: `apps/demo` (Next.js 15, Tailwind v4, static prerender)
-- Status: v0.1.0, not yet published to npm; GitHub repo + Vercel not yet wired up.
+- Status: **published** as `@sphynxoid/stepwise@0.1.0` (npm, public, org
+  scope `sphynxoid`); GitHub at `TheSphynxoid/stepwise`; demo Vercel config
+  in `vercel.json`. The portfolio consumes the package (see "Known debt").
 
 ## Commands
 
@@ -195,19 +197,34 @@ the library's theming story:
 CI (`.github/workflows/ci.yml`) runs the same sequence on every push/PR:
 install → build library → test library → lint demo → build demo.
 
+## Releasing (npm)
+
+The package is live: **`@sphynxoid/stepwise`** on npm (org scope — the
+`@sphynx` name was taken; never rename casually, the portfolio pins it).
+
+```bash
+cd packages/stepwise
+npm version patch|minor|major   # bump + git tag (patch=fixes, minor=additive
+                                # API, major=breaking — avoid until 1.0)
+npm run release                 # publish (prepublishOnly runs tests + build;
+                                # 2FA OTP required — npm prompts, or use --otp)
+```
+
+Rules: never ship with failing tests (the gate catches it), never skip the
+bump (npm rejects republished versions), and `export *` additions are minor,
+signature changes are major while we're pre-1.0.
+
 ## Known debt / next moves
 
-- **Portfolio sync debt**: the portfolio repo (`custom_portfolio/lib/stepwise/`)
-  still carries an older fork — it lacks the tooltip below/above flip, the id
-  fallback in `TourSpotlight`, the appendix auto-injection API, center-based
-  `useChapters`, and grouped scrubber segments. Either port those back or
-  switch the portfolio to consume the package.
-- Not yet on GitHub / npm / Vercel. Vercel import: **Root Directory =
-  `apps/demo`**. `next.config.ts` in the portfolio carries
-  `ignoreBuildErrors`/`ignoreLint` — don't copy that habit here.
-  **Before publishing**: the `repository`/`homepage`/`bugs` URLs in
-  `packages/stepwise/package.json`, `SITE_URL` in `apps/demo/app/layout.tsx`,
-  and the LICENSE copyright line are placeholders — fill in the real ones.
+- **Portfolio integration: RESOLVED** — the portfolio consumes the npm
+  package: `lib/stepwise.ts` is a one-line re-export barrel
+  (`export * from "@sphynxoid/stepwise"`), the old fork is deleted, and
+  `app/globals.css` registers `@source "../node_modules/@sphynxoid/stepwise/dist"`.
+  The npm-page README still shows the pre-rename instructions from 0.1.0
+  (wrong scope + `src` path) — the corrected docs here ship with the next
+  publish.
+- Vercel: demo monorepo config is in `vercel.json`. `next.config.ts` in the
+  portfolio carries `ignoreBuildErrors`/`ignoreLint` — don't copy that habit here.
 - No E2E tests; the "verification playbook" is manual. Playwright would slot
   in naturally against the demo pages.
 - Consider renaming `/eviction` → `/player`. (The adapter `exports` split is
