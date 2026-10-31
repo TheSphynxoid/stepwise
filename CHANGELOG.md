@@ -5,6 +5,9 @@
 - **New**: `useTrace(steps, opts)` — a player bound to a typed trace. Returns `{ player, step, frame, toneAt, titleAt }`; `step` is frame 0 before playback starts, and the scrubber accessors are stable.
 - **New**: `StepwiseStep<Data>` is generic — carry your domain payload in the step type (`StepwiseStep<{ arr: number[] }>`). The default (`StepwiseStep`) is unchanged.
 - **New**: `useStepPlayer({ respectReducedMotion })` (default `true`) — with `autoPlay`, users who prefer reduced motion land on frame 0, paused.
+- **New**: `createTrace<Data>()` — a typed trace builder (`.step()`, `.length`, `.last()`, `.build()`) so traces are built at module scope without IIFEs. `build()` returns `StepwiseStep<Data>[]` snapshots.
+- **New**: `useSyncedTracks(tracks, opts)` — comparison mode: several traces under one player. Shorter tracks hold their last frame, or align steps on shared sync keys (`key`). Returns per-track views (`step`, `index`, `held`, `done`) plus stable `toneAt`/`titleAt`. `alignTracks` exposes the pure alignment.
+- **New**: `useLessonStream(count, opts)` — headless windowed notebook reader: mounts a window around the seed lesson, loads neighbours on approach, compensates the scroll for content prepended above the reader, and tracks the active lesson by viewport center. Composes with `ChapterNav` / `LessonPager`. `useFadeIn` fades streamed blocks in.
 - **Fix**: `useStepPlayer` and `useGuidedTour` control callbacks are now referentially stable (they were re-created every frame, breaking memoized children and effect deps). `useChapters` and `useGuidedTour` return memoized objects.
 - **Fix**: `syncHash` no longer overwrites the whole URL fragment — it updates only its own `key=value` part and keeps anchors and other keys. Keys are matched literally (previously interpolated into a regex unescaped).
 - **Docs**: npm README uses the `@sphynxoid` scope and the `dist` `@source` path.

@@ -27,7 +27,7 @@ npm run build -w @sphynxoid/stepwise             # build library → packages/st
 npm run dev                                   # demo app (same as: npm run dev -w @stepwise/demo)
 
 # tests — run from the package directory, NOT the root
-cd packages/stepwise && npx vitest run        # 98 tests (14 useSteps, 32 player, 29 tour, 9 discoveries, 6 chapters, 4 flatten, 4 trace)
+cd packages/stepwise && npx vitest run        # 121 tests (14 useSteps, 32 player, 29 tour, 9 discoveries, 6 chapters, 4 flatten, 4 trace, 11 synced tracks, 9 lesson stream, 3 createTrace)
 
 # demo lint (eslint flat config, no interactive prompt)
 cd apps/demo && npm run lint
@@ -75,12 +75,17 @@ bad paths). Details and verification steps: `docs/TAILWIND-SETUP.md`.
 ```
 types.ts ── schema (StepTone, StepwiseStep, TourStepInput, Chapter)
          └─ ports (PlayerEngine, TourDriver) — inversion points for adapters
+create-trace.ts ── createTrace<Data>().step(…).build(): typed module-scope
+                   traces without IIFEs (pure data, no React)
 
 CORE      use-steps.ts      THE primitive: clamped cursor, stable callbacks,
                             re-clamps when count changes
 POLICIES  use-step-player   timer, speed, seek, #hash deep-link, engine port,
                             reduced-motion autoPlay gate
           use-trace         player bound to a typed trace (step, toneAt/titleAt)
+          use-synced-tracks comparison mode: N traces under ONE player; hold
+                            the last frame or align on sync keys (alignTracks
+                            is the pure table)
           use-guided-tour   onEnter effects over app state, driver port;
                             conditional tours: when (skip), gate (block next,
                             exposes `blocked`), next edges by step id, gotoId
@@ -88,6 +93,9 @@ POLICIES  use-step-player   timer, speed, seek, #hash deep-link, engine port,
                             cookie/memory seams) — pair with a tour for
                             show-once feature tutorials
           use-chapters      scroll → cursor (viewport-center containment)
+          use-lesson-stream windowed notebook: approach loading, prepend
+                            scroll compensation, center-tracked active lesson
+                            (+ useFadeIn for streamed blocks)
           use-global-keys / use-focus-trap / use-prefers-reduced-motion
 PRESENT   components.tsx    PlayerBar, StepScrubber (groupOf!), ChapterNav,
                             LessonPager, TourSpotlight, TourCard,
@@ -129,7 +137,8 @@ Each of these encodes a bug we already fixed once:
    `useTrace(steps)` — its `step` already encodes this.
 6. **Demo traces are built at module scope** (IIFE or constants), never inside
    a component referencing a later `const` — that produced a TDZ crash
-   ("can't access lexical declaration before initialization").
+   ("can't access lexical declaration before initialization"). New traces
+   should use `createTrace<Data>()` (see `/compare`) instead of an IIFE.
 7. **All hooks are SSR-safe**: `"use client"` at top, portals only after mount,
    no `window` at module evaluation. Callbacks returned by public hooks are
    referentially stable (refs for fresh values, not re-created closures).
@@ -156,6 +165,7 @@ What each page must keep showcasing (the feature matrix):
 |------------|--------------------------------------------------------------------------------|
 | `/`        | SaaS landing: live hero player (`HeroPlayer`), one-primitive band, feature grid, theming section, light/dark toggle |
 | `/eviction`| `useStepPlayer` autoPlay, `PlayerBar`, `useGlobalKeys`, `CodeBlock`, tones, `ended` completion banner |
+| `/compare` | `useSyncedTracks` (bubble vs insertion sort under one player), hold vs align-by-pass toggle, traces built with `createTrace` |
 | `/tour`    | `useGuidedTour` + `TourSpotlight` + `TourCard`, id targets, `waitHint`, live interactive step |
 | `/discovery`| `useDiscoveries` ledger auto-starts a tour once; `when` skips done steps, `gate` blocks Next, reset/replay controls |
 | `/glossary`| `Term` chains (HTTP→HTTPS→TLS→CA hits the depth cap), appendix auto-injection + `intro` |
@@ -188,7 +198,7 @@ the library's theming story:
 
 1. Library: `npm run build -w @sphynxoid/stepwise` → "ESM ⚡ Build success" +
    "DTS ⚡ Build success". Tests from `packages/stepwise`.
-2. Demo: `cd apps/demo && npm run build` → "11/11 static pages".
+2. Demo: `cd apps/demo && npm run build` → "12/12 static pages".
 3. **Visual check via headless Edge** (Chrome is not installed here):
    `C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe`, headless,
    against `npm run dev -- -p <port>`. Screenshot after interacting (e.g.

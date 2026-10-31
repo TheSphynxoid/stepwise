@@ -3,6 +3,7 @@ import {
   ArrowRight,
   BookMarked,
   BookOpen,
+  Columns2,
   Github,
   Milestone,
   Palette,
@@ -25,6 +26,13 @@ const DEMOS = [
     title: "Player",
     desc: "Frames in a trace: autoPlay, scrubber, keyboard control, engine port for GSAP or scroll.",
     tag: "useStepPlayer",
+  },
+  {
+    href: "/compare",
+    icon: Columns2,
+    title: "Synced tracks",
+    desc: "Two algorithms, one player: traces of different lengths hold or align on shared sync keys.",
+    tag: "useSyncedTracks",
   },
   {
     href: "/tour",

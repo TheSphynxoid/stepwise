@@ -40,8 +40,11 @@ the hooks; a host can replace any of it via the `theme` / `labels` props.
 | `use-steps.ts` | THE core. Clamped cursor; `go/next/prev/first`; `atStart/atEnd/canNext/canPrev`; `onChange` | All callbacks referentially stable via refs; count may change dynamically (new timeline, mounted window) and the cursor re-clamps |
 | `use-step-player.ts` | Player policy: base delay, speed multiplier, play/pause/seek/replay, `syncHash` deep-link, engine port, reduced-motion autoPlay gate | `frame` is the raw counter (**-1 = not started**); `index` clamps into `[0, total-1]`, -1 when nothing to show. Controls read live state through refs, so they never change identity. `syncHash` edits only its own `key=value` part of the `&`-separated fragment |
 | `use-trace.ts` | A player bound to a typed `StepwiseStep<Data>[]`: `step`, `frame`, stable `toneAt`/`titleAt` | Encodes invariant "-1 renders frame 0" once, so pages don't repeat the fallback |
+| `create-trace.ts` | `createTrace<Data>()` → `.step()` / `.length` / `.last()` / `.build()` | Pure data; `build()` snapshots. Replaces the module-scope IIFE pattern (invariant 6) |
+| `use-synced-tracks.ts` | Comparison mode: `alignTracks` (pure) + `useSyncedTracks` (one player over the aligned table, per-track `TrackView`) | Alignment memoized by shallow track-array identity, so `{ a, b }` literals are fine; `toneAt`/`titleAt` summarize the tracks that moved |
 | `use-guided-tour.ts` | Tour policy: start/end/goto, `onEnter` per step, optional driver | `onEnter` reads latest steps via ref — closures stay fresh without re-triggering effects; `next` past the end exits |
 | `use-chapters.ts` | Scroll-driven cursor + smooth `goTo` | See "scroll tracking" below |
+| `use-lesson-stream.ts` | Windowed notebook reader: mounted window, approach loading, prepend compensation, center-tracked active lesson; `useFadeIn` | See "lesson stream" below; composes `useSteps` like `useChapters` |
 | `flatten.ts` | Depth-first flattening of the `Chapter` tree → `FlatChapter[]` with `depth`, `rootIndex`, `parentIndex` | `rootIndex` powers the scrubber's grouped spans; parent/child indices power recursive nav |
 | `use-global-keys.ts` | Window-level key map with a form-control guard and `enabled` gate | Arrow keys in an `<input>` don't hijack the player |
 | `use-focus-trap.ts` | Tab containment for the tour card, focus on activate, restore on release | `offsetParent` filter skips hidden focusables |
@@ -85,6 +88,52 @@ moment its *top* crossed an offset line near the viewport top — users read
 that as "it advances when scrolled past, not when the chapter is at the
 center". Center-containment matches reading intuition and is what the
 production notebook uses.
+
+### Track alignment (`use-synced-tracks.ts`)
+
+Comparison mode runs one input through several engines and plays the traces
+under **one** cursor. `alignTracks` turns `{ name: steps[] }` into a table of
+rows, each holding `{ index, held }` per track:
+
+- **Hold** (no `key`): row *i* is step *i* of every track; a shorter track
+  holds its last frame (`held: true`). Length = the longest track. This is
+  what the portfolio's swiss-table did by padding with an idle step — `held`
+  replaces the fake step, so payload types stay honest.
+- **Sync keys** (`key(step, i, track)`): a step whose key also occurs in
+  another track is a sync point. Every row, each live track advances one
+  step unless its next step is a sync point some other track has not reached
+  yet — then it holds. The n-th occurrence of a key pairs with the n-th
+  elsewhere. If every live track is blocked (keys in conflicting order), the
+  row advances them all — degrade to lockstep, never deadlock.
+
+The hook memoizes the table by shallow identity of the track arrays (plus
+key presence), reads `key` through a ref, and resolves `TrackView`s for the
+current frame. Like `useTrace`, frame 0 renders before playback starts.
+
+### Lesson stream (`use-lesson-stream.ts`)
+
+Extracted from the portfolio's notebook reader, minus the content. The hook
+owns a **window** `[first, last]` of mounted lessons (seed ± `radius`) and a
+`useSteps` cursor for the active lesson; the consumer renders
+`mounted.map(i => <Block ref={refFor(i)} />)`.
+
+- One rAF-throttled scroll loop: active = mounted block containing the
+  viewport center (fallback: first mounted block — *not* "deepest top above
+  center", which misattributes after a route change leaves a stale scroll
+  position); the window grows downward when the last block's bottom is within
+  `approachBelow` of the fold, upward when the first block's top passes
+  `-approachAbove`.
+- **Prepend anchor:** an upward, scroll-driven expansion inserts content above
+  the reader. A layout effect (before paint, before any rAF) `scrollBy`s the
+  prepended height so the view does not jump. Navigation expansions are
+  *not* compensated — their `scrollIntoView` is absolute and compensating
+  displaced the landing. A cause ref distinguishes the two.
+- **Seed landing:** one layout effect scrolls the seed into view before first
+  paint (no race with a router's scroll restoration).
+- **Navigation scroll** happens in an effect after the expanded window
+  commits, then one rAF — not a guessed number of frames.
+- The window only grows; `useFadeIn(i === seed)` fades streamed blocks in
+  while the SSR'd seed stays visible.
 
 ### Scrubber grouping (`StepScrubber groupOf`)
 
@@ -149,10 +198,10 @@ symptom (page works, library elements naked) does not point at the cause.
 
 - Every module is `"use client"`; hooks no-op or defer `window` access behind
   effects/mounted flags.
-- `LessonStream` in the portfolio seeds the SSR window around the entry
-  chapter and scroll-compensates prepends in a layout effect ("prepend
-  anchor"); that logic lives consumer-side because it depends on the host's
-  routing. The library keeps only the tracking primitive.
+- `useLessonStream` seeds its window around the entry lesson, so SSR renders
+  that window; its layout effects use an isomorphic wrapper (no server
+  warning). Routing stays consumer-side: URL/title sync goes through
+  `onActiveChange`.
 
 ## Conventions
 
