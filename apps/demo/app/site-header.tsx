@@ -34,8 +34,9 @@ export function SiteHeader() {
 
         <nav className="hidden sm:flex items-center gap-1 text-[13px] text-foreground/60 ml-2">
           {[
-            { href: "/#code", label: "Code" },
+            { href: "/lesson", label: "Lesson" },
             { href: "/#demos", label: "Demos" },
+            { href: "/docs", label: "Docs" },
             { href: "/#theming", label: "Theming" },
           ].map((item) => (
             <Link

@@ -34,6 +34,9 @@ cd apps/demo && npm run lint
 
 # demo production build
 cd apps/demo && npm run build
+
+# demo E2E smoke tests (Playwright, against the production build: build first)
+cd apps/demo && PW_CHANNEL=msedge npx playwright test   # PW_CHANNEL: only Edge is installed here; CI uses bundled Chromium
 ```
 
 Quirks:
@@ -174,21 +177,30 @@ Each of these encodes a bug we already fixed once:
 
 Demo pages use **abstract, domain-free content only** (sorting, Git, HTTP/TCP,
 a compiler pipeline). No portfolio / Furrballs / NUMA leakage — the library
-must read as general-purpose. The `/eviction` path name is historical
-(portfolio extraction); it now hosts a bubble-sort demo.
+must read as general-purpose. `/eviction` (the historical, portfolio-era
+path of the player demo) permanently redirects to `/player` via
+`next.config.ts`.
+
+Page structure: each route's `page.tsx` is a tiny **server** component that
+renders the client `demo.tsx` plus `<ViewSource file="app/<route>/demo.tsx" />`,
+which reads that file with `fs` at build time and shows it in a collapsible
+`CodeBlock` (with GitHub / StackBlitz links). So the source panel can't drift
+from the running code - keep the demo itself in `demo.tsx`.
 
 What each page must keep showcasing (the feature matrix):
 
 | Page       | Showcases                                                                      |
 |------------|--------------------------------------------------------------------------------|
-| `/`        | SaaS landing: live hero player (`HeroPlayer`), one-primitive band, feature grid, theming section, light/dark toggle |
-| `/eviction`| `useStepPlayer` autoPlay, `PlayerBar`, `useGlobalKeys`, `CodeBlock`, tones, `ended` completion banner |
+| `/`        | SaaS landing: visual hero player (`HeroPlayer`: quicksort bars on `useTrace` + `PlayerBar`), one-primitive band, feature grid (lesson featured), theming section, light/dark toggle |
+| `/lesson`  | **Flagship composition**: `useChapters` + `ChapterNav` scroll lesson, embedded `useTrace` Dijkstra player (chapter → frame seek while paused), `useGuidedTour` intro whose steps target sections, glossary `Term`s + `GlossaryAppendix`, live three-cursor readout |
+| `/player`  | `useTrace` autoPlay, `PlayerBar`, `useGlobalKeys`, `CodeBlock`, tones, `ended` completion banner |
 | `/compare` | `useSyncedTracks` (bubble vs insertion sort under one player), hold vs align-by-pass toggle, traces built with `createTrace` |
 | `/tour`    | `useGuidedTour` + `TourSpotlight` + `TourCard`, id targets, `waitHint`, live interactive step |
 | `/discovery`| `useDiscoveries` ledger auto-starts a tour once; `when` skips done steps, `gate` blocks Next, reset/replay controls |
 | `/glossary`| `Term` chains (HTTP→HTTPS→TLS→CA hits the depth cap), appendix auto-injection + `intro` |
 | `/scroll`  | `useChapters` center tracking, scrubber `groupOf` sub-chapter grouping, recursive `ChapterNav`, glossary tooltips + auto-appendix with `intro`/`footer` |
 | `/minimal` | Bare `PlayerBar`, custom labels, **standalone light theme** (proves theme is injected, not baked in) |
+| `/docs`    | Hand-written API reference (`app/docs/api.ts`) - update it in the same change as any public signature |
 
 ## Demo site theming (apps/demo)
 
@@ -216,7 +228,11 @@ the library's theming story:
 
 1. Library: `npm run build -w @sphynxoid/stepwise` → "ESM ⚡ Build success" +
    "DTS ⚡ Build success". Tests from `packages/stepwise`.
-2. Demo: `cd apps/demo && npm run build` → "12/12 static pages".
+2. Demo: `cd apps/demo && npm run build` → "14/14 static pages" (10 routes).
+   Then `PW_CHANNEL=msedge npx playwright test` (17 smoke tests: every route
+   without console errors, the /eviction redirect, tour card placement - the
+   Tailwind `@source` regression guard - player, tour, keyboard glossary
+   tooltip, lesson composition, /compare alignment). Set `PW_PORT` if 3123 is taken.
 3. **Visual check via headless Edge** (Chrome is not installed here):
    `C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe`, headless,
    against `npm run dev -- -p <port>`. Screenshot after interacting (e.g.
@@ -232,7 +248,8 @@ the library's theming story:
    fakes "the fix didn't work".
 
 CI (`.github/workflows/ci.yml`) runs the same sequence on every push/PR:
-install → build library → test library → lint demo → build demo.
+install → build library → test library → lint demo → build demo →
+Playwright Chromium smoke tests (report uploaded on failure).
 
 ## Releasing (npm)
 
@@ -262,11 +279,13 @@ signature changes are major while we're pre-1.0.
   publish.
 - Vercel: demo monorepo config is in `vercel.json`. `next.config.ts` in the
   portfolio carries `ignoreBuildErrors`/`ignoreLint` — don't copy that habit here.
-- No E2E tests; the "verification playbook" is manual. Playwright would slot
-  in naturally against the demo pages.
-- Consider renaming `/eviction` → `/player`. (The adapter `exports` split is
-  done: `./adapters/*` are subpath exports and the root barrel imports no
-  adapter code, so optional peers are never required imports.)
+- E2E is smoke-level only (`apps/demo/e2e`); no visual regression yet.
+- The "Open in StackBlitz" links (root `demo` script builds the library, then
+  starts the demo) are untested - they only resolve once the files are on
+  `master` on GitHub.
+- The adapter `exports` split is done: `./adapters/*` are subpath exports and
+  the root barrel imports no adapter code, so optional peers are never
+  required imports.
 
 ## Where to look first
 

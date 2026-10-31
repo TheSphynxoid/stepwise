@@ -9,7 +9,9 @@
     "build": "npm run build --workspaces",
     "dev": "npm run dev --workspace @stepwise/demo",
     "test": "npm run test --workspaces --if-present",
-    "lint": "npm run lint --workspaces --if-present"
+    "lint": "npm run lint --workspaces --if-present",
+    "demo": "npm run build -w @sphynxoid/stepwise && npm run dev",
+    "e2e": "npm run e2e --workspace @stepwise/demo"
   },
   "devDependencies": {
     "@types/react-dom": "^19.3.0",

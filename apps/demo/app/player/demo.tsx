@@ -25,7 +25,7 @@ const STEPS: StepwiseStep<{ code: string[]; a: number; b: number; arr: number[] 
   STEPS.push({ tone: "good", label: "Sorted", code: [`return arr`], a: -1, b: -1, arr: [...arr] });
 })();
 
-export default function EvictionDemo() {
+export default function PlayerDemo() {
   const { theme } = useSiteTheme();
   const trace = useTrace(STEPS, { autoPlay: true });
   const { player } = trace;

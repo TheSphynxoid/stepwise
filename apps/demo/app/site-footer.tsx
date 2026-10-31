@@ -55,12 +55,15 @@ export function SiteFooter() {
             </p>
             <ul className="space-y-2 text-[13px] text-foreground/70">
               {[
-                ["/eviction", "Player"],
+                ["/player", "Player"],
                 ["/compare", "Synced tracks"],
+                ["/lesson", "Composed lesson"],
                 ["/tour", "Guided tour"],
                 ["/discovery", "Led discovery"],
                 ["/scroll", "Scroll chapters"],
                 ["/glossary", "Glossary"],
+                ["/minimal", "Bare & light"],
+                ["/docs", "API reference"],
               ].map(([href, label]) => (
                 <li key={href}>
                   <Link href={href} className="transition hover:text-primary">
