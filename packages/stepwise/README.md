@@ -21,20 +21,43 @@ npm install driver.js   # @sphynxoid/stepwise/adapters/driver-js
 # @sphynxoid/stepwise/adapters/scroll is dependency-free
 ```
 
-## Required: Tailwind CSS setup
+## Styling — pick one
 
-The styled components ship **className strings**. Tailwind v4's automatic
-content detection skips `node_modules`, so **no library class gets generated**
-unless you register the source. Without this, every library element renders
-completely unstyled.
+The hooks are headless. The styled components (`PlayerBar`, `TourCard`, `Term`, …) ship Tailwind class strings, and there are three ways to get them styled:
+
+**1. No Tailwind — import the precompiled stylesheet** (once, at your app entry):
+
+```ts
+import "@sphynxoid/stepwise/styles.css";
+```
+
+It contains exactly the CSS the components use, no global reset (a small preflight is scoped to the components' `[data-stepwise]` roots), and light/dark defaults that follow `prefers-color-scheme` or a `.dark` / `[data-theme="dark"]` switch. Re-color it with CSS variables:
+
+```css
+:root {
+  --stepwise-primary: #7c3aed;      /* play button, active segment, rings */
+  --stepwise-accent: #0ea5e9;       /* "accent" tone, links, wait hints */
+}
+```
+
+Tokens: `--stepwise-background`, `-foreground`, `-card`, `-popover`, `-primary`, `-primary-foreground`, `-accent`, `-destructive`, `-ring`, `-shade` (overlay/code-block tint).
+
+**2. Tailwind + shadcn/ui — copy the components in with the shadcn CLI:**
+
+```bash
+npx shadcn@latest add https://stepwise-demo.vercel.app/r/player-bar.json
+```
+
+Items: `player-bar`, `code-block`, `tour`, `glossary`, `chapter-nav`, `lesson-pager`, `shortcuts-dialog` — or `stepwise` for all of them. The presentation source lands in `components/stepwise/` (plus `lib/stepwise-theme.ts`), where Tailwind scans it automatically; hooks and types stay imported from this package. Colors come from your shadcn tokens.
+
+**3. Tailwind, using the components from npm** — register the package so Tailwind generates its classes (v4 skips `node_modules`):
 
 ```css
 @import "tailwindcss";
 @source "../node_modules/@sphynxoid/stepwise/dist";
 ```
 
-Components are also fully usable without Tailwind if you bring your own
-presentation — the hooks are headless.
+Token contract, Tailwind v3 setup and the "everything renders unstyled" checklist: [TAILWIND-SETUP.md](https://github.com/TheSphynxoid/stepwise/blob/master/docs/TAILWIND-SETUP.md).
 
 ## Quick start — a narrated player
 

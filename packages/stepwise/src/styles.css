@@ -1,0 +1,145 @@
+/*
+ * @sphynxoid/stepwise/styles.css — the precompiled stylesheet.
+ *
+ * Build input, compiled by the Tailwind CLI to dist/styles.css (see the
+ * package "build:css" script). It generates CSS for exactly the classes the
+ * styled components and the default theme ship, so a host WITHOUT Tailwind
+ * can `import "@sphynxoid/stepwise/styles.css"` and get a styled kit.
+ *
+ * Tailwind hosts don't need this file — register the package with @source
+ * (docs/TAILWIND-SETUP.md) or copy the components from the shadcn registry.
+ *
+ * Isolation rules, so importing it can't restyle the host page:
+ * - No global preflight. A preflight scoped to [data-stepwise] subtrees (the
+ *   attribute every styled component sets on its root) normalizes buttons,
+ *   margins and borders the way Tailwind's preflight would.
+ * - Every theme value is inlined (`theme(inline)` / `@theme inline`): no
+ *   --color-*, --spacing or --font-* variables land on :root, so a host's
+ *   own Tailwind theme (if any) is untouched.
+ * - Colors resolve to --stepwise-* tokens, each with a light and a dark
+ *   default (below). `white`/`black` overlays map to foreground/shade tokens,
+ *   so the hairlines the default theme draws as `white/10` read on light
+ *   hosts too.
+ */
+
+@layer theme, base, components, utilities;
+
+@import "tailwindcss/theme.css" layer(theme) theme(inline);
+@import "tailwindcss/utilities.css" layer(utilities) source(none);
+
+@source "./components.tsx";
+@source "./glossary.tsx";
+@source "./theme.ts";
+
+@theme inline {
+  --color-background: var(--stepwise-background);
+  --color-foreground: var(--stepwise-foreground);
+  --color-card: var(--stepwise-card);
+  --color-popover: var(--stepwise-popover);
+  --color-primary: var(--stepwise-primary);
+  --color-primary-foreground: var(--stepwise-primary-foreground);
+  --color-accent: var(--stepwise-accent);
+  --color-destructive: var(--stepwise-destructive);
+  --color-ring: var(--stepwise-ring);
+  /* The default theme's translucent overlays (`white/10`, `black/40`). */
+  --color-white: var(--stepwise-foreground);
+  --color-black: var(--stepwise-shade);
+}
+
+/* ── Tokens ────────────────────────────────────────────────────────────────
+   :where() keeps these at zero specificity: any host rule that sets a
+   --stepwise-* variable wins, whatever the import order. Light by default;
+   dark under prefers-color-scheme, and forced either way by the common
+   class / attribute switches (.dark / .light, [data-theme]) — the forced
+   rules come last so they beat the media query at equal specificity. */
+
+:where(:root) {
+  --stepwise-background: #f8fafd;
+  --stepwise-foreground: #101828;
+  --stepwise-card: #ffffff;
+  --stepwise-popover: #ffffff;
+  --stepwise-primary: #2563eb;
+  --stepwise-primary-foreground: #ffffff;
+  --stepwise-accent: #059669;
+  --stepwise-destructive: #d92d20;
+  --stepwise-ring: #2563eb;
+  --stepwise-shade: #94a3b8;
+}
+
+@media (prefers-color-scheme: dark) {
+  :where(:root) {
+    --stepwise-background: #0a0e1a;
+    --stepwise-foreground: #e9eef8;
+    --stepwise-card: #101626;
+    --stepwise-popover: #131a2c;
+    --stepwise-primary: #6aa2ff;
+    --stepwise-primary-foreground: #071021;
+    --stepwise-accent: #71e58f;
+    --stepwise-destructive: #ff6b62;
+    --stepwise-ring: #6aa2ff;
+    --stepwise-shade: #000000;
+  }
+}
+
+:where(.dark, [data-theme="dark"]) {
+  --stepwise-background: #0a0e1a;
+  --stepwise-foreground: #e9eef8;
+  --stepwise-card: #101626;
+  --stepwise-popover: #131a2c;
+  --stepwise-primary: #6aa2ff;
+  --stepwise-primary-foreground: #071021;
+  --stepwise-accent: #71e58f;
+  --stepwise-destructive: #ff6b62;
+  --stepwise-ring: #6aa2ff;
+  --stepwise-shade: #000000;
+}
+
+:where(.light, [data-theme="light"]) {
+  --stepwise-background: #f8fafd;
+  --stepwise-foreground: #101828;
+  --stepwise-card: #ffffff;
+  --stepwise-popover: #ffffff;
+  --stepwise-primary: #2563eb;
+  --stepwise-primary-foreground: #ffffff;
+  --stepwise-accent: #059669;
+  --stepwise-destructive: #d92d20;
+  --stepwise-ring: #2563eb;
+  --stepwise-shade: #94a3b8;
+}
+
+/* ── Scoped preflight ──────────────────────────────────────────────────────
+   The subset of Tailwind's preflight the components rely on, applied only
+   inside kit roots. In the base layer, so every utility overrides it. */
+
+@layer base {
+  :where([data-stepwise], [data-stepwise] *),
+  :where([data-stepwise], [data-stepwise] *)::before,
+  :where([data-stepwise], [data-stepwise] *)::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    border: 0 solid;
+  }
+
+  :where([data-stepwise] button, button[data-stepwise]) {
+    font: inherit;
+    letter-spacing: inherit;
+    color: inherit;
+    background-color: transparent;
+    border-radius: 0;
+    appearance: none;
+  }
+
+  :where([data-stepwise] h3, [data-stepwise] p) {
+    font-size: inherit;
+    font-weight: inherit;
+  }
+
+  :where([data-stepwise] kbd, [data-stepwise] code) {
+    font-family: var(--stepwise-font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace);
+  }
+
+  :where([data-stepwise]) {
+    color: var(--stepwise-foreground);
+  }
+}

@@ -230,6 +230,7 @@ export function Term({ id, children, className }: { id: string; children?: React
   return (
     <span
       ref={wrapperRef}
+      data-stepwise=""
       className="relative inline"
       onMouseEnter={interactive ? scheduleOpen : undefined}
       onMouseLeave={interactive ? scheduleClose : undefined}
@@ -250,6 +251,7 @@ export function Term({ id, children, className }: { id: string; children?: React
           <DepthContext.Provider value={depth + 1}>
             <span
               ref={cardRef}
+              data-stepwise=""
               role="tooltip"
               id={tipId}
               tabIndex={-1}
@@ -376,7 +378,7 @@ export function GlossaryAppendix({
   }
   return (
     <AppendixContext.Provider value={true}>
-      <section aria-label={title} className={cn("mt-16 border-t border-white/10 pt-10", className)}>
+      <section data-stepwise="" aria-label={title} className={cn("mt-16 border-t border-white/10 pt-10", className)}>
         <p className={cn("text-[11px] font-mono uppercase tracking-widest mb-6", theme.muted)}>{title}</p>
         {body}
       </section>
