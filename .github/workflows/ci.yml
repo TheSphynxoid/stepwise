@@ -20,13 +20,28 @@ jobs:
         run: npm ci
 
       - name: Build library
-        run: npm run build -w @sphynx/stepwise
+        run: npm run build -w @sphynxoid/stepwise
 
       - name: Test library
-        run: npm test -w @sphynx/stepwise
+        run: npm test -w @sphynxoid/stepwise
 
       - name: Lint demo
         run: npm run lint -w @stepwise/demo
 
       - name: Build demo
         run: npm run build -w @stepwise/demo
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+        working-directory: apps/demo
+
+      - name: E2E smoke tests
+        run: npm run e2e -w @stepwise/demo
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: apps/demo/playwright-report
+          retention-days: 7

@@ -3,7 +3,9 @@ import {
   ArrowRight,
   BookMarked,
   BookOpen,
+  FileText,
   Github,
+  Layers,
   Milestone,
   Palette,
   Play,
@@ -18,13 +20,28 @@ import { darkCodePanelTheme } from "./site-themes";
 // TODO: point at the real repository when it goes public.
 const REPO_URL = "https://github.com/TheSphynxoid/stepwise";
 
-const DEMOS = [
+const DEMOS: {
+  href: string;
+  icon: typeof Play;
+  title: string;
+  desc: string;
+  tag: string;
+  featured?: boolean;
+}[] = [
   {
-    href: "/eviction",
+    href: "/lesson",
+    icon: Layers,
+    title: "Composed lesson",
+    desc: "The flagship: a scroll lesson with an embedded Dijkstra player, an intro tour and a glossary - three cursors, one model. Scroll and the paused player follows.",
+    tag: "useChapters + useTrace + useGuidedTour + <Term />",
+    featured: true,
+  },
+  {
+    href: "/player",
     icon: Play,
     title: "Player",
     desc: "Frames in a trace: autoPlay, scrubber, keyboard control, engine port for GSAP or scroll.",
-    tag: "useStepPlayer",
+    tag: "useTrace",
   },
   {
     href: "/tour",
@@ -60,6 +77,13 @@ const DEMOS = [
     title: "Bare & light",
     desc: "The smallest player, on a light page, running a standalone theme object.",
     tag: "StepwiseTheme",
+  },
+  {
+    href: "/docs",
+    icon: FileText,
+    title: "API reference",
+    desc: "Every hook and component: options, return values and props, straight from the public barrel.",
+    tag: "index.ts",
   },
 ];
 
@@ -174,11 +198,12 @@ export default function Home() {
             The demos
           </p>
           <h2 className="text-2xl font-semibold tracking-tight md:text-3xl sw-fade-up sw-fade-up-1">
-            Six ways to drive a cursor
+            One cursor, every surface
           </h2>
           <p className="mt-3 max-w-2xl text-[14px] leading-relaxed text-muted-foreground sw-fade-up sw-fade-up-2">
             Built entirely with the published components - the same hooks, props,
-            and themes you would use in your own app.
+            and themes you would use in your own app. Start with the composed
+            lesson; every demo has a View source panel at the bottom.
           </p>
 
           <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -186,7 +211,9 @@ export default function Home() {
               <Link
                 key={demo.href}
                 href={demo.href}
-                className={`group relative rounded-xl border border-border bg-card/60 p-5 sw-card-glow sw-fade-up sw-fade-up-${(i % 3) + 1}`}
+                className={`group relative rounded-xl border border-border bg-card/60 p-5 sw-card-glow sw-fade-up sw-fade-up-${(i % 3) + 1} ${
+                  demo.featured ? "lg:col-span-2 border-primary/40 bg-primary/[0.04]" : ""
+                }`}
               >
                 <div className="mb-4 grid h-9 w-9 place-items-center rounded-md border border-border bg-secondary/50 text-primary transition group-hover:border-primary/40 group-hover:bg-primary/10">
                   <demo.icon size={16} />

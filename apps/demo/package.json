@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "e2e": "playwright test"
   },
   "dependencies": {
     "@sphynxoid/stepwise": "*",
@@ -24,6 +25,7 @@
     "typescript": "^5.0.0",
     "tailwindcss": "^4.1.0",
     "@tailwindcss/postcss": "^4.1.0",
-    "postcss": "^8.0.0"
+    "postcss": "^8.0.0",
+    "@playwright/test": "^1.48.0"
   }
 }
