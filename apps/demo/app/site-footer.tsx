@@ -56,6 +56,7 @@ export function SiteFooter() {
             <ul className="space-y-2 text-[13px] text-foreground/70">
               {[
                 ["/eviction", "Player"],
+                ["/compare", "Synced tracks"],
                 ["/tour", "Guided tour"],
                 ["/discovery", "Led discovery"],
                 ["/scroll", "Scroll chapters"],

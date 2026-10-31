@@ -12,8 +12,16 @@
 //   use-step-player   — player policy: timer, speed, seek, deep-link hash
 //   use-trace         — a player bound to a typed trace: current step,
 //                       pre-start frame 0, stable scrubber accessors
+//   create-trace      — typed trace builder (.step / .build) for module-scope
+//                       traces without IIFEs; pure data
+//   use-synced-tracks — comparison mode: several traces under ONE player,
+//                       aligned by holding the last frame or by sync keys
+//                       (alignTracks is the pure alignment)
 //   use-guided-tour   — tour policy: onEnter effects, driver show/hide
 //   use-chapters      — chapter policy: scroll-tracked cursor, smooth goTo
+//   use-lesson-stream — notebook policy: windowed lesson stream, approach
+//                       loading, prepend scroll compensation, center-tracked
+//                       active lesson (+ useFadeIn for mounted blocks)
 //   use-global-keys   — global keyboard bindings with form-control guard
 //   use-focus-trap    — dialog/tour focus containment
 //   use-prefers-reduced-motion — motion preference gate
@@ -59,6 +67,20 @@ export { useStepPlayer } from "./use-step-player";
 export type { StepPlayer, StepPlayerOptions } from "./use-step-player";
 export { useTrace } from "./use-trace";
 export type { TracePlayer } from "./use-trace";
+export { createTrace } from "./create-trace";
+export type { TraceBuilder } from "./create-trace";
+export { useSyncedTracks, alignTracks } from "./use-synced-tracks";
+export type {
+  AlignedCell,
+  AlignedRow,
+  SyncedTracks,
+  SyncedTracksOptions,
+  TrackKeyFn,
+  TrackView,
+  Tracks,
+} from "./use-synced-tracks";
+export { useLessonStream, useFadeIn } from "./use-lesson-stream";
+export type { LessonStream, LessonStreamOptions } from "./use-lesson-stream";
 export { useGuidedTour } from "./use-guided-tour";
 export type { GuidedTour, GuidedTourOptions } from "./use-guided-tour";
 export { useChapters, flattenChapters } from "./use-chapters";
