@@ -1,18 +1,11 @@
 "use client";
 
-import { CodeBlock, PlayerBar, useStepPlayer, type StepTone } from "@sphynxoid/stepwise";
+import { CodeBlock, PlayerBar, useTrace, type StepwiseStep } from "@sphynxoid/stepwise";
 import { useSiteTheme } from "./theme-provider";
-import { useCallback } from "react";
 
-interface Frame {
-  tone: StepTone;
-  label: string;
-  code: string[];
-}
-
-const FRAMES: Frame[] = [
+const FRAMES: StepwiseStep<{ code: string[] }>[] = [
   { tone: "write", label: "Build", code: ["$ npm run build", "// esm 41.7 kB - dts clean"] },
-  { tone: "neutral", label: "Test", code: ["$ npm test", "// 76/76 passing - jsdom"] },
+  { tone: "neutral", label: "Test", code: ["$ npm test", "// 98/98 passing - jsdom"] },
   { tone: "write", label: "Stage", code: ["$ npm pack --dry-run", "// dist + README + LICENSE"] },
   { tone: "accent", label: "Publish", code: ["$ npm publish --access public", "// @sphynxoid/stepwise@0.1.0"] },
   { tone: "good", label: "Live", code: ["// published - docs site live", "// runs in light and dark"] },
@@ -20,15 +13,11 @@ const FRAMES: Frame[] = [
 
 export function HeroPlayer() {
   const { theme } = useSiteTheme();
-  const player = useStepPlayer({ total: FRAMES.length, autoPlay: true, baseDelayMs: 1500 });
-
-  const run = useCallback(() => {
-    player.seek(0);
-    player.setPlaying(true);
-  }, [player]);
-
-  const frame = player.index >= 0 ? Math.min(player.index, FRAMES.length - 1) : 0;
-  const cur = FRAMES[frame];
+  const trace = useTrace(FRAMES, { autoPlay: true, baseDelayMs: 1500 });
+  const { player } = trace;
+  const run = player.start;
+  // Frame 0 before the player starts; FRAMES is never empty.
+  const cur = trace.step!;
 
   return (
     <div className="relative">
@@ -67,8 +56,8 @@ export function HeroPlayer() {
           </div>
           <PlayerBar
             player={player}
-            toneAt={(i) => FRAMES[i]?.tone ?? "neutral"}
-            titleAt={(i) => FRAMES[i]?.label ?? `frame ${i + 1}`}
+            toneAt={trace.toneAt}
+            titleAt={trace.titleAt}
             onEmpty={run}
             emptyHint="press play"
             theme={theme}

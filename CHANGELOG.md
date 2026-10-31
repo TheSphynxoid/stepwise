@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.0 — unreleased
+
+- **New**: `useTrace(steps, opts)` — a player bound to a typed trace. Returns `{ player, step, frame, toneAt, titleAt }`; `step` is frame 0 before playback starts, and the scrubber accessors are stable.
+- **New**: `StepwiseStep<Data>` is generic — carry your domain payload in the step type (`StepwiseStep<{ arr: number[] }>`). The default (`StepwiseStep`) is unchanged.
+- **New**: `useStepPlayer({ respectReducedMotion })` (default `true`) — with `autoPlay`, users who prefer reduced motion land on frame 0, paused.
+- **Fix**: `useStepPlayer` and `useGuidedTour` control callbacks are now referentially stable (they were re-created every frame, breaking memoized children and effect deps). `useChapters` and `useGuidedTour` return memoized objects.
+- **Fix**: `syncHash` no longer overwrites the whole URL fragment — it updates only its own `key=value` part and keeps anchors and other keys. Keys are matched literally (previously interpolated into a regex unescaped).
+- **Docs**: npm README uses the `@sphynxoid` scope and the `dist` `@source` path.
+
 ## 0.1.0 — 2026-10-27
 
 Initial release.

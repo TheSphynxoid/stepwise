@@ -19,7 +19,8 @@ export interface StepPlayerOptions {
   engine?: PlayerEngine;
   /**
    * Deep-link the current frame into the URL hash (`#<key>=<index>`), opt-in.
-   * The initial hash is honored once on mount.
+   * The initial hash is honored once on mount. Only this key is written —
+   * other `&`-separated hash parts (anchors, other players' keys) are kept.
    */
   syncHash?: string;
   /**
@@ -28,6 +29,12 @@ export interface StepPlayerOptions {
    * reset/new timeline) — the next full playthrough fires it again.
    */
   onEnd?: () => void;
+  /**
+   * Honor `prefers-reduced-motion: reduce` by not auto-advancing: with
+   * `autoPlay`, the player still lands on frame 0 but stays paused until the
+   * user presses play. Default true.
+   */
+  respectReducedMotion?: boolean;
 }
 
 export interface StepPlayer {
@@ -62,8 +69,19 @@ export interface StepPlayer {
   setSpeed: (speed: number) => void;
 }
 
-export function useStepPlayer({ total, baseDelayMs = 900, autoPlay = false, engine, syncHash, onEnd }: StepPlayerOptions): StepPlayer {
+export function useStepPlayer({
+  total,
+  baseDelayMs = 900,
+  autoPlay = false,
+  engine,
+  syncHash,
+  onEnd,
+  respectReducedMotion = true,
+}: StepPlayerOptions): StepPlayer {
   const core = useSteps(total);
+  // useSteps' movement callbacks are referentially stable; depend on them
+  // alone, never on `core` itself (its identity churns with the index).
+  const { go, next: coreNext, prev: corePrev, first } = core;
   const [started, setStarted] = useState(autoPlay && total > 0);
   const [playing, setPlaying] = useState(autoPlay && total > 0);
   const [speed, setSpeed] = useState(1);
@@ -90,10 +108,19 @@ export function useStepPlayer({ total, baseDelayMs = 900, autoPlay = false, engi
   const index = started && core.index >= 0 ? core.index : -1;
   const atEnd = total > 0 && index >= 0 && index >= total - 1;
 
-  const engineRef = useRef(engine);
-  engineRef.current = engine;
+  // Live values for the public callbacks — read through refs so every
+  // returned function keeps one identity for the player's lifetime.
   const totalRef = useRef(total);
   totalRef.current = total;
+  const cursorRef = useRef(core.index);
+  cursorRef.current = core.index;
+  const playingRef = useRef(playing);
+  playingRef.current = playing;
+  const atEndRef = useRef(atEnd);
+  atEndRef.current = atEnd;
+
+  const engineRef = useRef(engine);
+  engineRef.current = engine;
   const engineApiRef = useRef<{
     play?(): void;
     pause?(): void;
@@ -101,14 +128,15 @@ export function useStepPlayer({ total, baseDelayMs = 900, autoPlay = false, engi
     rate?(rate: number): void;
   }>({});
 
-  // Engine lifecycle — reconnect only when the engine identity changes.
+  // Engine lifecycle — reconnect only when the engine identity changes
+  // (`go` and `markEnded` are stable).
   useEffect(() => {
     if (!engine) return;
     const handle = engine.connect({
       get total() {
         return totalRef.current;
       },
-      onFrame: (f) => core.go(f),
+      onFrame: (f) => go(f),
       onEnd: () => {
         markEnded();
         setPlaying(false);
@@ -124,21 +152,31 @@ export function useStepPlayer({ total, baseDelayMs = 900, autoPlay = false, engi
       engineApiRef.current = {};
       handle.disconnect();
     };
-    // `core` identity churns with the index; the connect API reads live state
-    // via refs — only the engine identity may reconnect.
+  }, [engine, go, markEnded]);
+
+  // Reduced motion: an autoPlay player lands on frame 0, paused. Checked once
+  // on mount (before the first timer tick), not tracked live — a preference
+  // flip mid-playback shouldn't yank control from the user.
+  useEffect(() => {
+    if (!respectReducedMotion || !autoPlay) return;
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+    if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    setPlaying(false);
+    engineApiRef.current.pause?.();
+    // Mount-only by design.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [engine]);
+  }, []);
 
   const start = useCallback(() => {
     setStarted(true);
     setPlaying(true);
     clearEnded();
-    core.first();
+    first();
     if (engineRef.current) {
       engineApiRef.current.seek?.(0);
       engineApiRef.current.play?.();
     }
-  }, [core]);
+  }, [first, clearEnded]);
 
   const reset = useCallback(() => {
     setStarted(false);
@@ -149,65 +187,62 @@ export function useStepPlayer({ total, baseDelayMs = 900, autoPlay = false, engi
 
   const seek = useCallback(
     (f: number) => {
-      if (total === 0) return;
+      const t = totalRef.current;
+      if (t === 0) return;
       setStarted(true);
       setPlaying(false);
       clearEnded();
-      core.go(Math.max(0, Math.min(f, total - 1)));
+      go(Math.max(0, Math.min(f, t - 1)));
       if (engineRef.current) {
         engineApiRef.current.pause?.();
         engineApiRef.current.seek?.(f);
       }
     },
-    [total, core, clearEnded]
+    [go, clearEnded]
   );
 
   const next = useCallback(
     (onEmpty?: () => void) => {
       setPlaying(false);
-      if (total === 0) {
+      const t = totalRef.current;
+      if (t === 0) {
         onEmpty?.();
         return;
       }
       setStarted(true);
       clearEnded();
-      core.next();
+      const target = Math.min(cursorRef.current + 1, t - 1);
+      coreNext();
       if (engineRef.current) {
         engineApiRef.current.pause?.();
-        engineApiRef.current.seek?.(Math.min(core.index + 1, total - 1));
+        engineApiRef.current.seek?.(target);
       }
     },
-    [total, core, clearEnded]
+    [coreNext, clearEnded]
   );
 
   const prev = useCallback(() => {
     setPlaying(false);
     clearEnded();
-    core.prev();
+    const target = Math.max(0, cursorRef.current - 1);
+    corePrev();
     if (engineRef.current) {
       engineApiRef.current.pause?.();
-      engineApiRef.current.seek?.(Math.max(0, core.index - 1));
+      engineApiRef.current.seek?.(target);
     }
-  }, [core, clearEnded]);
+  }, [corePrev, clearEnded]);
 
   const toggle = useCallback(
     (onEmpty?: () => void) => {
-      if (total === 0) {
+      if (totalRef.current === 0) {
         onEmpty?.();
         return;
       }
-      if (!playing && atEnd) {
-        setStarted(true);
-        setPlaying(true);
-        clearEnded();
-        core.first();
-        if (engineRef.current) {
-          engineApiRef.current.seek?.(0);
-          engineApiRef.current.play?.();
-        }
+      if (!playingRef.current && atEndRef.current) {
+        start();
         return;
       }
-      const nextPlaying = !playing;
+      const nextPlaying = !playingRef.current;
       setPlaying(nextPlaying);
       setStarted(true);
       if (engineRef.current) {
@@ -215,7 +250,7 @@ export function useStepPlayer({ total, baseDelayMs = 900, autoPlay = false, engi
         else engineApiRef.current.pause?.();
       }
     },
-    [total, playing, atEnd, core, clearEnded]
+    [start]
   );
 
   const changeSpeed = useCallback((s: number) => {
@@ -237,30 +272,27 @@ export function useStepPlayer({ total, baseDelayMs = 900, autoPlay = false, engi
       setPlaying(false);
       return;
     }
-    const id = setTimeout(() => core.next(), baseDelayMs / speed);
+    const id = setTimeout(() => coreNext(), baseDelayMs / speed);
     return () => clearTimeout(id);
-  }, [playing, started, core, total, speed, baseDelayMs, markEnded]);
+  }, [playing, started, core.index, coreNext, total, speed, baseDelayMs, markEnded]);
 
   // Deep-linking: honor #<key>=<index> on mount and external hash edits only.
   // The hash values the player itself writes are ignored, and readHash never
-  // re-runs on render churn (stable deps; go reached through a ref) — reading
-  // a lagging hash during playback would ping-pong the cursor.
-  const hashKey = syncHash;
-  const coreGoRef = useRef(core.go);
-  coreGoRef.current = core.go;
+  // re-runs on render churn (stable deps) — reading a lagging hash during
+  // playback would ping-pong the cursor.
   const lastWrittenHash = useRef("");
   const readHash = useCallback(() => {
-    if (!hashKey || typeof window === "undefined" || total === 0) return;
+    if (!syncHash || typeof window === "undefined" || total === 0) return;
     const hash = window.location.hash;
     if (hash === lastWrittenHash.current) return;
-    const match = hash.match(new RegExp(`[#&]${hashKey}=(\\d+)`));
-    if (!match) return;
-    const f = Number(match[1]);
-    if (Number.isFinite(f) && f >= 0 && f < total) {
+    const value = readHashParam(hash, syncHash);
+    if (value === null || !/^\d+$/.test(value)) return;
+    const f = Number(value);
+    if (f < total) {
       setStarted(true);
-      coreGoRef.current(f);
+      go(f);
     }
-  }, [hashKey, total]);
+  }, [syncHash, total, go]);
 
   useEffect(() => {
     readHash();
@@ -271,7 +303,7 @@ export function useStepPlayer({ total, baseDelayMs = 900, autoPlay = false, engi
 
   useEffect(() => {
     if (!syncHash || index < 0 || typeof window === "undefined") return;
-    const next = `#${syncHash}=${index}`;
+    const next = writeHashParam(window.location.hash, syncHash, String(index));
     if (window.location.hash !== next) {
       lastWrittenHash.current = next;
       window.history.replaceState(null, "", next);
@@ -298,4 +330,34 @@ export function useStepPlayer({ total, baseDelayMs = 900, autoPlay = false, engi
     }),
     [total, index, playing, speed, atEnd, ended, start, reset, seek, next, prev, toggle, changeSpeed]
   );
+}
+
+// ── Hash params ──────────────────────────────────────────────────────────────
+// The fragment is read as `&`-separated parts: `key=value` parts are params,
+// anything else (a plain `#section` anchor) is kept verbatim. The player only
+// ever touches its own key, so it coexists with other hash users. Keys are
+// compared literally — no regex, so any key string is safe.
+
+function hashParts(hash: string): string[] {
+  const body = hash.startsWith("#") ? hash.slice(1) : hash;
+  return body ? body.split("&") : [];
+}
+
+/** Value of `key` in the hash, or null when absent. */
+export function readHashParam(hash: string, key: string): string | null {
+  for (const part of hashParts(hash)) {
+    const eq = part.indexOf("=");
+    if (eq > 0 && part.slice(0, eq) === key) return part.slice(eq + 1);
+  }
+  return null;
+}
+
+/** The hash with `key` set to `value` — replaced in place, else appended. */
+export function writeHashParam(hash: string, key: string, value: string): string {
+  const parts = hashParts(hash);
+  const pair = `${key}=${value}`;
+  const i = parts.findIndex((p) => p.startsWith(`${key}=`));
+  if (i >= 0) parts[i] = pair;
+  else parts.push(pair);
+  return `#${parts.join("&")}`;
 }

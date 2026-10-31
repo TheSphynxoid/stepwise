@@ -40,28 +40,28 @@ presentation — the hooks are headless.
 
 ```tsx
 "use client";
-import { useStepPlayer, PlayerBar, CodeBlock, type StepTone } from "@sphynxoid/stepwise";
+import { useTrace, PlayerBar, CodeBlock, type StepwiseStep } from "@sphynxoid/stepwise";
 
-const frames: { tone: StepTone; label: string; code: string[] }[] = [
+// Your domain payload rides along with the presentation fields.
+const frames: StepwiseStep<{ code: string[] }>[] = [
   { tone: "write", label: "Initialize", code: ["let i = 0;"] },
   { tone: "neutral", label: "Loop", code: ["while (i < n) { … }"] },
   { tone: "good", label: "Done", code: ["return arr;"] },
 ];
 
 export function Demo() {
-  const player = useStepPlayer({ total: frames.length, autoPlay: true, syncHash: "frame" });
-  const frame = frames[Math.max(0, player.index)] ?? frames[0];
+  const trace = useTrace(frames, { autoPlay: true, syncHash: "frame" });
 
   return (
     <>
-      <CodeBlock lines={frame.code} />
-      <PlayerBar player={player} toneAt={(i) => frames[i]?.tone ?? "neutral"} titleAt={(i) => frames[i]?.label ?? ""} />
+      <CodeBlock lines={trace.step!.code} />
+      <PlayerBar player={trace.player} toneAt={trace.toneAt} titleAt={trace.titleAt} />
     </>
   );
 }
 ```
 
-`useStepPlayer` gives you a timer-driven playhead with play/pause/seek, speed control, and optional `#frame=2` deep links — or hand it an `engine` to drive the playhead from GSAP or scroll instead. Two end-state flavors: `atEnd` (cursor parked on the last frame, seeks included) and `ended` (playback ran to the finish, via the `onEnd` callback option) — clearing on any cursor movement, so a completion summary knows the demo actually finished.
+`useTrace` binds a player to a typed trace: `step` is the frame to render (frame 0 before playback starts), and `toneAt` / `titleAt` feed the scrubber. Under it, `useStepPlayer` gives you a timer-driven playhead with play/pause/seek, speed control, and optional `#frame=2` deep links — or hand it an `engine` to drive the playhead from GSAP or scroll instead. Two end-state flavors: `atEnd` (cursor parked on the last frame, seeks included) and `ended` (playback ran to the finish, via the `onEnd` callback option) — clearing on any cursor movement, so a completion summary knows the demo actually finished. `autoPlay` respects `prefers-reduced-motion` (lands on frame 0, paused; opt out with `respectReducedMotion: false`), and `syncHash` writes only its own key, so it coexists with anchors and other players' keys.
 
 ## The three scales
 

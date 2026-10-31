@@ -6,12 +6,17 @@ import type { ReactNode } from "react";
 
 export type StepTone = "neutral" | "accent" | "good" | "bad" | "write" | "idle";
 
-export interface StepwiseStep {
+/**
+ * One frame of a trace. `Data` carries the consumer's domain payload (array
+ * snapshots, highlighted slots, …) alongside the presentation fields, so a
+ * trace is a single typed array: `StepwiseStep<{ arr: number[] }>[]`.
+ */
+export type StepwiseStep<Data extends object = Record<never, never>> = {
   tone: StepTone;
   label: string;
   code?: string[];
   note?: string;
-}
+} & Data;
 
 export interface TourStepInput {
   id?: string;

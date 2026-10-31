@@ -25,6 +25,20 @@ describe("useGuidedTour — state", () => {
     expect(result.current.current).toBeNull();
   });
 
+  it("callbacks keep their identity as the tour moves", () => {
+    const steps = makeSteps();
+    const { result } = renderHook(() => useGuidedTour(steps));
+    const first = result.current;
+    act(() => result.current.start());
+    act(() => result.current.next());
+    expect(result.current.index).toBe(1);
+    for (const key of ["start", "end", "next", "back", "goto", "gotoId"] as const) {
+      expect(result.current[key]).toBe(first[key]);
+    }
+    act(() => first.back()); // a stale handle still acts on live state
+    expect(result.current.index).toBe(0);
+  });
+
   it("start() activates step 0 and fires its onEnter once", () => {
     const steps = makeSteps();
     const { result } = renderHook(() => useGuidedTour(steps));

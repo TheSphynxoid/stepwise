@@ -2,12 +2,11 @@
 
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import { useStepPlayer, useGlobalKeys, PlayerBar, CodeBlock, type StepTone } from "@sphynxoid/stepwise";
+import { useTrace, useGlobalKeys, PlayerBar, CodeBlock, type StepwiseStep } from "@sphynxoid/stepwise";
 import { useSiteTheme } from "../theme-provider";
-import { useCallback } from "react";
 
 const ITEMS = [5, 2, 8, 1, 9, 3];
-const STEPS: { tone: StepTone; label: string; code: string[]; a: number; b: number; arr: number[] }[] = [];
+const STEPS: StepwiseStep<{ code: string[]; a: number; b: number; arr: number[] }>[] = [];
 
 (function build() {
   const arr = [...ITEMS];
@@ -28,12 +27,9 @@ const STEPS: { tone: StepTone; label: string; code: string[]; a: number; b: numb
 
 export default function EvictionDemo() {
   const { theme } = useSiteTheme();
-  const player = useStepPlayer({ total: STEPS.length, autoPlay: true });
-
-  const run = useCallback(() => {
-    player.seek(0);
-    player.setPlaying(true);
-  }, [player]);
+  const trace = useTrace(STEPS, { autoPlay: true });
+  const { player } = trace;
+  const run = player.start;
 
   useGlobalKeys({
     ArrowRight: () => player.next(),
@@ -42,8 +38,8 @@ export default function EvictionDemo() {
     Enter: run,
   });
 
-  const frame = player.index >= 0 ? Math.min(player.index, STEPS.length - 1) : 0;
-  const step = STEPS[frame];
+  // Frame 0 before the player starts; STEPS is never empty.
+  const step = trace.step!;
   const arr = step.arr;
 
   return (
@@ -87,8 +83,8 @@ export default function EvictionDemo() {
         <div className="rounded-xl border border-border bg-card mb-4 overflow-hidden shadow-sm">
           <PlayerBar
             player={player}
-            toneAt={(i) => STEPS[i]?.tone ?? "neutral"}
-            titleAt={(i) => STEPS[i]?.label ?? `step ${i + 1}`}
+            toneAt={trace.toneAt}
+            titleAt={trace.titleAt}
             onEmpty={run}
             emptyHint="press Run"
             theme={theme}

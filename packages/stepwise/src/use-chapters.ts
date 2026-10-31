@@ -103,5 +103,5 @@ export function useChapters(chapters: Chapter[]): ChaptersApi {
     if (activeRef.current > 0) goTo(activeRef.current - 1);
   }, [goTo]);
 
-  return { active: core.index, goTo, next, prev };
+  return useMemo(() => ({ active: core.index, goTo, next, prev }), [core.index, goTo, next, prev]);
 }

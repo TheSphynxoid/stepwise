@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSteps } from "./use-steps";
 import type { TourDriver, TourStepInput } from "./types";
 
@@ -60,6 +60,8 @@ export function useGuidedTour(steps: TourStepInput[], opts?: GuidedTourOptions):
   // below (and the driver effect) don't churn with the cursor.
   const coreGoRef = useRef(core.go);
   coreGoRef.current = core.go;
+  const cursorRef = useRef(core.index);
+  cursorRef.current = core.index;
 
   const isSkipped = useCallback(
     (i: number) => stepsRef.current[i]?.when?.() === false,
@@ -141,7 +143,7 @@ export function useGuidedTour(steps: TourStepInput[], opts?: GuidedTourOptions):
       back: () => goTo(core.index - 1),
       end: () => setRunning(false),
     });
-  }, [running, core.index, goTo, core]);
+  }, [running, core.index, goTo]);
 
   // Hide the driver if the tour unmounts mid-step.
   useEffect(() => () => driverRef.current?.hide(), []);
@@ -166,7 +168,7 @@ export function useGuidedTour(steps: TourStepInput[], opts?: GuidedTourOptions):
 
   const next = useCallback(() => {
     if (!runningRef.current) return;
-    const i = core.index;
+    const i = cursorRef.current;
     // A closed gate blocks the advance — the app surfaces `blocked`.
     if (stepsRef.current[i]?.gate?.() === false) return;
     const target = resolveNext(i);
@@ -175,16 +177,19 @@ export function useGuidedTour(steps: TourStepInput[], opts?: GuidedTourOptions):
       return;
     }
     arrive(target, 1);
-  }, [core, arrive, resolveNext]);
+  }, [arrive, resolveNext]);
 
   const back = useCallback(() => {
     if (!runningRef.current) return;
-    const i = core.index;
+    const i = cursorRef.current;
     if (i <= 0) return;
     arrive(i - 1, -1);
-  }, [core, arrive]);
+  }, [arrive]);
 
   const current = running ? (stepsRef.current[core.index] ?? null) : null;
   const blocked = current?.gate?.() === false;
-  return { index, current, active: running, blocked, start, end, next, back, goto: goTo, gotoId: goToId };
+  return useMemo(
+    () => ({ index, current, active: running, blocked, start, end, next, back, goto: goTo, gotoId: goToId }),
+    [index, current, running, blocked, start, end, next, back, goTo, goToId]
+  );
 }

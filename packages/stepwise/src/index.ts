@@ -10,6 +10,8 @@
 //                       + engine/driver ports for external integrations
 //   use-steps         — THE core: clamped cursor, movement, boundary policy
 //   use-step-player   — player policy: timer, speed, seek, deep-link hash
+//   use-trace         — a player bound to a typed trace: current step,
+//                       pre-start frame 0, stable scrubber accessors
 //   use-guided-tour   — tour policy: onEnter effects, driver show/hide
 //   use-chapters      — chapter policy: scroll-tracked cursor, smooth goTo
 //   use-global-keys   — global keyboard bindings with form-control guard
@@ -55,6 +57,8 @@ export { useSteps } from "./use-steps";
 export type { StepsCore, UseStepsOptions } from "./use-steps";
 export { useStepPlayer } from "./use-step-player";
 export type { StepPlayer, StepPlayerOptions } from "./use-step-player";
+export { useTrace } from "./use-trace";
+export type { TracePlayer } from "./use-trace";
 export { useGuidedTour } from "./use-guided-tour";
 export type { GuidedTour, GuidedTourOptions } from "./use-guided-tour";
 export { useChapters, flattenChapters } from "./use-chapters";

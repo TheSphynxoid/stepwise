@@ -27,7 +27,7 @@ npm run build -w @sphynxoid/stepwise             # build library → packages/st
 npm run dev                                   # demo app (same as: npm run dev -w @stepwise/demo)
 
 # tests — run from the package directory, NOT the root
-cd packages/stepwise && npx vitest run        # 84 tests (14 useSteps, 23 player, 28 tour, 9 discoveries, 6 chapters, 4 flatten)
+cd packages/stepwise && npx vitest run        # 98 tests (14 useSteps, 32 player, 29 tour, 9 discoveries, 6 chapters, 4 flatten, 4 trace)
 
 # demo lint (eslint flat config, no interactive prompt)
 cd apps/demo && npm run lint
@@ -78,7 +78,9 @@ types.ts ── schema (StepTone, StepwiseStep, TourStepInput, Chapter)
 
 CORE      use-steps.ts      THE primitive: clamped cursor, stable callbacks,
                             re-clamps when count changes
-POLICIES  use-step-player   timer, speed, seek, #hash deep-link, engine port
+POLICIES  use-step-player   timer, speed, seek, #hash deep-link, engine port,
+                            reduced-motion autoPlay gate
+          use-trace         player bound to a typed trace (step, toneAt/titleAt)
           use-guided-tour   onEnter effects over app state, driver port;
                             conditional tours: when (skip), gate (block next,
                             exposes `blocked`), next edges by step id, gotoId
@@ -123,13 +125,20 @@ Each of these encodes a bug we already fixed once:
    "idle"`.** There is no `"contrast"`. If a demo fails typecheck on a tone,
    fix the demo, not the union.
 5. **`useStepPlayer.index === -1` means "not started".** Demo fallbacks for
-   `index < 0` must render frame **0**, never the last frame.
+   `index < 0` must render frame **0**, never the last frame. Prefer
+   `useTrace(steps)` — its `step` already encodes this.
 6. **Demo traces are built at module scope** (IIFE or constants), never inside
    a component referencing a later `const` — that produced a TDZ crash
    ("can't access lexical declaration before initialization").
 7. **All hooks are SSR-safe**: `"use client"` at top, portals only after mount,
    no `window` at module evaluation. Callbacks returned by public hooks are
    referentially stable (refs for fresh values, not re-created closures).
+   Never list a hook's memoized return object (e.g. `core` from `useSteps`)
+   in a callback's deps — it churns per frame; destructure its stable
+   callbacks or read through a ref. Tests assert identity for player and tour.
+9. **`syncHash` owns only its key.** The fragment is `&`-separated parts;
+   the player rewrites its `key=value` part and keeps everything else
+   (anchors, other players). No regex on the key.
 8. **Adapters are optional peers**: `driver.js` and `gsap` are in
    `peerDependenciesMeta.optional` and `external` in the tsup build; they are
    devDependencies here only so DTS generation can resolve their types.
@@ -179,7 +188,7 @@ the library's theming story:
 
 1. Library: `npm run build -w @sphynxoid/stepwise` → "ESM ⚡ Build success" +
    "DTS ⚡ Build success". Tests from `packages/stepwise`.
-2. Demo: `cd apps/demo && npm run build` → "9/9 static pages" (7 routes).
+2. Demo: `cd apps/demo && npm run build` → "11/11 static pages".
 3. **Visual check via headless Edge** (Chrome is not installed here):
    `C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe`, headless,
    against `npm run dev -- -p <port>`. Screenshot after interacting (e.g.

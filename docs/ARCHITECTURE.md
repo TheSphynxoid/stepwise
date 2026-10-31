@@ -38,7 +38,8 @@ the hooks; a host can replace any of it via the `theme` / `labels` props.
 |---|---|---|
 | `types.ts` | The trace contract: `StepTone`, `StepwiseStep`, `TourStepInput`, `Chapter`, `ShortcutItem`; ports `PlayerEngine` / `PlayerEngineHandle` / `TourDriver` | Definitions may embed `ReactNode` (glossary chains, tour bodies) |
 | `use-steps.ts` | THE core. Clamped cursor; `go/next/prev/first`; `atStart/atEnd/canNext/canPrev`; `onChange` | All callbacks referentially stable via refs; count may change dynamically (new timeline, mounted window) and the cursor re-clamps |
-| `use-step-player.ts` | Player policy: base delay, speed multiplier, play/pause/seek/replay, `syncHash` deep-link, engine port | `frame` is the raw counter (**-1 = not started**); `index` clamps into `[0, total-1]`, -1 when nothing to show |
+| `use-step-player.ts` | Player policy: base delay, speed multiplier, play/pause/seek/replay, `syncHash` deep-link, engine port, reduced-motion autoPlay gate | `frame` is the raw counter (**-1 = not started**); `index` clamps into `[0, total-1]`, -1 when nothing to show. Controls read live state through refs, so they never change identity. `syncHash` edits only its own `key=value` part of the `&`-separated fragment |
+| `use-trace.ts` | A player bound to a typed `StepwiseStep<Data>[]`: `step`, `frame`, stable `toneAt`/`titleAt` | Encodes invariant "-1 renders frame 0" once, so pages don't repeat the fallback |
 | `use-guided-tour.ts` | Tour policy: start/end/goto, `onEnter` per step, optional driver | `onEnter` reads latest steps via ref — closures stay fresh without re-triggering effects; `next` past the end exits |
 | `use-chapters.ts` | Scroll-driven cursor + smooth `goTo` | See "scroll tracking" below |
 | `flatten.ts` | Depth-first flattening of the `Chapter` tree → `FlatChapter[]` with `depth`, `rootIndex`, `parentIndex` | `rootIndex` powers the scrubber's grouped spans; parent/child indices power recursive nav |

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, renderHook } from "@testing-library/react";
-import { useStepPlayer } from "../use-step-player";
+import { readHashParam, useStepPlayer, writeHashParam } from "../use-step-player";
 import type { PlayerEngine, PlayerEngineApi, PlayerEngineHandle } from "../types";
 
 function createFakeEngine() {
@@ -153,6 +153,110 @@ describe("useStepPlayer — deep linking", () => {
     const { result } = renderHook(() => useStepPlayer({ total: 5, syncHash: "frame" }));
     act(() => result.current.seek(2));
     expect(window.location.hash).toBe("#frame=2");
+  });
+
+  it("writes only its own key, keeping anchors and other params", () => {
+    window.history.replaceState(null, "", "#intro&other=7");
+    const { result } = renderHook(() => useStepPlayer({ total: 5, syncHash: "frame" }));
+    act(() => result.current.seek(2));
+    expect(window.location.hash).toBe("#intro&other=7&frame=2");
+    act(() => result.current.seek(3));
+    expect(window.location.hash).toBe("#intro&other=7&frame=3");
+  });
+
+  it("reads its key from a multi-part hash", () => {
+    window.location.hash = "intro&frame=3";
+    const { result } = renderHook(() => useStepPlayer({ total: 5, syncHash: "frame" }));
+    expect(result.current.index).toBe(3);
+  });
+
+  it("treats keys literally (regex metacharacters are safe)", () => {
+    window.location.hash = "a.b=1";
+    const literal = renderHook(() => useStepPlayer({ total: 5, syncHash: "a.b" }));
+    expect(literal.result.current.index).toBe(1);
+    cleanup();
+    clearHash();
+    window.location.hash = "axb=2";
+    const noMatch = renderHook(() => useStepPlayer({ total: 5, syncHash: "a.b" }));
+    expect(noMatch.result.current.index).toBe(-1);
+  });
+});
+
+describe("readHashParam / writeHashParam", () => {
+  it("round-trips params and preserves other parts", () => {
+    expect(readHashParam("#a=1&b=2", "b")).toBe("2");
+    expect(readHashParam("#anchor", "b")).toBeNull();
+    expect(writeHashParam("", "f", "0")).toBe("#f=0");
+    expect(writeHashParam("#anchor", "f", "4")).toBe("#anchor&f=4");
+    expect(writeHashParam("#f=1&g=2", "f", "9")).toBe("#f=9&g=2");
+  });
+});
+
+describe("useStepPlayer — stable callbacks", () => {
+  it("control callbacks keep their identity across frames and state changes", () => {
+    vi.useFakeTimers();
+    const { result } = renderHook(() => useStepPlayer({ total: 4, autoPlay: true, baseDelayMs: 100 }));
+    const first = result.current;
+    act(() => {
+      vi.advanceTimersByTime(100);
+    });
+    act(() => result.current.toggle());
+    act(() => result.current.seek(3));
+    const later = result.current;
+    expect(later.index).toBe(3);
+    for (const key of ["start", "reset", "seek", "next", "prev", "toggle", "setPlaying", "setSpeed"] as const) {
+      expect(later[key]).toBe(first[key]);
+    }
+  });
+
+  it("stable callbacks still act on live state (toggle replays from the end)", () => {
+    const { result } = renderHook(() => useStepPlayer({ total: 3 }));
+    const toggle = result.current.toggle;
+    act(() => result.current.seek(2));
+    act(() => toggle());
+    expect(result.current.index).toBe(0);
+    expect(result.current.playing).toBe(true);
+  });
+});
+
+describe("useStepPlayer — reduced motion", () => {
+  function mockReducedMotion(matches: boolean) {
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+      matches: matches && query.includes("reduce"),
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    })) as unknown as typeof window.matchMedia;
+  }
+  afterEach(() => {
+    // jsdom has no matchMedia by default; restore that.
+    delete (window as { matchMedia?: unknown }).matchMedia;
+  });
+
+  it("autoPlay lands on frame 0 paused when the user prefers reduced motion", () => {
+    mockReducedMotion(true);
+    vi.useFakeTimers();
+    const { result } = renderHook(() => useStepPlayer({ total: 3, autoPlay: true, baseDelayMs: 100 }));
+    expect(result.current.index).toBe(0);
+    expect(result.current.playing).toBe(false);
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+    expect(result.current.index).toBe(0);
+  });
+
+  it("respectReducedMotion: false keeps autoPlay running", () => {
+    mockReducedMotion(true);
+    const { result } = renderHook(() =>
+      useStepPlayer({ total: 3, autoPlay: true, respectReducedMotion: false })
+    );
+    expect(result.current.playing).toBe(true);
+  });
+
+  it("autoPlay is unaffected without the preference", () => {
+    mockReducedMotion(false);
+    const { result } = renderHook(() => useStepPlayer({ total: 3, autoPlay: true }));
+    expect(result.current.playing).toBe(true);
   });
 });
 
