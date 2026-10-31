@@ -3,7 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "registry": "node scripts/build-registry.mjs",
+    "predev": "npm run registry",
     "dev": "next dev",
+    "prebuild": "npm run registry",
     "build": "next build",
     "start": "next start",
     "lint": "eslint ."

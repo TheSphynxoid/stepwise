@@ -70,6 +70,20 @@ In this monorepo the demo does `@source "../../../packages/stepwise/src";` —
 `apps/packages/...`, which doesn't exist, and Tailwind **silently ignores**
 bad paths). Details and verification steps: `docs/TAILWIND-SETUP.md`.
 
+**Two escape hatches ship with 0.2.0** (prefer pointing users at these):
+
+- `@sphynxoid/stepwise/styles.css` — precompiled from `src/styles.css` by the
+  Tailwind CLI (`npm run build:css`, chained after tsup in `build`, since
+  tsup's `clean` wipes `dist`). Non-Tailwind hosts import it and are done.
+  Colors are `--stepwise-*` tokens; `white`/`black` are remapped to
+  foreground/shade so it works on light hosts. If you add a class with a new
+  color token to a component, add the token to `src/styles.css` too.
+- shadcn registry at `<demo>/r/*.json`, generated from `src` by
+  `apps/demo/scripts/build-registry.mjs` (demo `predev`/`prebuild`; output is
+  gitignored). It splits `components.tsx` at its `// ─── Section ───`
+  banners — **renaming a banner breaks the generator** (it throws, listing
+  the banners it found; update the item list).
+
 ## Architecture in one screen
 
 ```
@@ -142,6 +156,10 @@ Each of these encodes a bug we already fixed once:
 8. **Adapters are optional peers**: `driver.js` and `gsap` are in
    `peerDependenciesMeta.optional` and `external` in the tsup build; they are
    devDependencies here only so DTS generation can resolve their types.
+9. **Every styled component root sets `data-stepwise`** (including portaled
+   roots: tooltip card, shortcuts overlay). `styles.css` scopes its preflight
+   to those subtrees — a new component without it renders with browser-default
+   buttons/margins on non-Tailwind hosts.
 
 ## Demo content policy
 

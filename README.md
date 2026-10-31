@@ -13,7 +13,7 @@ Frames in a trace, chapters in a lesson, lessons in a notebook, and tour steps a
 
 - [`AGENTS.md`](AGENTS.md) — operating manual: commands, invariants, gotchas, verification playbook. **Read this before changing anything.**
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — the layering, ports/adapters, and the algorithms (tooltip positioning, center-containment scroll tracking, scrubber grouping, spotlight) with the reasoning behind each.
-- [`docs/TAILWIND-SETUP.md`](docs/TAILWIND-SETUP.md) — consumer setup. **Required**: the components ship className strings; Tailwind must scan the library source or nothing is styled.
+- [`docs/TAILWIND-SETUP.md`](docs/TAILWIND-SETUP.md) — consumer styling: the precompiled `styles.css` (no Tailwind), the shadcn registry, or `@source` for Tailwind hosts — plus the token contract and the "everything is unstyled" checklist.
 
 ## Development
 
@@ -28,16 +28,15 @@ npm run build     # builds all packages (library → dist; the demo imports dist
 
 MIT
 
-## Tailwind CSS v4 consumers
+## Styling the components
 
-The components ship className strings, so your Tailwind build must scan the
-library source. Tailwind v4's automatic detection skips node_modules — register
-the source explicitly in your CSS entry:
+Pick one — the hooks are headless either way:
 
-```css
-@import "tailwindcss";
-@source "../node_modules/@sphynxoid/stepwise/dist";
-```
+| Your app | Do this |
+|---|---|
+| **No Tailwind** | `import "@sphynxoid/stepwise/styles.css";` once — precompiled, light/dark defaults, themable via `--stepwise-*` variables |
+| **Tailwind + shadcn/ui** | `npx shadcn@latest add https://stepwise-demo.vercel.app/r/player-bar.json` — copies the component source into your repo (hooks stay on npm) |
+| **Tailwind, using the npm components** | add `@source "../node_modules/@sphynxoid/stepwise/dist";` to your CSS entry |
 
-Details, v3 setup, and the "everything is unstyled" troubleshooting checklist:
-[`docs/TAILWIND-SETUP.md`](docs/TAILWIND-SETUP.md).
+Details, the token contract, and the "everything is unstyled" troubleshooting
+checklist: [`docs/TAILWIND-SETUP.md`](docs/TAILWIND-SETUP.md).

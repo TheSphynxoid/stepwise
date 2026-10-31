@@ -12,6 +12,10 @@ import type { Chapter, ShortcutItem, StepTone, TourStepInput } from "./types";
 export const TONE_SEGMENT_CLASS = defaultTheme.toneSegment;
 export const TONE_CHIP_CLASS = defaultTheme.toneChip;
 
+// Every component root carries `data-stepwise`: the precompiled stylesheet
+// (styles.css) scopes its preflight to those subtrees, so non-Tailwind hosts
+// get normalized buttons/margins without a global reset.
+
 // ─── Internal button (replaces external UI-kit imports) ─────────────────────
 
 const BTN_BASE = defaultTheme.buttonBase;
@@ -41,7 +45,7 @@ export function CodeBlock({
   className?: string;
 }) {
   return (
-    <div className={cn(theme.codeBlock, className)}>
+    <div data-stepwise="" className={cn(theme.codeBlock, className)}>
       {lines.map((line, i) => {
         const commentStart = line.indexOf("//");
         if (commentStart === 0) {
@@ -130,7 +134,7 @@ export function StepScrubber({
 
   if (count === 0) {
     return (
-      <div className={cn("flex-1 flex items-center min-w-0", className)}>
+      <div data-stepwise="" className={cn("flex-1 flex items-center min-w-0", className)}>
         {emptyHint && <span className={cn("text-xs font-mono px-2", theme.muted)}>{emptyHint}</span>}
       </div>
     );
@@ -180,6 +184,7 @@ export function StepScrubber({
 
   return (
     <div
+      data-stepwise=""
       role="slider"
       tabIndex={0}
       aria-label={labels?.scrubber ?? "Frames"}
@@ -252,7 +257,7 @@ export function PlayerBar({
   const playLabel = player.playing ? L.pause : player.total > 0 && player.atEnd ? L.replay : L.play;
 
   return (
-    <div className={cn("flex items-center gap-2 p-2", className)}>
+    <div data-stepwise="" className={cn("flex items-center gap-2 p-2", className)}>
       {leading}
       <StepButton variant="ghost" onClick={() => player.prev()} className="h-7 px-2 text-xs" aria-label={L.previous}>
         ←
@@ -341,6 +346,7 @@ export function ChapterNav({
 
   return (
     <nav
+      data-stepwise=""
       aria-label="Chapters"
       className={cn(
         "sticky top-20 md:top-24 z-30 rounded-sm shadow-[0_8px_24px_rgba(0,0,0,0.35)]",
@@ -381,7 +387,7 @@ export function LessonPager({
   labels?: { previous?: string; next?: string };
 }) {
   return (
-    <div className={cn("flex items-center gap-2", className)}>
+    <div data-stepwise="" className={cn("flex items-center gap-2", className)}>
       <StepButton
         variant="outline"
         onClick={() => onNavigate("prev")}
@@ -454,7 +460,7 @@ export function TourSpotlight({
   if (!rect) return null;
   const pad = 6;
   return (
-    <div className="fixed inset-0 z-40 pointer-events-none">
+    <div data-stepwise="" className="fixed inset-0 z-40 pointer-events-none">
       <div
         className={cn("absolute", theme.spotlight)}
         style={{
@@ -511,6 +517,7 @@ export function TourCard({
   return (
     <div
       ref={trapRef}
+      data-stepwise=""
       role="dialog"
       aria-modal="true"
       aria-label={`${L.title} · ${index + 1}/${total}`}
@@ -593,6 +600,7 @@ export function ShortcutsDialog({
 
   return createPortal(
     <div
+      data-stepwise=""
       className={cn("fixed inset-0 z-50 flex items-center justify-center p-4", theme.overlay, className)}
       onClick={onClose}
     >
