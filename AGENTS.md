@@ -14,7 +14,7 @@ layered on top. The demo site (`apps/demo`) is the living documentation.
 
 - **Library**: `packages/stepwise` (ESM, `"use client"` modules, React 18/19 peer)
 - **Demo**: `apps/demo` (Next.js 15, Tailwind v4, static prerender)
-- Status: **published** as `@sphynxoid/stepwise@0.3.0` (npm, public, org
+- Status: **published** as `@sphynxoid/stepwise@0.4.0` (npm, public, org
   scope `sphynxoid`); GitHub at `TheSphynxoid/stepwise`; demo at
   https://stepwise.thesphynx.net (Vercel config in `vercel.json`). The portfolio consumes the package (see "Known debt").
 
@@ -309,9 +309,9 @@ signature changes are major while we're pre-1.0.
   `/llms.txt` is the llmstxt.org index (`app/llms.ts`, static route handlers).
   When you change a public API, update LLMS.md too: its snippets were
   typechecked against the built library, keep them that way.
-- `examples/next-mdx` (Next.js + MDX article) installs the published package
-  at `^0.4.0`; it has no lockfile until 0.4.0 is on npm (generate one then).
-  Built and checked against a packed local build before 0.4.0 shipped.
+- `examples/next-mdx` (Next.js + MDX article) installs the **published**
+  package too (a second consumer smoke test, Next + MDX + no Tailwind). Bump
+  its range on minor releases, like the Vite starter.
 - `examples/vite-starter` installs the **published** package (not a
   workspace), so it doubles as a consumer smoke test. Bump its range on
   minor releases. README media (`docs/assets/hero.gif`, `social.png`,
