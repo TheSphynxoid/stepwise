@@ -150,10 +150,11 @@ export default function Home() {
                 <span className="sw-gradient-text">One cursor, every scale.</span>
               </h1>
               <p className="mt-5 max-w-xl text-[15px] leading-relaxed text-muted-foreground sw-fade-up sw-fade-up-2">
-                stepwise is a React kit for interactive, narrated step-throughs:
-                player-driven traces, guided tours, scroll-told lessons, and
-                show-once feature tutorials. All of them run on one core
-                primitive, a clamped cursor called{" "}
+                stepwise is a React kit for explainers your readers can poke
+                at: algorithm players whose input they can change while it
+                plays (try the bars), pause-and-predict quizzes, guided tours,
+                scroll-told lessons and glossary tooltips. All of them run on
+                one core primitive, a clamped cursor called{" "}
                 <code className="rounded bg-secondary px-1.5 py-0.5 font-mono text-[12px] text-foreground/80">
                   useSteps
                 </code>

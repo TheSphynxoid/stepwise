@@ -11,7 +11,7 @@
 
 [**Live demos**](https://stepwise.thesphynx.net) · [API reference](https://stepwise.thesphynx.net/docs) · [Try it on StackBlitz](https://stackblitz.com/github/TheSphynxoid/stepwise/tree/master/examples/vite-starter)
 
-<img src="docs/assets/hero.gif" alt="A quicksort trace playing in a stepwise PlayerBar: bars swap as the partition advances, the scrubber below shows every frame colored by tone" width="516">
+<img src="docs/assets/hero.gif" alt="A quicksort trace playing in a stepwise PlayerBar: bars swap as the partition advances; partway through, two bars are clicked and change height, the sort re-runs on the new input and the player stays on the same step" width="516">
 
 </div>
 

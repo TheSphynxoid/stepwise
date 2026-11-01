@@ -189,3 +189,15 @@ test("AI docs: /llms.txt indexes, /llms-full.txt carries the guide and the API r
   expect(full).toContain("### useSimulation");
   expect(full).toContain("syncInput");
 });
+
+test("hero: clicking a bar mid-run re-runs the sort and keeps the player's step", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/");
+  const card = page.locator(".sw-card-glow").first();
+  const slider = card.getByRole("slider", { name: "Frames" });
+  for (let i = 0; i < 6; i++) await card.getByRole("button", { name: "Next step" }).click();
+  const frame = await slider.getAttribute("aria-valuenow");
+  await card.getByRole("button", { name: /^Bar / }).nth(7).click();
+  await expect(card.getByTestId("hero-status")).toContainText("re-ran from your edit");
+  await expect(slider).toHaveAttribute("aria-valuenow", frame!);
+});
