@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import type { EvaluatorResult } from "./evaluate";
 
 // Presentation schema shared by every stepwise visualizer. Domain engines
 // produce steps conforming to these types; the player and tour machinery
@@ -39,11 +40,14 @@ export interface TourStepInput {
    */
   when?: () => boolean;
   /**
-   * Guard: while it returns false, `next()` is a no-op and the tour reports
-   * `blocked` — "do this before continuing". Only restricts `next`;
-   * goto/gotoId remain free (programmatic navigation).
+   * Guard: while it doesn't pass, `next()` is a no-op and the tour reports
+   * `blocked` — "do this before continuing". Return a boolean, or a
+   * `Verdict` to also say what's missing (surfaced as the tour's
+   * `feedback`). Only restricts `next`; goto/gotoId remain free
+   * (programmatic navigation). For async checks, run `useEvaluator` and
+   * return its `passed` here.
    */
-  gate?: () => boolean;
+  gate?: () => EvaluatorResult;
   /**
    * Edge override: advance to the step with this id instead of index+1.
    * Return null (or omit) for linear order. Enables branching and loops;

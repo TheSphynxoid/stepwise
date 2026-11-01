@@ -81,6 +81,10 @@ export type {
 } from "./use-synced-tracks";
 export { useLessonStream, useFadeIn } from "./use-lesson-stream";
 export type { LessonStream, LessonStreamOptions } from "./use-lesson-stream";
+export { useEvaluator } from "./use-evaluator";
+export type { EvaluatorOptions, EvaluatorState } from "./use-evaluator";
+export { toVerdict, pass, fail, pending } from "./evaluate";
+export type { Evaluator, EvaluatorResult, Verdict, VerdictStatus } from "./evaluate";
 export { useGuidedTour } from "./use-guided-tour";
 export type { GuidedTour, GuidedTourOptions } from "./use-guided-tour";
 export { useChapters, flattenChapters } from "./use-chapters";

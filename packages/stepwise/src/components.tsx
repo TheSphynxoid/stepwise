@@ -486,6 +486,7 @@ export function TourCard({
   className,
   theme = defaultTheme,
   nextDisabled = false,
+  feedback,
 }: {
   step: TourStepInput;
   index: number;
@@ -504,6 +505,8 @@ export function TourCard({
   theme?: StepwiseTheme;
   /** Disable the primary (Next/Finish) button — pair with tour.blocked. */
   nextDisabled?: boolean;
+  /** Gate feedback ("Stage a file first") — pair with tour.feedback. Announced politely. */
+  feedback?: ReactNode;
 }) {
   const L = {
     title: labels?.title ?? "Guided tour",
@@ -545,6 +548,11 @@ export function TourCard({
       <p className="text-sm font-bold text-foreground/95 mb-1.5">{step.title}</p>
       <div className="text-[12px] font-mono text-foreground/70 leading-relaxed">{step.body}</div>
       {step.waitHint && <p className="text-[11px] font-mono text-accent mt-2 animate-pulse">{step.waitHint}</p>}
+      <div aria-live="polite">
+        {feedback != null && feedback !== false && (
+          <p className="text-[11px] font-mono text-foreground/70 mt-2">{feedback}</p>
+        )}
+      </div>
       <div className="flex items-center gap-2 mt-3 pt-3 border-t border-white/10">
         <StepButton variant="outline" onClick={onBack} disabled={index === 0} className="h-7 px-3 text-[11px]">
           {L.back}
