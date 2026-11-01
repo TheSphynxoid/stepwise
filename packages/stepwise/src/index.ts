@@ -12,8 +12,18 @@
 //   use-step-player   — player policy: timer, speed, seek, deep-link hash
 //   use-trace         — a player bound to a typed trace: current step,
 //                       pre-start frame 0, stable scrubber accessors
+//                       + keyed re-anchoring: when the steps change, the
+//                       playhead stays on the step with the same `key`
+//                       (reanchor is the pure rule)
 //   create-trace      — typed trace builder (.step / .build) for module-scope
 //                       traces without IIFEs; pure data
+//   simulation        — traces computed from an input by a generator:
+//                       seeded createRng, pure runSimulation (capped)
+//   use-simulation    — live trace: recompute on input change, keep place
+//   evaluate          — Verdict / Evaluator: one shape for gates,
+//                       checkpoints and exercises (booleans accepted)
+//   use-evaluator     — verdict as state: auto (gates) or manual (quizzes),
+//                       async with abort, attempts
 //   use-synced-tracks — comparison mode: several traces under ONE player,
 //                       aligned by holding the last frame or by sync keys
 //                       (alignTracks is the pure alignment)
@@ -65,8 +75,14 @@ export { useSteps } from "./use-steps";
 export type { StepsCore, UseStepsOptions } from "./use-steps";
 export { useStepPlayer } from "./use-step-player";
 export type { StepPlayer, StepPlayerOptions } from "./use-step-player";
+export { readHashParam, writeHashParam } from "./use-step-player";
 export { useTrace } from "./use-trace";
-export type { TracePlayer } from "./use-trace";
+export type { TraceOptions, TracePlayer } from "./use-trace";
+export { reanchor } from "./reanchor";
+export { useSimulation } from "./use-simulation";
+export type { SimulationOptions, SimulationPlayer } from "./use-simulation";
+export { createRng, runSimulation } from "./simulation";
+export type { Rng, Simulation, SimulationContext, SimulationResult, SimulationRunOptions } from "./simulation";
 export { createTrace } from "./create-trace";
 export type { TraceBuilder } from "./create-trace";
 export { useSyncedTracks, alignTracks } from "./use-synced-tracks";

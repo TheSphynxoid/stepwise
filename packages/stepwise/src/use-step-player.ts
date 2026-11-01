@@ -356,28 +356,51 @@ export function useStepPlayer({
   // re-runs on render churn (stable deps) — reading a lagging hash during
   // playback would ping-pong the cursor.
   const lastWrittenHash = useRef("");
+  // A frame just read from the hash, until the cursor reflects it. The read
+  // and the write effects run in the same commit, before go(f) re-renders:
+  // without this the writer would briefly put the stale index back into the
+  // URL, and anything else reading the hash in that commit would see it.
+  const pendingRead = useRef<number | null>(null);
   const readHash = useCallback(() => {
-    if (!syncHash || typeof window === "undefined" || total === 0) return;
+    const t = totalRef.current;
+    if (!syncHash || typeof window === "undefined" || t === 0) return;
     const hash = window.location.hash;
     if (hash === lastWrittenHash.current) return;
     const value = readHashParam(hash, syncHash);
     if (value === null || !/^\d+$/.test(value)) return;
     const f = Number(value);
-    if (f < total) {
+    if (f < t) {
+      pendingRead.current = f;
       setStarted(true);
       go(f);
     }
-  }, [syncHash, total, go]);
+  }, [syncHash, go]);
 
+  // The hash is read on mount, on real hashchange events, and once more when
+  // a timeline first arrives (mounted empty, loaded later), but not on every
+  // `total` change: when a trace is recomputed, the frame in the URL still
+  // describes the old trace, and other code may have just rewritten its own
+  // hash part, which would make it look like a fresh external link.
+  const linkedRead = useRef(false);
   useEffect(() => {
     readHash();
+    linkedRead.current = totalRef.current > 0;
     const onHashChange = () => readHash();
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
   }, [readHash]);
+  useEffect(() => {
+    if (linkedRead.current || total === 0) return;
+    linkedRead.current = true;
+    readHash();
+  }, [total, readHash]);
 
   useEffect(() => {
     if (!syncHash || index < 0 || typeof window === "undefined") return;
+    // Skip the one write that would race a just-applied hash read.
+    const pending = pendingRead.current;
+    pendingRead.current = null;
+    if (pending !== null && pending !== index) return;
     const next = writeHashParam(window.location.hash, syncHash, String(index));
     if (window.location.hash !== next) {
       lastWrittenHash.current = next;

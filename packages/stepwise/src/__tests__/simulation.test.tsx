@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { useEffect } from "react";
 import { act, cleanup, renderHook } from "@testing-library/react";
 import { reanchor, stepKey } from "../reanchor";
 import { createRng, runSimulation, type Simulation } from "../simulation";
@@ -151,6 +152,30 @@ describe("useTrace — keyed re-anchoring", () => {
     expect(result.current.step?.label).toBe("y");
   });
 
+  it("shows the player's frame when an effect moves it right after a trace change", () => {
+    // Re-anchoring moves the cursor to 0, then a sibling effect in the same
+    // commit moves it back to 2: the player's state nets out unchanged, and
+    // the display must still follow it (not stay on the anchored frame).
+    const A = [k("a"), k("b"), k("c"), k("d")];
+    const B = [k("a"), k("z"), k("y"), k("w")];
+    const { result, rerender } = renderHook(
+      ({ steps }) => {
+        const t = useTrace(steps);
+        const { jump } = t.player;
+        useEffect(() => {
+          if (steps === B) jump(2);
+        }, [steps, jump]);
+        return t;
+      },
+      { initialProps: { steps: A } }
+    );
+    act(() => result.current.player.seek(2));
+    rerender({ steps: B });
+    expect(result.current.player.index).toBe(2);
+    expect(result.current.frame).toBe(2);
+    expect(result.current.step?.key).toBe("y");
+  });
+
   it("supports a custom keyOf", () => {
     const A = [k(undefined, 1), k(undefined, 2), k(undefined, 3)];
     const B = [k(undefined, 0), k(undefined, 1), k(undefined, 2), k(undefined, 3)];
@@ -191,6 +216,56 @@ describe("useSimulation", () => {
     expect(result.current.truncated).toBe(false);
     expect(result.current.error).toBe(null);
     expect(result.current.seed).toBe(5);
+  });
+});
+
+describe("useStepPlayer — hash read on mount", () => {
+  it("doesn't overwrite a linked frame before applying it", () => {
+    window.history.replaceState(null, "", "#frame=2&other=x");
+    const seen: string[] = [];
+    // A sibling effect in the same commit (e.g. a page restoring its own
+    // linked state) must still see the frame from the link.
+    const { result } = renderHook(() => {
+      const p = useStepPlayer({ total: 5, syncHash: "frame", autoPlay: true, baseDelayMs: 60_000 });
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      useEffect(() => void seen.push(window.location.hash), []);
+      return p;
+    });
+    expect(seen[0]).toBe("#frame=2&other=x");
+    expect(result.current.index).toBe(2);
+    expect(window.location.hash).toBe("#frame=2&other=x");
+    window.history.replaceState(null, "", window.location.pathname);
+  });
+});
+
+describe("useTrace — re-anchoring with syncHash", () => {
+  it("a recomputed trace doesn't re-read the stale frame from the URL", () => {
+    window.history.replaceState(null, "", window.location.pathname);
+    const A = [k("a"), k("b"), k("c"), k("d")];
+    const B = [k("x"), k("y"), k("a"), k("b"), k("c"), k("d")];
+    const { result, rerender } = renderHook(({ steps }) => useTrace(steps, { syncHash: "frame" }), {
+      initialProps: { steps: A },
+    });
+    act(() => result.current.player.seek(2));
+    expect(window.location.hash).toBe("#frame=2");
+    // Someone else rewrites their own hash part right before the recompute
+    // (a page storing its input), so the hash no longer matches what the
+    // player last wrote.
+    window.history.replaceState(null, "", "#frame=2&in=1.2.3");
+    rerender({ steps: B });
+    expect(result.current.step?.key).toBe("c");
+    expect(result.current.player.index).toBe(4);
+    window.history.replaceState(null, "", window.location.pathname);
+  });
+
+  it("still applies a linked frame when the timeline arrives after mount", () => {
+    window.history.replaceState(null, "", "#frame=2");
+    const { result, rerender } = renderHook(({ steps }) => useTrace(steps, { syncHash: "frame" }), {
+      initialProps: { steps: [] as K[] },
+    });
+    rerender({ steps: [k("a"), k("b"), k("c")] });
+    expect(result.current.step?.key).toBe("c");
+    window.history.replaceState(null, "", window.location.pathname);
   });
 });
 
@@ -248,6 +323,17 @@ describe("useStepPlayer — checkpoints", () => {
     expect(result.current.held).toBe(1);
     expect(result.current.release).toBe(release);
     expect(result.current.jump).toBe(jump);
+  });
+
+  it("useTrace's holdAt receives the step from the current trace", () => {
+    vi.useFakeTimers();
+    const A = [k("a"), k("stop"), k("c")];
+    const { result } = renderHook(() =>
+      useTrace(A, { autoPlay: true, baseDelayMs: 100, holdAt: (_, s) => s?.key === "stop" })
+    );
+    act(() => vi.advanceTimersByTime(100));
+    expect(result.current.player.held).toBe(1);
+    expect(result.current.step?.key).toBe("stop");
   });
 
   it("jump moves the cursor without pausing", () => {

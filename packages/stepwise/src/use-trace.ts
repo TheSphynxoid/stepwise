@@ -1,12 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef } from "react";
 import { reanchor, stepKey } from "./reanchor";
 import { useStepPlayer } from "./use-step-player";
 import type { StepPlayer, StepPlayerOptions } from "./use-step-player";
 import type { StepTone, StepwiseStep } from "./types";
 
-export interface TraceOptions<S extends StepwiseStep> extends Omit<StepPlayerOptions, "total"> {
+export interface TraceOptions<S extends StepwiseStep> extends Omit<StepPlayerOptions, "total" | "holdAt"> {
+  /**
+   * Checkpoints (see `StepPlayerOptions.holdAt`), with the step at hand:
+   * `holdAt: (_, step) => step?.kind === "compare"`. Always sees the current
+   * trace, also after it's recomputed.
+   */
+  holdAt?: (frame: number, step: S | undefined) => boolean;
   /**
    * Step identity used to keep the playhead in place when `steps` changes
    * (see `reanchor`). Defaults to each step's `key` field. Traces without
@@ -54,9 +60,15 @@ export function useTrace<S extends StepwiseStep>(
   steps: readonly S[],
   opts?: TraceOptions<S>
 ): TracePlayer<S> {
-  const { keyOf, ...playerOpts } = opts ?? {};
-  const player = useStepPlayer({ ...playerOpts, total: steps.length });
+  const { keyOf, holdAt, ...playerOpts } = opts ?? {};
   const stepsRef = useRef(steps);
+  // The player keeps the latest holdAt in a ref, so a fresh wrapper per
+  // render is fine; it resolves the step from the current trace.
+  const player = useStepPlayer({
+    ...playerOpts,
+    total: steps.length,
+    holdAt: holdAt ? (f) => holdAt(f, stepsRef.current[f]) : undefined,
+  });
   stepsRef.current = steps;
   const keyFn = (keyOf ?? stepKey) as (step: S, index: number) => string | undefined;
 
@@ -73,9 +85,17 @@ export function useTrace<S extends StepwiseStep>(
   const index = anchored ?? player.index;
 
   const { jump } = player;
+  // The anchored index lives only in this render. Always follow it with one
+  // real state change: if something else moves the cursor back in the same
+  // commit (a page restoring a linked frame), the player's state nets out
+  // unchanged and React would bail out of the re-render, leaving the screen
+  // on the anchored frame while the player sits elsewhere.
+  const [, rerender] = useReducer((n: number) => n + 1, 0);
   useIsomorphicLayoutEffect(() => {
-    if (anchored !== null && anchored >= 0 && anchored !== player.index) jump(anchored);
     shownRef.current = { steps, index };
+    if (anchored === null) return;
+    if (anchored >= 0 && anchored !== player.index) jump(anchored);
+    rerender();
   });
 
   const frame = steps.length === 0 ? -1 : Math.max(0, Math.min(index, steps.length - 1));
