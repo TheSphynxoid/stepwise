@@ -8,6 +8,8 @@ import {
   useGlobalKeys,
   TourSpotlight,
   TourCard,
+  fail,
+  pass,
   type TourStepInput,
 } from "@sphynxoid/stepwise";
 import { useSiteTheme } from "../theme-provider";
@@ -44,15 +46,19 @@ export default function DiscoveryDemo() {
       title: "Type a query",
       body: (
         <>
-          Type anything. This step carries a <em>when</em>: if you already typed
-          a query before the tour reached it, it is skipped entirely - steps
-          read your app&apos;s state at arrival time.
+          Type at least three characters. This step carries a <em>when</em>: if
+          you already typed a query before the tour reached it, it is skipped
+          entirely. Its gate returns a <em>verdict</em>, so the card tells you
+          what is still missing.
         </>
       ),
       target: "disc-search",
       when: () => query.length === 0,
-      gate: () => query.length > 0,
-      waitHint: 'type anything - e.g. "compiler"',
+      gate: () =>
+        query.length >= 3
+          ? pass(`"${query}" works - press Next.`)
+          : fail(query.length === 0 ? "Nothing typed yet." : `${3 - query.length} more character${query.length === 2 ? "" : "s"}.`),
+      waitHint: 'type a query - e.g. "compiler"',
     },
     {
       id: "run",
@@ -88,7 +94,7 @@ export default function DiscoveryDemo() {
   ];
 
   const tour = useGuidedTour(steps);
-  const { active, start, next, back, end, blocked } = tour;
+  const { active, start, next, back, end, blocked, feedback } = tour;
   const launched = useRef(false);
 
   useEffect(() => {
@@ -244,6 +250,7 @@ export default function DiscoveryDemo() {
             onEnd={end}
             theme={theme}
             nextDisabled={blocked}
+            feedback={feedback}
           />
         </>
       )}

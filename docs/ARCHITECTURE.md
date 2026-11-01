@@ -39,7 +39,11 @@ the hooks; a host can replace any of it via the `theme` / `labels` props.
 | `types.ts` | The trace contract: `StepTone`, `StepwiseStep`, `TourStepInput`, `Chapter`, `ShortcutItem`; ports `PlayerEngine` / `PlayerEngineHandle` / `TourDriver` | Definitions may embed `ReactNode` (glossary chains, tour bodies) |
 | `use-steps.ts` | THE core. Clamped cursor; `go/next/prev/first`; `atStart/atEnd/canNext/canPrev`; `onChange` | All callbacks referentially stable via refs; count may change dynamically (new timeline, mounted window) and the cursor re-clamps |
 | `use-step-player.ts` | Player policy: base delay, speed multiplier, play/pause/seek/replay, `syncHash` deep-link, engine port, reduced-motion autoPlay gate | `frame` is the raw counter (**-1 = not started**); `index` clamps into `[0, total-1]`, -1 when nothing to show. Controls read live state through refs, so they never change identity. `syncHash` edits only its own `key=value` part of the `&`-separated fragment |
-| `use-trace.ts` | A player bound to a typed `StepwiseStep<Data>[]`: `step`, `frame`, stable `toneAt`/`titleAt` | Encodes invariant "-1 renders frame 0" once, so pages don't repeat the fallback |
+| `use-trace.ts` | A player bound to a typed `StepwiseStep<Data>[]`: `step`, `frame`, stable `toneAt`/`titleAt`; keyed re-anchoring when `steps` changes | Encodes invariant "-1 renders frame 0" once, so pages don't repeat the fallback. See "re-anchoring" below |
+| `reanchor.ts` | The pure re-anchoring rule (+ default `stepKey`) | Exported for custom players |
+| `simulation.ts` | `createRng` (seeded mulberry32), `runSimulation` (pure, capped), the `Simulation` type | No React; safe at module scope and on the server |
+| `use-simulation.ts` | `useSimulation`: memoized `runSimulation` → `useTrace` | Recomputes on `simulation` / `input` / `seed` / `maxSteps` identity |
+| `evaluate.ts` / `use-evaluator.ts` | `Verdict`, `Evaluator`, `pass`/`fail`/`pending`/`toVerdict`; `useEvaluator` (auto/manual, async with abort) | Tour gates accept verdicts; `TourCard feedback` renders them |
 | `create-trace.ts` | `createTrace<Data>()` → `.step()` / `.length` / `.last()` / `.build()` | Pure data; `build()` snapshots. Replaces the module-scope IIFE pattern (invariant 6) |
 | `use-synced-tracks.ts` | Comparison mode: `alignTracks` (pure) + `useSyncedTracks` (one player over the aligned table, per-track `TrackView`) | Alignment memoized by shallow track-array identity, so `{ a, b }` literals are fine; `toneAt`/`titleAt` summarize the tracks that moved |
 | `use-guided-tour.ts` | Tour policy: start/end/goto, `onEnter` per step, optional driver | `onEnter` reads latest steps via ref — closures stay fresh without re-triggering effects; `next` past the end exits |
@@ -186,6 +190,45 @@ Replay label; `toggle(onEmpty)` fires `onEmpty` when there is no timeline —
 this is how "press play to build the trace" flows work. `syncHash: "frame"`
 writes `#frame=N` on change and honors the initial hash once on mount
 (deep-linking without history spam — `replaceState`).
+
+Hash timing, both learned the hard way (0.3):
+
+- The read and the write effects run in the same commit, before `go(f)`
+  re-renders. The write right after a read is skipped unless the cursor
+  already shows the read frame (`pendingRead`), otherwise the stale index
+  lands in the URL for one commit and sibling effects restoring their own
+  linked state read `frame=0`.
+- The hash is read on mount, on `hashchange`, and once when the first
+  non-empty timeline arrives, never on every `total` change. After a
+  recompute the URL's frame describes the old trace, and if another hash
+  part was just rewritten, the hash no longer equals `lastWrittenHash` and
+  would look like a fresh external link.
+
+Checkpoints (`holdAt`): the timer loop checks the frame it just reached;
+if it's a checkpoint not yet released this playthrough, it sets `held` and
+pauses instead of scheduling the next tick. `release()` and play-from-here
+add the frame to the released set; `start()`/`reset()` clear it. Manual
+moves never consult `holdAt`. Engines own their own timing, so `holdAt`
+is ignored with a custom `engine`.
+
+### Re-anchoring (`use-trace.ts`, `reanchor.ts`)
+
+When `steps` is replaced (a recomputed simulation), the playhead should
+stay on the same *moment*, not the same index. The rule: walk back from
+the old index to the most recent step whose key exists in the new trace
+and land there; no shared key → frame 0. Walking *back* means an edit that
+removes the current moment lands on the last moment both runs share,
+never on something later the reader hasn't seen yet.
+
+Mechanics: the anchored index is computed during render from `shownRef`
+(what the last commit displayed), so the first frame drawn against the new
+trace is already right (no flash). A layout effect then moves the player
+with `jump()` (cursor only, play state untouched) and **always** forces one
+more render: if a sibling effect moves the cursor back in the same commit
+(a page restoring a linked frame), the player's state nets out unchanged,
+React bails out of the re-render, and without the forced update the
+screen would stay on the anchored frame while the player sits elsewhere.
+Unkeyed traces skip all of this and keep index clamping.
 
 ## The Tailwind contract
 

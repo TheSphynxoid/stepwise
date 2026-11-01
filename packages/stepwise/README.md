@@ -90,6 +90,54 @@ export function Demo() {
 
 `useTrace` binds a player to a typed trace: `step` is the frame to render (frame 0 before playback starts), and `toneAt` / `titleAt` feed the scrubber. Under it, `useStepPlayer` gives you a timer-driven playhead with play/pause/seek, speed control, and optional `#frame=2` deep links — or hand it an `engine` to drive the playhead from GSAP or scroll instead. Two end-state flavors: `atEnd` (cursor parked on the last frame, seeks included) and `ended` (playback ran to the finish, via the `onEnd` callback option) — clearing on any cursor movement, so a completion summary knows the demo actually finished. `autoPlay` respects `prefers-reduced-motion` (lands on frame 0, paused; opt out with `respectReducedMotion: false`), and `syncHash` writes only its own key, so it coexists with anchors and other players' keys.
 
+## Live simulations
+
+A trace doesn't have to be recorded by hand. Write the algorithm as a generator, give each step a `key` naming its moment, and `useSimulation` reruns it whenever the input changes, keeping the playhead on the same moment (mid-playback too):
+
+```tsx
+import { useSimulation, type Simulation, type StepwiseStep } from "@sphynxoid/stepwise";
+
+type Frame = StepwiseStep<{ arr: number[] }>;
+
+const shuffleThenSort: Simulation<number[], Frame> = function* (input, { rng }) {
+  const a = rng.shuffle(input);             // seeded: same input + seed → same trace
+  yield { key: "shuffled", tone: "neutral", label: "shuffled", arr: a };
+  for (let i = 1; i < a.length; i++) {
+    for (let j = i; j > 0 && a[j - 1] > a[j]; j--) {
+      [a[j - 1], a[j]] = [a[j], a[j - 1]];
+      yield { key: `swap ${i}.${j}`, tone: "write", label: `swap at ${j}`, arr: [...a] };
+    }
+  }
+};
+
+const sim = useSimulation(shuffleThenSort, input, { seed: 7, autoPlay: true, syncHash: "frame" });
+// sim.step, sim.player, sim.toneAt, sim.titleAt: like useTrace, plus sim.steps / truncated / error
+```
+
+How re-anchoring decides: walk back from the old position to the latest step whose key exists in the new trace, and land there (`reanchor` is exported for custom players). `runSimulation` is the pure, server-safe runner, with a `maxSteps` cap so a runaway generator can't hang the page.
+
+## Checkpoints and evaluators
+
+Pause autoplay where the reader should think, then grade their answer:
+
+```tsx
+const sim = useSimulation(sort, input, {
+  autoPlay: true,
+  holdAt: (_, step) => step?.kind === "compare",   // autoplay stops here; player.held is set
+});
+
+const answer = useEvaluator(
+  (guess: "swap" | "keep" | null) =>
+    guess === truth ? pass("Right!") : fail("Compare the two highlighted bars."),
+  guess,
+  { mode: "manual" }                                // judge on check(); "auto" judges every change
+);
+// <button onClick={answer.check}>Check</button> {answer.feedback}
+// {answer.passed && <button onClick={sim.player.release}>Continue</button>}
+```
+
+An `Evaluator` returns a boolean, a `Verdict` (`pass(feedback)`, `fail(feedback)`, `pending()`), or a promise of either; async checks report `pending`, and stale results are dropped. Tour gates accept verdicts too: anything but pass blocks Next, and `tour.feedback` (→ `TourCard feedback`) tells the reader what's missing.
+
 ## The three scales
 
 | Scale | Hook | Presentation |

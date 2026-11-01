@@ -1,6 +1,21 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 — unreleased
+
+Live traces and evaluators. Additive; no breaking changes.
+
+- **New**: `useSimulation(simulation, input, opts)` — a live trace. A simulation is a generator `(input, { rng }) => Iterable<step>`; change the input (or `seed`) and the trace is recomputed while the playhead stays on the same logical step and playback continues. Returns every `useTrace` field plus `steps`, `truncated`, `error`, `seed`. Pure pieces: `runSimulation` (module scope / server safe, `maxSteps` cap, keeps partial steps on a throw) and `createRng(seed)` (seeded mulberry32; string seeds hashed), the only randomness a simulation should use so runs replay exactly.
+- **New**: `StepwiseStep.key` — stable step identity across re-runs. `useTrace` re-anchors keyed traces when `steps` changes: the playhead goes to the latest step whose key both traces share (`reanchor`, exported pure). Custom identity via `keyOf`. Unkeyed traces keep the old behavior (same index, clamped).
+- **New**: player checkpoints — `useStepPlayer({ holdAt })` pauses autoplay on chosen frames and reports `held` until `release()`. Manual steps and seeks are never held; pressing play releases; `start()` re-arms. On `useTrace`/`useSimulation`, `holdAt` also receives the step.
+- **New**: `player.jump(frame)` — move the cursor without touching play state (re-anchoring, restoring linked state).
+- **New**: evaluators — `Verdict { status: "pass" | "fail" | "pending", feedback }` and `Evaluator<Ctx> = (ctx, signal) => boolean | Verdict | Promise<…>`, with `pass` / `fail` / `pending` / `toVerdict`. `useEvaluator(evaluator, ctx, { mode })` keeps the verdict as state: `"auto"` re-judges on context change (gates), `"manual"` on `check()` (quizzes) and clears when the answer changes; async checks report pending, abort superseded runs and drop late results; `attempts` for hints.
+- **New**: tour gates may return a `Verdict`: anything but pass blocks Next, and `tour.feedback` carries the message; `TourCard` takes `feedback` and announces it politely.
+- **New**: `readHashParam` / `writeHashParam` are public, for pages that keep their own state in the fragment next to a player's `syncHash` key.
+- **Fix**: on mount, the player's hash writer no longer puts the stale index back into the URL in the same commit that reads a linked frame (sibling effects saw `#frame=0`).
+- **Fix**: the player re-read the URL frame on every timeline length change, which could override the playhead after a recompute. It now reads on mount, on `hashchange`, and when the first non-empty timeline arrives.
+- **Demo**: `/simulate` — edit an insertion sort's input while it plays (the step stays put, links replay exactly), plus a predict mode built from checkpoints and a manual evaluator. `/discovery`'s query gate now explains what's missing.
+
+## 0.2.1 — unreleased (docs and demo only)
 
 - **Docs**: README rewritten for first-time visitors (hero GIF, use-case table, honest comparison with tour/scrollytelling libraries); sharper npm description and keywords.
 - **New**: `examples/vite-starter` — the smallest real app on the published package, no Tailwind (`styles.css`); the StackBlitz target.
