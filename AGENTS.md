@@ -45,9 +45,12 @@ Quirks:
   `vitest.config.ts` sets `environment: "jsdom"`).
 - **npm workspace commands on this Windows box often report exit code -1 even
   on success**. Judge by the output ("Build success", "9/9"), not `$LASTEXITCODE`.
-- The demo imports the library through `dist` (package `exports`). **After any
-  `packages/stepwise/src` change you must rebuild the library** or the demo
-  silently serves stale code.
+- The demo imports the library through `dist` (package `exports`). The demo's
+  `predev`/`prebuild` run `scripts/ensure-library.mjs`, which builds the
+  library when `dist` is missing or older than `src` (a fresh clone used to
+  fail with "Module not found: @sphynxoid/stepwise"). A dev server that is
+  **already running** still won't see `src` edits: rebuild the library, or
+  restart `npm run dev`.
 
 ## THE gotcha: Tailwind v4 and library classes
 
@@ -312,9 +315,10 @@ signature changes are major while we're pre-1.0.
 - Vercel: demo monorepo config is in `vercel.json`. `next.config.ts` in the
   portfolio carries `ignoreBuildErrors`/`ignoreLint` — don't copy that habit here.
 - E2E is smoke-level only (`apps/demo/e2e`); no visual regression yet.
-- The "Open in StackBlitz" links (root `demo` script builds the library, then
-  starts the demo) are untested - they only resolve once the files are on
-  `master` on GitHub.
+- StackBlitz: the `examples/vite-starter` link was checked by hand and works.
+  Opening the whole repo used to fail ("Module not found") because StackBlitz
+  ran plain `dev` without building the library; `ensure-library.mjs` fixes
+  that, but the full-repo run hasn't been re-checked on StackBlitz itself.
 - The adapter `exports` split is done: `./adapters/*` are subpath exports and
   the root barrel imports no adapter code, so optional peers are never
   required imports.

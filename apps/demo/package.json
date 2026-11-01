@@ -4,9 +4,9 @@
   "private": true,
   "scripts": {
     "registry": "node scripts/build-registry.mjs",
-    "predev": "npm run registry",
+    "predev": "node scripts/ensure-library.mjs && npm run registry",
     "dev": "next dev",
-    "prebuild": "npm run registry",
+    "prebuild": "node scripts/ensure-library.mjs && npm run registry",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
