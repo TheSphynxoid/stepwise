@@ -179,3 +179,13 @@ test("live: follows the edge, a reader who scrubs back stays put, Go live return
   await expect(bar.getByRole("status")).toHaveText("Live");
   await expect(page.getByTestId("live-label")).not.toHaveText("fetch sources");
 });
+
+test("AI docs: /llms.txt indexes, /llms-full.txt carries the guide and the API reference", async ({ request }) => {
+  const index = await request.get("/llms.txt");
+  expect(index.ok()).toBe(true);
+  expect(await index.text()).toContain("/llms-full.txt");
+  const full = await (await request.get("/llms-full.txt")).text();
+  expect(full).toContain("guide for AI assistants");
+  expect(full).toContain("### useSimulation");
+  expect(full).toContain("syncInput");
+});

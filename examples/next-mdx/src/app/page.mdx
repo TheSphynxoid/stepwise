@@ -1,0 +1,57 @@
+import { Term, GlossaryAppendix } from "@sphynxoid/stepwise";
+import BinarySearchPlayer from "@/components/binary-search-player";
+
+# How binary search finds a number
+
+Binary search answers one question over and over: *is the value I want in this
+half, or in that half?* Instead of scanning a sorted array value by value, it
+looks directly at the element in the middle of the part it hasn't checked yet.
+If that element is smaller than the target, the target can't be on the left of
+it — so the entire left half disappears from consideration. One comparison, and
+half the work is gone. That property — every step dismisses half of the
+remaining <Term id="sorted-array">sorted array</Term> — is what lets the search
+work in <Term id="logarithmic-time">logarithmic time</Term>: doubling the array
+length adds one more probe, not a proportionally larger scan. Everything the
+search keeps is a shrinking window of <code>[lo, hi]</code> indices — the
+<Term id="invariant">invariant</Term> is simply that *if the target is anywhere
+in the array, it must be in that window*.
+
+The player below runs the algorithm the way this article explains it: every
+comparison becomes a frame you can pause, scrub through, and narrate. The trace
+is not a recording — a generator computes it from the target and the array you
+pick, so the numbers on screen and the story underneath always agree.
+
+<BinarySearchPlayer />
+
+Watch the sequence in the trace above: `mid` is computed as the floor of
+`(lo + hi) / 2`, so the window is always split near its center. When the probe
+is smaller than the target, the search keeps the *right* half (`lo = mid + 1`);
+when it is larger, it keeps the *left* half (`hi = mid - 1`). Each of those
+moves is a step in the trace, tagged with the move it made. Either way the
+window loses at least one element — the search cannot loop forever, because
+`lo > hi` (an empty window) terminates it.
+
+Now turn on **Predict mode**. The player pauses at every comparison and asks
+whether the search will go left, go right, or stop because the probe *is* the
+target. You can answer with a guess, get graded feedback, and only continue
+when you want to. This is where the intuition usually clicks: you realize you
+only need to compare the highlighted element with the target and decide which
+side it must fall on.
+
+Why does sorting matter *so* much here? Because the decision "smaller than the
+target means the target is to the right" is only guaranteed when the array is
+sorted. In an unsorted array, a probe smaller than the target tells you nothing
+about its neighbors. The <Term id="invariant">invariant</Term> would fall apart
+after the first halving, and the neat <Term id="logarithmic-time">
+logarithmic-time</Term> guarantee disappears with it.
+
+<GlossaryAppendix
+  columns={1}
+  intro={
+    <>
+      The terms marked with dotted underlines in the article, defined once for
+      the glossary provider — this appendix collects them automatically. The
+      tooltip you get on hover is the same text you read here.
+    </>
+  }
+/>

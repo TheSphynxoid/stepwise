@@ -25,6 +25,10 @@ npm install driver.js   # @sphynxoid/stepwise/adapters/driver-js
 # @sphynxoid/stepwise/adapters/scroll is dependency-free
 ```
 
+The package is **ESM only** (no `require` export): bundlers, Next.js, Vite and Node ESM are fine; a CommonJS script needs `await import("@sphynxoid/stepwise")`.
+
+**Using an AI assistant?** The package ships [`LLMS.md`](https://github.com/TheSphynxoid/stepwise/blob/master/packages/stepwise/LLMS.md), a compact usage guide with the patterns and pitfalls (also at [stepwise.thesphynx.net/llms-full.txt](https://stepwise.thesphynx.net/llms-full.txt)). Point your assistant at it: the library is newer than most models' training data.
+
 ## Styling — pick one
 
 The hooks are headless. The styled components (`PlayerBar`, `TourCard`, `Term`, …) ship Tailwind class strings, and there are three ways to get them styled:
@@ -116,6 +120,28 @@ const sim = useSimulation(shuffleThenSort, input, { seed: 7, autoPlay: true, syn
 
 How re-anchoring decides: walk back from the old position to the latest step whose key exists in the new trace, and land there (`reanchor` is exported for custom players). `runSimulation` is the pure, server-safe runner, with a `maxSteps` cap so a runaway generator can't hang the page.
 
+Keep an object input in state or `useMemo`: `useSimulation(sim, { arr, target })` written inline is a new object every render, so the trace is recomputed every render (development builds warn).
+
+### Shareable links: put the input in the URL too
+
+`syncHash` puts the frame in the URL; `syncInput` adds the input, so a copied link replays the exact run. You keep owning the input state; the library restores it on mount and applies the linked frame to the trace computed from it (not to the default input's):
+
+```tsx
+const [input, setInput] = useState([5, 2, 8, 1]);
+const sim = useSimulation(insertionSort, input, {
+  syncHash: "frame",                               // #frame=12
+  syncInput: {
+    key: "in",                                     // #in=5.2.8.1
+    serialize: (a) => a.join("."),
+    parse: (s) => {                                // null = ignore a malformed link
+      const a = s.split(".").map(Number);
+      return a.every(Number.isInteger) ? a : null;
+    },
+    onRestore: setInput,
+  },
+});
+```
+
 ## Following a live timeline
 
 When frames arrive while the reader watches (a log, a stream, an agent's steps, a game's moves), add `follow`: a reader at the edge keeps playing into new frames at the normal pace, and one who scrubbed back to inspect something stays there until they choose to return.
@@ -149,6 +175,12 @@ const answer = useEvaluator(
 ```
 
 An `Evaluator` returns a boolean, a `Verdict` (`pass(feedback)`, `fail(feedback)`, `pending()`), or a promise of either; async checks report `pending`, and stale results are dropped. Tour gates accept verdicts too: anything but pass blocks Next, and `tour.feedback` (→ `TourCard feedback`) tells the reader what's missing.
+
+Things worth knowing before you build one:
+
+- **A held checkpoint doesn't resume on its own.** Call `player.release()` (your Continue button), or the reader presses play.
+- **The truth is usually the next frame**: `const truth = sim.steps[player.held + 1]?.kind`. Phrase the question so every possible next frame is an answer option (binary search can also *find* the target, so "left, right, or found?").
+- **Manual mode clears the verdict when `ctx` changes** (a new guess), but keeps `attempts`, since it's still the same question. When the question changes, reset it: `useEffect(() => { setGuess(null); answer.reset(); }, [player.held])`.
 
 ## The three scales
 
@@ -189,9 +221,22 @@ The ledger is a set of opaque ids behind a `DiscoveryStore` seam: `localStorageS
 - `useFocusTrap` — dialog/tour focus containment
 - `usePrefersReducedMotion` — motion preference gate
 - `useDiscoveries` (+ `localStorageStore` / `cookieStore` / `memoryStore`) — persisted discovery ledger with a swappable storage seam
-- `GlossaryProvider` / `Term` / `GlossaryAppendix` — recursive, depth-capped term tooltips with an auto-collecting appendix
+- `GlossaryProvider` / `Term` / `GlossaryAppendix` — recursive, depth-capped term tooltips with an auto-collecting appendix. Every `Term` and the appendix must sit inside the provider (in MDX, wrap the rendered article); the entry type is `import type { GlossaryEntry }`
+- `CodeBlock` — monospace lines with `//` comments dimmed; `lines` is optional, so `<CodeBlock lines={step.code} />` just works
 - `ShortcutsDialog` — keyboard shortcut reference
+- `readHashParam` / `writeHashParam` — the `#a=1&b=2` fragment format `syncHash` uses, for keeping your own state next to it
+- `TONE_CHIP_CLASS` / `TONE_SEGMENT_CLASS` — the default per-tone classes, for your own badges that match the scrubber
 - `defaultTheme` / `StepwiseTheme` — the default styling, overridable per component via a `theme` prop (swap in any design system)
+
+## Recipes
+
+Longer how-tos live in [docs/RECIPES.md](https://github.com/TheSphynxoid/stepwise/blob/master/docs/RECIPES.md): an interactive article in **Next.js + MDX** (full example in [`examples/next-mdx`](https://github.com/TheSphynxoid/stepwise/tree/master/examples/next-mdx)), shareable links, grading a checkpoint, and testing a stepwise page.
+
+## Testing
+
+- **Unit-test the trace, not the UI**: `runSimulation(sim, input).steps` is plain data, so assert keys and labels in any test runner, no DOM needed.
+- **In browser tests, prefer `data-testid` on your own elements.** A playing player re-renders every tick, and accessible-name locators that wait for stability can stall on it.
+- **Test linked URLs with reduced motion on** (e.g. Playwright `emulateMedia({ reducedMotion: "reduce" })`): autoplay then stays paused on the linked frame, so assertions don't race the timer.
 
 ## Adapters
 

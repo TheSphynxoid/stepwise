@@ -93,10 +93,10 @@ export const API: ApiGroup[] = [
               { name: "baseDelayMs", type: "number", def: "900", desc: "Delay per frame at 1x speed (built-in timer engine)." },
               { name: "autoPlay", type: "boolean", def: "false", desc: "Start playing immediately when a timeline exists on first render." },
               { name: "engine", type: "PlayerEngine", desc: "Alternate frame source replacing the timer. Memoize per timeline - identity changes reconnect it." },
-              { name: "syncHash", type: "string", desc: "Deep-link the frame into the URL hash as #<key>=<index>. Other hash parts are kept." },
+              { name: "syncHash", type: "string", desc: "Deep-link the frame into the URL hash as #<key>=<index>. Other hash parts are kept, including a bare #anchor, which becomes #anchor&frame=3: the page still works, but a shared copy of that URL no longer scrolls to the anchor. Read on mount and on hashchange." },
               { name: "onEnd", type: "() => void", desc: "Fired once when playback runs to the final frame on its own. Cleared by any cursor movement." },
               { name: "respectReducedMotion", type: "boolean", def: "true", desc: "With autoPlay, land on frame 0 but stay paused under prefers-reduced-motion." },
-              { name: "holdAt", type: "(frame: number) => boolean", desc: "Checkpoints: autoplay pauses on these frames and reports held until release(). Manual steps and seeks are never held; each checkpoint holds once per playthrough." },
+              { name: "holdAt", type: "(frame: number) => boolean", desc: "Checkpoints: autoplay pauses on these frames and reports held. It doesn't resume on its own: call release() (a Continue button) or press play. Manual steps and seeks are never held; each checkpoint holds once per playthrough." },
               { name: "follow", type: "boolean", def: "false", desc: "Follow the live edge of a growing timeline: when frames are appended while the reader is live (playing, or parked on the last frame), playback continues into them. A reader who scrubbed back or paused mid-trace stays put. With autoPlay, a player that mounts empty starts on the first frames. Checkpoints still hold; ignored with an engine." },
             ],
           },
@@ -202,7 +202,7 @@ export const API: ApiGroup[] = [
         name: "useSimulation",
         signature: "useSimulation<Input, S extends StepwiseStep>(simulation: Simulation<Input, S>, input: Input, opts?: SimulationOptions<S>): SimulationPlayer<S>",
         summary:
-          "A live trace: runs a generator on the input and plays the result. Change the input or seed and the trace is recomputed while keyed steps keep the playhead in place. Define the simulation at module scope; keep object inputs in state.",
+          "A live trace: runs a generator on the input and plays the result. Change the input or seed and the trace is recomputed while keyed steps keep the playhead in place. Define the simulation at module scope, and keep object inputs in state or useMemo: an inline { arr, target } is a new object every render, so the trace would be recomputed every render (development builds warn about it).",
         demo: "/simulate",
         tables: [
           {
@@ -210,6 +210,16 @@ export const API: ApiGroup[] = [
             rows: [
               { name: "seed", type: "number | string", def: "0", desc: "Seed for ctx.rng. Same simulation + input + seed = same trace." },
               { name: "maxSteps", type: "number", def: "10000", desc: "Stop collecting after this many steps and report truncated." },
+              { name: "syncInput", type: "SyncInputOptions<Input>", desc: "Keep the input in the URL next to the frame, so a link replays the exact run (see below). Since 0.4." },
+            ],
+          },
+          {
+            title: "SyncInputOptions<Input>",
+            rows: [
+              { name: "key", type: "string", desc: "Hash key for the input (#in=...). Must differ from syncHash." },
+              { name: "serialize", type: "(input: Input) => string", desc: "Input to a URL-safe string ([5, 2, 8] to \"5.2.8\")." },
+              { name: "parse", type: "(value: string) => Input | null", desc: "Back to an input; return null to ignore a malformed or hostile value." },
+              { name: "onRestore", type: "(input: Input) => void", desc: "Gets the linked input once on mount; pass your setInput. The linked syncHash frame is then applied to the trace of that input, not the default one. Edits are written back to the URL." },
             ],
           },
           {
@@ -416,7 +426,7 @@ export const API: ApiGroup[] = [
         name: "useEvaluator",
         signature: "useEvaluator<Ctx>(evaluator: Evaluator<Ctx>, ctx: Ctx, opts?: { mode?: \"auto\" | \"manual\" }): EvaluatorState",
         summary:
-          "Keeps an evaluator's verdict as state. Auto re-judges on every context change (gates); manual judges on check() and clears when the answer changes (quizzes). Async checks report pending, abort superseded runs and drop late results.",
+          "Keeps an evaluator's verdict as state. Auto re-judges on every context change (gates). Manual judges only on check() (quizzes); when ctx changes identity afterwards the verdict goes back to idle, but attempts are kept (same question), so call reset() when the question itself changes, e.g. in an effect on player.held. Async checks report pending, abort superseded runs and drop late results.",
         demo: "/simulate",
         tables: [
           {
@@ -438,7 +448,7 @@ export const API: ApiGroup[] = [
         name: "Evaluator / Verdict / pass / fail / pending",
         signature: "type Evaluator<Ctx> = (ctx: Ctx, signal: AbortSignal) => boolean | Verdict | Promise<boolean | Verdict>",
         summary:
-          "A Verdict is { status: \"pass\" | \"fail\" | \"pending\", feedback? }. pass(), fail() and pending() build one; toVerdict() normalizes a boolean. The signal aborts when the result is no longer wanted.",
+          "A Verdict is { status: \"pass\" | \"fail\" | \"pending\", feedback? }. pass(), fail() and pending() build one; toVerdict() normalizes a boolean. All are exported from the package root. The signal aborts when the result is no longer wanted. Grading a checkpoint: the truth is usually the next frame (sim.steps[player.held + 1]), so phrase the question so every possible next frame is an answer option.",
         tables: [],
       },
     ],
@@ -594,7 +604,11 @@ export const API: ApiGroup[] = [
         tables: [
           {
             title: "Props",
-            rows: [{ name: "lines", type: "string[]", desc: "One entry per line." }, THEME_ROW, CLASS_ROW],
+            rows: [
+              { name: "lines", type: "readonly string[]", def: "[]", desc: "One entry per line. Optional, so a step's optional code passes as is: <CodeBlock lines={step.code} />." },
+              THEME_ROW,
+              CLASS_ROW,
+            ],
           },
         ],
       },
@@ -608,7 +622,8 @@ export const API: ApiGroup[] = [
         id: "GlossaryProvider",
         name: "GlossaryProvider",
         signature: "<GlossaryProvider entries={GLOSSARY}>...</GlossaryProvider>",
-        summary: "Declares the entries once. Definitions are ReactNode and may contain further Terms.",
+        summary:
+          "Declares the entries once. Definitions are ReactNode and may contain further Terms. Every Term and GlossaryAppendix must be inside it (in MDX: wrap the rendered article, or put it in the layout). The entry type is type-only: import type { GlossaryEntry } from \"@sphynxoid/stepwise\".",
         demo: "/glossary",
         tables: [
           {
@@ -685,6 +700,24 @@ export const API: ApiGroup[] = [
         ],
       },
       {
+        id: "hashParams",
+        name: "readHashParam / writeHashParam",
+        signature: "readHashParam(hash: string, key: string): string | null\nwriteHashParam(hash: string, key: string, value: string): string",
+        summary:
+          "The fragment format syncHash and syncInput use: &-separated parts, key=value parts are params, anything else (a bare #anchor) is kept verbatim. writeHashParam replaces the key in place or appends it, and returns the new hash; apply it with history.replaceState. For a simulation's input, prefer useSimulation's syncInput.",
+        demo: "/simulate",
+        tables: [],
+      },
+      {
+        id: "toneClasses",
+        name: "TONE_CHIP_CLASS / TONE_SEGMENT_CLASS",
+        signature: "TONE_CHIP_CLASS[step.tone]  // \"text-accent border-accent/40 ...\"",
+        summary:
+          "The default theme's per-tone classes as plain records, for your own chips and badges that should match the scrubber. Styled by styles.css or your Tailwind build like the components.",
+        demo: "/simulate",
+        tables: [],
+      },
+      {
         id: "stores",
         name: "localStorageStore / cookieStore / memoryStore",
         signature: "localStorageStore(key?) | cookieStore(key?) | memoryStore(seed?): DiscoveryStore",
@@ -717,9 +750,9 @@ export const API: ApiGroup[] = [
       {
         id: "types",
         name: "StepwiseStep / StepTone",
-        signature: "type StepwiseStep<Data> = { tone: StepTone; label: string; code?: string[]; note?: string } & Data",
+        signature: "type StepwiseStep<Data> = { tone: StepTone; label: string; code?: string[]; note?: string; key?: string } & Data",
         summary:
-          "One frame of a trace, carrying your domain payload. StepTone is exactly \"neutral\" | \"accent\" | \"good\" | \"bad\" | \"write\" | \"idle\".",
+          "One frame of a trace, carrying your domain payload. StepTone is exactly \"neutral\" | \"accent\" | \"good\" | \"bad\" | \"write\" | \"idle\". key names the moment (\"compare at i=3, j=2\") so the playhead keeps its place when the trace is recomputed; give every step of a simulation one.",
         tables: [],
       },
       {

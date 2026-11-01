@@ -102,7 +102,8 @@ function Explorer() {
 
 Need randomness? Use the seeded `ctx.rng` the generator receives, never
 `Math.random`, and the same input plus seed always gives the same trace.
-Add `holdAt` to pause at checkpoints and `useEvaluator` to grade a guess.
+Add `syncInput` to put the input in the URL so links replay the exact run,
+`holdAt` to pause at checkpoints, and `useEvaluator` to grade a guess.
 
 ## How it compares
 
@@ -142,6 +143,8 @@ Details and the "everything renders unstyled" checklist: [`docs/TAILWIND-SETUP.m
 - **React 18 and 19**, SSR-safe (`"use client"` modules, no `window` at import), tested in Next.js (App Router) and Vite.
 - **Small dependency surface**: React plus `clsx`/`tailwind-merge`. GSAP and driver.js integrations are optional subpath imports.
 - **Accessible by default**: keyboard control, focus-trapped tour card, ARIA slider scrubber, `prefers-reduced-motion` respected.
+- **Works with AI assistants**: the package ships [`LLMS.md`](packages/stepwise/LLMS.md), and the site serves [`/llms.txt`](https://stepwise.thesphynx.net/llms.txt) and [`/llms-full.txt`](https://stepwise.thesphynx.net/llms-full.txt), so an assistant that has never seen stepwise can read the patterns and pitfalls instead of guessing.
+- **ESM only.**
 - **Pre-1.0**: the API may still change between minor versions. Breaking changes are listed in the [CHANGELOG](CHANGELOG.md). Feedback on the API is the most useful thing you can send right now.
 
 ## Repository
@@ -149,6 +152,8 @@ Details and the "everything renders unstyled" checklist: [`docs/TAILWIND-SETUP.m
 - `packages/stepwise`: the library ([package README](packages/stepwise/README.md) has the full API tour)
 - `apps/demo`: the demo site (Next.js); every page has a "View source" panel showing its real code
 - `examples/vite-starter`: the smallest real app, installed from npm
+- [`examples/next-mdx`](examples/next-mdx): an interactive article in Next.js + MDX (editable player, predict mode, glossary)
+- [`docs/RECIPES.md`](docs/RECIPES.md): Next.js + MDX, shareable links, grading a checkpoint, testing
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md): the layering, ports/adapters, and the algorithms with the reasoning behind each
 - [`AGENTS.md`](AGENTS.md): the contributor's operating manual (commands, invariants, gotchas)
 

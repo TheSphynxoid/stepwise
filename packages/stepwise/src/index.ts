@@ -19,7 +19,8 @@
 //                       traces without IIFEs; pure data
 //   simulation        — traces computed from an input by a generator:
 //                       seeded createRng, pure runSimulation (capped)
-//   use-simulation    — live trace: recompute on input change, keep place
+//   use-simulation    — live trace: recompute on input change, keep place;
+//                       syncInput deep-links the input next to the frame
 //   evaluate          — Verdict / Evaluator: one shape for gates,
 //                       checkpoints and exercises (booleans accepted)
 //   use-evaluator     — verdict as state: auto (gates) or manual (quizzes),
@@ -80,7 +81,7 @@ export { useTrace } from "./use-trace";
 export type { TraceOptions, TracePlayer } from "./use-trace";
 export { reanchor } from "./reanchor";
 export { useSimulation } from "./use-simulation";
-export type { SimulationOptions, SimulationPlayer } from "./use-simulation";
+export type { SimulationOptions, SimulationPlayer, SyncInputOptions } from "./use-simulation";
 export { createRng, runSimulation } from "./simulation";
 export type { Rng, Simulation, SimulationContext, SimulationResult, SimulationRunOptions } from "./simulation";
 export { createTrace } from "./create-trace";

@@ -241,6 +241,26 @@ React bails out of the re-render, and without the forced update the
 screen would stay on the anchored frame while the player sits elsewhere.
 Unkeyed traces skip all of this and keep index clamping.
 
+### Linked inputs (`use-simulation.ts`, `syncInput`)
+
+A shared link carries the input (`#in=`) and the frame (`#frame=`). The
+order matters: the player reads `#frame=` on mount against the *default*
+input's trace, where that frame may not exist (then it's ignored, and the
+player's writer may even put `frame=0` in the URL). So:
+
+1. During the first render the hook captures the hash as the page was
+   opened (a ref, so no hydration mismatch), before any effect can write.
+2. A mount effect parses `in` from that snapshot; if valid it remembers
+   `{ input, frame }` and calls `onRestore(input)` (the caller's setter).
+3. When the caller's state comes back as that exact input (identity), a
+   layout effect declared after `useTrace` runs after the re-anchoring
+   layout effect of the same commit and `jump`s to the linked frame.
+4. Edits are written back by an effect that compares against the last
+   input written or restored, not "skip the first run": under StrictMode
+   the double mount would otherwise write the default over the link.
+
+Values are `encodeURIComponent`-ed, so `serialize` may use any characters.
+
 ## The Tailwind contract
 
 The library ships class *names*, not CSS. The host's Tailwind build must scan
