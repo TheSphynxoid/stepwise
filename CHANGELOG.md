@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.3.0 — unreleased
+## 0.3.0 — 2026-11-01
 
 Live traces and evaluators. Additive; no breaking changes.
 
@@ -16,7 +16,7 @@ Live traces and evaluators. Additive; no breaking changes.
 - **Fix**: the player re-read the URL frame on every timeline length change, which could override the playhead after a recompute. It now reads on mount, on `hashchange`, and when the first non-empty timeline arrives.
 - **Demo**: `/simulate` — edit an insertion sort's input while it plays (the step stays put, links replay exactly), plus a predict mode built from checkpoints and a manual evaluator. `/live` — a build log streaming in: follow the edge, scrub back to inspect an event, then Go live. `/discovery`'s query gate now explains what's missing.
 
-## 0.2.1 — unreleased (docs and demo only)
+## 0.2.1 — not published separately (shipped in 0.3.0; docs and demo only)
 
 - **Docs**: README rewritten for first-time visitors (hero GIF, use-case table, honest comparison with tour/scrollytelling libraries); sharper npm description and keywords.
 - **New**: `examples/vite-starter` — the smallest real app on the published package, no Tailwind (`styles.css`); the StackBlitz target.

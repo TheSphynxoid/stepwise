@@ -14,7 +14,7 @@ layered on top. The demo site (`apps/demo`) is the living documentation.
 
 - **Library**: `packages/stepwise` (ESM, `"use client"` modules, React 18/19 peer)
 - **Demo**: `apps/demo` (Next.js 15, Tailwind v4, static prerender)
-- Status: **published** as `@sphynxoid/stepwise@0.2.0` (npm, public, org
+- Status: **published** as `@sphynxoid/stepwise@0.3.0` (npm, public, org
   scope `sphynxoid`); GitHub at `TheSphynxoid/stepwise`; demo at
   https://stepwise.thesphynx.net (Vercel config in `vercel.json`). The portfolio consumes the package (see "Known debt").
 
