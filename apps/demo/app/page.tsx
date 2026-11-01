@@ -6,6 +6,7 @@ import {
   BookOpen,
   Columns2,
   FileText,
+  FlaskConical,
   Github,
   Layers,
   Milestone,
@@ -19,7 +20,6 @@ import { CodeDemo } from "./code-demo";
 import { ThemeToggle } from "./theme-provider";
 import { darkCodePanelTheme } from "./site-themes";
 
-// TODO: point at the real repository when it goes public.
 const REPO_URL = "https://github.com/TheSphynxoid/stepwise";
 
 const DEMOS: {
@@ -37,6 +37,13 @@ const DEMOS: {
     desc: "The flagship: a scroll lesson with an embedded Dijkstra player, an intro tour and a glossary - three cursors, one model. Scroll and the paused player follows.",
     tag: "useChapters + useTrace + useGuidedTour + <Term />",
     featured: true,
+  },
+  {
+    href: "/simulate",
+    icon: FlaskConical,
+    title: "Live simulation",
+    desc: "Edit the input while it plays: the trace is recomputed and the playhead stays on the same step. Predict mode pauses at checkpoints and grades your guess.",
+    tag: "useSimulation + useEvaluator",
   },
   {
     href: "/player",

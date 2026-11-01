@@ -96,6 +96,7 @@ export const API: ApiGroup[] = [
               { name: "syncHash", type: "string", desc: "Deep-link the frame into the URL hash as #<key>=<index>. Other hash parts are kept." },
               { name: "onEnd", type: "() => void", desc: "Fired once when playback runs to the final frame on its own. Cleared by any cursor movement." },
               { name: "respectReducedMotion", type: "boolean", def: "true", desc: "With autoPlay, land on frame 0 but stay paused under prefers-reduced-motion." },
+              { name: "holdAt", type: "(frame: number) => boolean", desc: "Checkpoints: autoplay pauses on these frames and reports held until release(). Manual steps and seeks are never held; each checkpoint holds once per playthrough." },
             ],
           },
           {
@@ -107,6 +108,9 @@ export const API: ApiGroup[] = [
               { name: "playing / speed", type: "boolean / number", desc: "Playback state." },
               { name: "atEnd", type: "boolean", desc: "Parked on the final frame (a seek counts too)." },
               { name: "ended", type: "boolean", desc: "Playback ran to the end on its own and nothing has moved since. toggle() at ended replays." },
+              { name: "held", type: "number | null", desc: "The checkpoint frame playback is paused on (see holdAt)." },
+              { name: "release", type: "() => void", desc: "Release the checkpoint and resume playing." },
+              { name: "jump", type: "(frame: number) => void", desc: "Move the cursor without touching play state - for re-anchoring after the timeline changes. User-facing moves should seek." },
               { name: "start", type: "() => void", desc: "Jump to frame 0 and play." },
               { name: "reset", type: "() => void", desc: "Clear the player (frame = -1, paused)." },
               { name: "seek", type: "(frame: number) => void", desc: "Jump to a frame." },
@@ -121,11 +125,18 @@ export const API: ApiGroup[] = [
       {
         id: "useTrace",
         name: "useTrace",
-        signature: "useTrace<S extends StepwiseStep>(steps: readonly S[], opts?: Omit<StepPlayerOptions, \"total\">): TracePlayer<S>",
+        signature: "useTrace<S extends StepwiseStep>(steps: readonly S[], opts?: TraceOptions<S>): TracePlayer<S>",
         summary:
-          "A player bound to a typed trace. Resolves the frame to render (frame 0 before start) and returns stable scrubber accessors.",
+          "A player bound to a typed trace. Resolves the frame to render (frame 0 before start) and returns stable scrubber accessors. steps may change: keyed steps re-anchor, so the playhead stays on the same logical step and playback continues.",
         demo: "/player",
         tables: [
+          {
+            title: "TraceOptions<S> (plus every StepPlayerOptions field except total)",
+            rows: [
+              { name: "keyOf", type: "(step: S, index: number) => string | undefined", def: "step.key", desc: "Step identity for re-anchoring when steps changes. Unkeyed traces keep the same index, clamped." },
+              { name: "holdAt", type: "(frame: number, step: S | undefined) => boolean", desc: "Checkpoints, with the step from the current trace." },
+            ],
+          },
           {
             title: "TracePlayer<S> (returned)",
             rows: [
@@ -184,6 +195,57 @@ export const API: ApiGroup[] = [
         ],
       },
       {
+        id: "useSimulation",
+        name: "useSimulation",
+        signature: "useSimulation<Input, S extends StepwiseStep>(simulation: Simulation<Input, S>, input: Input, opts?: SimulationOptions<S>): SimulationPlayer<S>",
+        summary:
+          "A live trace: runs a generator on the input and plays the result. Change the input or seed and the trace is recomputed while keyed steps keep the playhead in place. Define the simulation at module scope; keep object inputs in state.",
+        demo: "/simulate",
+        tables: [
+          {
+            title: "SimulationOptions<S> (plus every TraceOptions field)",
+            rows: [
+              { name: "seed", type: "number | string", def: "0", desc: "Seed for ctx.rng. Same simulation + input + seed = same trace." },
+              { name: "maxSteps", type: "number", def: "10000", desc: "Stop collecting after this many steps and report truncated." },
+            ],
+          },
+          {
+            title: "SimulationPlayer<S> (returned: every TracePlayer field, plus)",
+            rows: [
+              { name: "steps", type: "readonly S[]", desc: "The computed trace." },
+              { name: "truncated", type: "boolean", desc: "maxSteps cut the run short." },
+              { name: "error", type: "unknown", desc: "What the simulation threw; steps holds what it yielded before." },
+              { name: "seed", type: "number", desc: "Numeric seed used (strings are hashed)." },
+            ],
+          },
+        ],
+      },
+      {
+        id: "runSimulation",
+        name: "runSimulation / createRng",
+        signature: "runSimulation(simulation, input, opts?: { seed?, maxSteps? }): SimulationResult<S>  ·  createRng(seed?: number | string): Rng",
+        summary:
+          "The pure pieces: run a simulation to completion (safe at module scope and on the server), and a seeded mulberry32 generator - the only randomness a simulation should use, so runs replay exactly.",
+        demo: "/simulate",
+        tables: [
+          {
+            title: "Simulation<Input, S>",
+            rows: [
+              { name: "(input, ctx) => Iterable<S>", type: "generator or array", desc: "Yield one step per moment worth showing. Yield snapshots (copies), and give steps a key." },
+              { name: "ctx.rng", type: "Rng", desc: "Seeded randomness: next(), int(min, max), pick(items), shuffle(items), seed." },
+            ],
+          },
+        ],
+      },
+      {
+        id: "reanchor",
+        name: "reanchor",
+        signature: "reanchor(oldSteps, oldIndex, newSteps, keyOf): number",
+        summary:
+          "The re-anchoring rule useTrace applies: walk back from the old position to the latest step whose key both traces share, and land on it. No shared key returns 0; an empty trace returns -1. Pure - use it in custom players.",
+        tables: [],
+      },
+      {
         id: "useGuidedTour",
         name: "useGuidedTour",
         signature: "useGuidedTour(steps: TourStepInput[], opts?: GuidedTourOptions): GuidedTour",
@@ -200,7 +262,7 @@ export const API: ApiGroup[] = [
               { name: "onEnter", type: "() => void", desc: "Effect run when the step becomes active - drive your app state here." },
               { name: "waitHint", type: "string", desc: "Pulsing hint shown on the card." },
               { name: "when", type: "() => boolean", desc: "Conditional step: false skips it in the direction of travel. Evaluated on arrival." },
-              { name: "gate", type: "() => boolean", desc: "Guard: while false, next() is a no-op and the tour reports blocked." },
+              { name: "gate", type: "() => boolean | Verdict", desc: "Guard: until it passes, next() is a no-op and the tour reports blocked. Return a Verdict to explain what's missing (tour.feedback)." },
               { name: "next", type: "() => string | null", desc: "Edge override: advance to this step id instead of index+1." },
             ],
           },
@@ -215,6 +277,7 @@ export const API: ApiGroup[] = [
               { name: "current", type: "TourStepInput | null", desc: "The active step." },
               { name: "active", type: "boolean", desc: "Whether the tour is running." },
               { name: "blocked", type: "boolean", desc: "The active step's gate is closed; pair with TourCard nextDisabled." },
+              { name: "feedback", type: "ReactNode", desc: "Feedback from the active gate's Verdict; pair with TourCard feedback." },
               { name: "start / end", type: "() => void", desc: "Run from the first eligible step / stop." },
               { name: "next / back", type: "() => void", desc: "Move along edges, honoring gates and skips." },
               { name: "goto", type: "(index: number) => void", desc: "Programmatic jump (ignores gates)." },
@@ -342,6 +405,42 @@ export const API: ApiGroup[] = [
     ],
   },
   {
+    title: "Evaluators",
+    blurb: "One verdict shape for every \"did the reader get it?\" question: tour gates, player checkpoints, exercises. Booleans are accepted everywhere.",
+    entries: [
+      {
+        id: "useEvaluator",
+        name: "useEvaluator",
+        signature: "useEvaluator<Ctx>(evaluator: Evaluator<Ctx>, ctx: Ctx, opts?: { mode?: \"auto\" | \"manual\" }): EvaluatorState",
+        summary:
+          "Keeps an evaluator's verdict as state. Auto re-judges on every context change (gates); manual judges on check() and clears when the answer changes (quizzes). Async checks report pending, abort superseded runs and drop late results.",
+        demo: "/simulate",
+        tables: [
+          {
+            title: "EvaluatorState (returned)",
+            rows: [
+              { name: "status", type: "\"idle\" | \"pass\" | \"fail\" | \"pending\"", desc: "idle until the first verdict." },
+              { name: "feedback", type: "ReactNode", desc: "The verdict's feedback." },
+              { name: "passed", type: "boolean", desc: "status === \"pass\"." },
+              { name: "attempts", type: "number", desc: "check() calls so far - for hints after a few tries." },
+              { name: "error", type: "unknown", desc: "What the evaluator threw (status is then fail)." },
+              { name: "check", type: "() => Promise<Verdict | null>", desc: "Judge now; resolves null if superseded. Stable." },
+              { name: "reset", type: "() => void", desc: "Back to idle, attempts to 0. Stable." },
+            ],
+          },
+        ],
+      },
+      {
+        id: "verdicts",
+        name: "Evaluator / Verdict / pass / fail / pending",
+        signature: "type Evaluator<Ctx> = (ctx: Ctx, signal: AbortSignal) => boolean | Verdict | Promise<boolean | Verdict>",
+        summary:
+          "A Verdict is { status: \"pass\" | \"fail\" | \"pending\", feedback? }. pass(), fail() and pending() build one; toVerdict() normalizes a boolean. The signal aborts when the result is no longer wanted.",
+        tables: [],
+      },
+    ],
+  },
+  {
     title: "Components",
     blurb: "Optional styled presentation. Every component takes a theme; the hooks work without them.",
     entries: [
@@ -455,6 +554,7 @@ export const API: ApiGroup[] = [
               { name: "index / total", type: "number", desc: "Position, shown in the header." },
               { name: "onNext / onBack / onEnd", type: "() => void", desc: "Wire to tour.next, tour.back, tour.end." },
               { name: "nextDisabled", type: "boolean", def: "false", desc: "Disable Next/Finish - pair with tour.blocked." },
+              { name: "feedback", type: "ReactNode", desc: "Gate feedback, announced politely - pair with tour.feedback." },
               { name: "labels", type: "{ title, back, next, finish, end }", desc: "Text overrides." },
               THEME_ROW,
               CLASS_ROW,

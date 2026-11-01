@@ -5,7 +5,7 @@ import { expect, test, type Page } from "@playwright/test";
 // for the library's classes (wrong @source path), which leaves every
 // library-rendered element unstyled while the host page looks fine.
 
-const ROUTES = ["/", "/player", "/compare", "/lesson", "/tour", "/discovery", "/glossary", "/scroll", "/minimal", "/docs"];
+const ROUTES = ["/", "/simulate", "/player", "/compare", "/lesson", "/tour", "/discovery", "/glossary", "/scroll", "/minimal", "/docs"];
 
 function collectErrors(page: Page): string[] {
   const errors: string[] = [];
@@ -125,4 +125,38 @@ test("compare: one player drives both tracks; alignment changes the timeline", a
   await expect(page.getByRole("radio", { name: "Align by pass" })).toHaveAttribute("aria-checked", "true");
   // Waiting at sync points can only lengthen the timeline, never shorten it.
   await expect.poll(async () => Number(await scrubber.getAttribute("aria-valuemax"))).toBeGreaterThanOrEqual(holdTotal);
+});
+
+test("simulate: a shared link replays the exact frame, and edits keep the playhead on the same step", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/simulate#frame=16&in=6.12.8.1.9.3.6");
+  const key = page.getByTestId("sim-key");
+  await expect(key).toContainText("key c4.4");
+  await expect(page.getByTestId("sim-label")).toHaveText("compare a[3]=12 with a[4]=9");
+
+  // Lower the second input a lot: the trace changes length, the step stays.
+  for (let i = 0; i < 8; i++) await page.getByRole("button", { name: "Decrease input 2" }).click();
+  await expect(page.getByTestId("sim-input").nth(1)).toHaveText("4");
+  await expect(key).toContainText("key c4.4");
+  await expect(page).toHaveURL(/in=6.4.8.1.9.3.6/);
+});
+
+test("simulate: predict mode holds at a checkpoint and grades the guess", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/simulate");
+  await page.getByRole("switch", { name: /Predict mode/ }).click();
+  await page.getByRole("button", { name: "Play", exact: true }).click();
+
+  const checkpoint = page.getByTestId("checkpoint");
+  await expect(checkpoint).toBeVisible({ timeout: 5000 });
+  // Default input 5, 2, …: the first comparison is 5 vs 2, which swaps.
+  await expect(page.getByTestId("sim-label")).toHaveText("compare a[0]=5 with a[1]=2");
+  await checkpoint.getByRole("radio", { name: "No, keep" }).click();
+  await checkpoint.getByRole("button", { name: "Check" }).click();
+  await expect(checkpoint).toContainText("Not quite");
+  await checkpoint.getByRole("radio", { name: "Yes, swap" }).click();
+  await checkpoint.getByRole("button", { name: "Check" }).click();
+  await expect(checkpoint).toContainText("Right");
+  await checkpoint.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByTestId("sim-label")).not.toHaveText("compare a[0]=5 with a[1]=2");
 });
