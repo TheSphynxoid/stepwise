@@ -36,11 +36,12 @@ function StepButton({
 // ─── Code block ──────────────────────────────────────────────────────────────
 
 export function CodeBlock({
-  lines,
+  lines = [],
   theme = defaultTheme,
   className,
 }: {
-  lines: string[];
+  /** One string per line; `//` starts a dimmed comment. Optional, so `step.code` passes as is. */
+  lines?: readonly string[];
   theme?: StepwiseTheme;
   className?: string;
 }) {

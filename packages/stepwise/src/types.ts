@@ -1,9 +1,31 @@
 import type { ReactNode } from "react";
-import type { EvaluatorResult } from "./evaluate";
 
 // Presentation schema shared by every stepwise visualizer. Domain engines
 // produce steps conforming to these types; the player and tour machinery
 // stay generic over them.
+
+// ── Verdicts ──────────────────────────────────────────────────────────────
+// The evaluator types live here, not in evaluate.ts: the adapters import
+// this file, and if it imported evaluate.ts the declaration bundler would
+// move pass/fail/pending into a shared chunk, where index.d.ts only
+// re-exports them under aliases (`i as fail`) that are hard to read.
+
+export type VerdictStatus = "pass" | "fail" | "pending";
+
+export interface Verdict {
+  status: VerdictStatus;
+  /** What to tell the reader: why it failed, a hint, a "nice!". */
+  feedback?: ReactNode;
+}
+
+export type EvaluatorResult = boolean | Verdict;
+
+/**
+ * Judge `ctx`. May be async (run the reader's code, ask a server); the
+ * `signal` aborts when the result is no longer wanted (the context changed,
+ * the component unmounted), so long checks can stop early.
+ */
+export type Evaluator<Ctx> = (ctx: Ctx, signal: AbortSignal) => EvaluatorResult | Promise<EvaluatorResult>;
 
 export type StepTone = "neutral" | "accent" | "good" | "bad" | "write" | "idle";
 

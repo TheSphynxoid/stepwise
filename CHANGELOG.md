@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.4.0 — unreleased
+
+Shareable simulation links, and docs built from two outside test builds (AI
+agents given only the public package and docs). Additive; no breaking changes.
+
+- **New**: `useSimulation({ syncInput: { key, serialize, parse, onRestore } })` keeps the input in the URL next to the `syncHash` frame. On mount the linked input is handed to `onRestore` (your `setInput`) and the linked frame is applied to the trace computed from it, which fixes the race of doing this by hand (the player read `#frame=` against the default input's trace, where the frame may not exist, and could overwrite it). Edits are written back. `SyncInputOptions` is exported.
+- **New**: development builds warn once when `useSimulation`'s object input is a new object with the same content on every render (`useSimulation(sim, { arr, target })` inline), which silently recomputed the trace each render.
+- **Changed**: `CodeBlock`'s `lines` is optional and accepts `readonly string[]`, so `<CodeBlock lines={step.code} />` typechecks (`step.code` is optional).
+- **Fix**: `pass`, `fail`, `pending` and `toVerdict` are declared directly in `index.d.ts` again, instead of only as aliased re-exports from a shared chunk (`i as fail`), which made them look missing.
+- **Docs**: `readHashParam` / `writeHashParam` and `TONE_CHIP_CLASS` / `TONE_SEGMENT_CLASS` are documented (they were public but only visible in demo sources). Precise semantics for `holdAt` (doesn't resume until `release()`), `useEvaluator` manual mode (clears the verdict on a new `ctx`, keeps `attempts` until `reset()`), grading a checkpoint against the next frame, `Term` inside `GlossaryProvider`, `import type { GlossaryEntry }`, `syncHash` with bare anchors, ESM only.
+- **Docs**: [docs/RECIPES.md](docs/RECIPES.md): Next.js + MDX article, shareable links, grading a checkpoint, testing. New README sections: shareable links, testing.
+- **New**: `examples/next-mdx`, an interactive binary-search article (editable input, predict mode, glossary) in Next.js App Router + MDX.
+- **New**: `LLMS.md` ships in the package, and the demo site serves `/llms.txt` and `/llms-full.txt`: a compact guide for AI assistants, which won't know a library this new.
+- **Demo**: `/simulate` uses `syncInput` instead of its hand-rolled linking code.
+- **Dev**: the demo builds the library itself on a fresh clone (`npm run dev` used to fail with "Module not found").
+
 ## 0.3.0 — 2026-11-01
 
 Live traces and evaluators. Additive; no breaking changes.

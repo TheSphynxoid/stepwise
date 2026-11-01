@@ -1,26 +1,13 @@
 import type { ReactNode } from "react";
+import type { EvaluatorResult, Verdict } from "./types";
 
 // Evaluators: one shape for every "did the reader get it?" question — a tour
 // gate waiting for an action, a checkpoint asking "what happens next?", a
 // lesson exercise. An evaluator looks at a context and returns a verdict;
-// plain booleans are accepted everywhere and mean pass/fail.
+// plain booleans are accepted everywhere and mean pass/fail. The types live
+// in types.ts (see the note there).
 
-export type VerdictStatus = "pass" | "fail" | "pending";
-
-export interface Verdict {
-  status: VerdictStatus;
-  /** What to tell the reader: why it failed, a hint, a "nice!". */
-  feedback?: ReactNode;
-}
-
-export type EvaluatorResult = boolean | Verdict;
-
-/**
- * Judge `ctx`. May be async (run the reader's code, ask a server); the
- * `signal` aborts when the result is no longer wanted (the context changed,
- * the component unmounted), so long checks can stop early.
- */
-export type Evaluator<Ctx> = (ctx: Ctx, signal: AbortSignal) => EvaluatorResult | Promise<EvaluatorResult>;
+export type { Evaluator, EvaluatorResult, Verdict, VerdictStatus } from "./types";
 
 /** Normalize a boolean or verdict into a verdict. */
 export function toVerdict(result: EvaluatorResult): Verdict {

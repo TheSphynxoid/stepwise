@@ -61,6 +61,7 @@
   ],
   "files": [
     "dist",
+    "LLMS.md",
     "README.md"
   ],
   "scripts": {

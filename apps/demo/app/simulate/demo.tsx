@@ -1,17 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, ChevronDown, ChevronUp, Shuffle } from "lucide-react";
 import {
   createRng,
   fail,
   pass,
-  readHashParam,
   useEvaluator,
   useGlobalKeys,
   useSimulation,
-  writeHashParam,
   CodeBlock,
   PlayerBar,
   TONE_CHIP_CLASS,
@@ -96,9 +94,9 @@ const MAX = 12;
 const clampValue = (v: number) => Math.max(MIN, Math.min(MAX, v));
 
 /** `#in=5.2.8.1…` — the exact input, so a shared link replays the same trace. */
-function inputFromHash(): number[] | null {
-  const raw = readHashParam(window.location.hash, "in");
-  if (!raw) return null;
+const serializeInput = (input: readonly number[]) => input.join(".");
+/** Anything outside the editor's limits is ignored, not trusted. */
+function parseInput(raw: string): readonly number[] | null {
   const values = raw.split(".").map(Number);
   return values.length >= 2 && values.length <= 10 && values.every((v) => Number.isInteger(v) && v >= MIN && v <= MAX)
     ? values
@@ -114,39 +112,21 @@ export default function SimulateDemo() {
 
   // Checkpoints: every third comparison, in predict mode. holdAt gets the
   // step from the current trace, also after an input edit recomputes it.
+  // syncInput keeps the input in the URL next to the frame: a linked input
+  // is handed to setInput on mount, and the linked frame lands on its trace.
   const sim = useSimulation(insertionSort, input, {
     autoPlay: true,
     baseDelayMs: 700,
     syncHash: "frame",
+    syncInput: { key: "in", serialize: serializeInput, parse: parseInput, onRestore: setInput },
     holdAt: (_, s) => predict && s?.kind === "compare" && s.cmp % 3 === 1,
   });
   const { player, step } = sim;
   const cur = step!;
 
-  // Restore the input from the URL once; edits write it back (in `edit`, not
-  // an effect, so the mount never clobbers a linked input). The player reads
-  // `#frame=` on mount against the default input; a linked frame belongs to
-  // the linked input, so re-apply it once that input is in.
-  const linked = useRef<{ input: readonly number[]; frame: number | null } | null>(null);
-  useEffect(() => {
-    const fromHash = inputFromHash();
-    if (!fromHash) return;
-    const f = readHashParam(window.location.hash, "frame");
-    linked.current = { input: fromHash, frame: f !== null && /^\d+$/.test(f) ? Number(f) : null };
-    setInput(fromHash);
-  }, []);
-  const { jump } = player;
-  useEffect(() => {
-    const l = linked.current;
-    if (!l || l.input !== input) return;
-    linked.current = null;
-    if (l.frame !== null) jump(l.frame);
-  }, [input, jump]);
-
   const edit = (next: readonly number[]) => {
     setInput(next);
     setReruns((n) => n + 1);
-    window.history.replaceState(null, "", writeHashParam(window.location.hash, "in", next.join(".")));
   };
   const nudge = (i: number, delta: number) => edit(input.map((v, k) => (k === i ? clampValue(v + delta) : v)));
   const randomize = () => {
