@@ -8,6 +8,7 @@ stuck on it. The API reference is at
 - [Shareable links](#shareable-links)
 - [Grading a checkpoint](#grading-a-checkpoint)
 - [Testing a stepwise page](#testing-a-stepwise-page)
+- [Exporting a GIF or video](#exporting-a-gif-or-video)
 
 ---
 
@@ -229,3 +230,58 @@ It's also the fastest way to debug a simulation: print the keys.
 **ESM only.** The package has no CommonJS entry. A `.ts` script that your
 runner compiles to CommonJS fails with `ERR_PACKAGE_PATH_NOT_EXPORTED`; name it
 `.mts`, or use `await import("@sphynxoid/stepwise")`.
+
+---
+
+## Exporting a GIF or video
+
+stepwise is for explainers the reader drives, but you'll still want a clip of
+yours for a post or a README. Because every screen is a function of the step
+you're on, a clip is a loop: go to step *i*, screenshot, repeat.
+[`examples/export-video`](../examples/export-video) does exactly that with
+Playwright:
+
+```bash
+cd examples/export-video && npm install
+node record.mjs http://localhost:3000/article --selector "#sort-card" --out sort.gif
+```
+
+It loads the page with **reduced motion**, so the player never autoplays, then
+clicks the `PlayerBar`'s Next button until the scrubber's `aria-valuenow`
+reaches `aria-valuemax`, taking a shot after each step (plus one halfway
+through the transition, `--tween`). The core of it:
+
+```js
+const page = await browser.newPage({ reducedMotion: "reduce" });
+await page.goto(url);
+const next = page.getByRole("button", { name: "Next step" });
+const scrubber = page.getByRole("slider", { name: "Frames" });
+await shot();
+while (Number(await scrubber.getAttribute("aria-valuenow")) <
+       Number(await scrubber.getAttribute("aria-valuemax"))) {
+  await next.dispatchEvent("click"); // no hover or focus ring in the shot
+  await page.waitForTimeout(300);    // let CSS transitions finish
+  await shot();
+}
+```
+
+- **Same clip every time.** Simulations are pure and `createRng` is seeded, so
+  a `#in=…&frame=…` link from `syncInput` records the exact run you linked.
+- **Custom controls.** No `PlayerBar`? Pass `--next` / `--scrubber` with your
+  own controls' accessible names, or drive the player through its hash
+  (with `syncHash: "frame"`, set `location.hash = "frame=7"` for the eighth
+  frame; it's 0-based) and screenshot after each change.
+- **MP4.** `--frames frames` also writes every shot as a PNG; then
+  `ffmpeg -framerate 2 -i frames/%04d.png -vf "pad=ceil(iw/2)*2:ceil(ih/2)*2" -pix_fmt yuv420p out.mp4`
+  (the pad makes the size even, which H.264 needs).
+- **Showing edits.** To record someone changing the input mid-run (like the
+  landing hero's GIF), click your own controls between steps. A GIF has no
+  mouse pointer, so draw a marker where you click:
+  `apps/demo/scripts/record-helpers.mjs` has one (`recordClick`).
+
+**What this isn't:** smooth, frame-accurate animation. The clip is a sequence
+of steps with CSS transitions caught at fixed delays, which is right for
+"watch the algorithm" clips. If every in-between frame must be exact (the
+video is the product), use a tool whose rendering is a function of time,
+like Remotion or Motion Canvas, or animate with the GSAP adapter, whose
+timelines can be seeked.

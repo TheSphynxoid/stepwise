@@ -115,15 +115,17 @@ that one model covers the whole set. Choose honestly:
 | **stepwise** | ✅ | ✅ | ✅ | ✅ | ✅ one cursor |
 | react-joyride / Shepherd / driver.js | – | ✅ | – | – | – |
 | scrollama / react-scrollama | – | – | ✅ | – | – |
-| Motion Canvas / Remotion | renders video | – | – | – | – |
+| Motion Canvas / Remotion | renders video (frame-accurate) | – | – | – | – |
 
 - **Only need a tour?** react-joyride and Shepherd are mature, with years of
   edge cases handled. stepwise's tour wins when steps must mutate app state
   or wait on real user actions (`onEnter`, `gate`), or when it shares a page
   with a player. It can also *present* through driver.js via the adapter.
 - **Only need scroll triggers?** scrollama is tiny and framework-agnostic.
-- **Want a video?** Motion Canvas and Remotion render one. stepwise is for
-  explainers the reader drives: pause, scrub, deep-link to a frame.
+- **Want a video?** Motion Canvas and Remotion render frame-accurate ones.
+  stepwise is for explainers the reader drives: pause, scrub, deep-link to a
+  frame. For a step-by-step clip of one (a GIF for a post), see
+  [exporting a GIF or video](docs/RECIPES.md#exporting-a-gif-or-video).
 
 ## Styling
 
@@ -153,7 +155,8 @@ Details and the "everything renders unstyled" checklist: [`docs/TAILWIND-SETUP.m
 - `apps/demo`: the demo site (Next.js); every page has a "View source" panel showing its real code
 - `examples/vite-starter`: the smallest real app, installed from npm
 - [`examples/next-mdx`](examples/next-mdx): an interactive article in Next.js + MDX (editable player, predict mode, glossary)
-- [`docs/RECIPES.md`](docs/RECIPES.md): Next.js + MDX, shareable links, grading a checkpoint, testing
+- [`examples/export-video`](examples/export-video): record your explainer as a GIF (or frames for an MP4)
+- [`docs/RECIPES.md`](docs/RECIPES.md): Next.js + MDX, shareable links, grading a checkpoint, testing, exporting a GIF or video
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md): the layering, ports/adapters, and the algorithms with the reasoning behind each
 - [`AGENTS.md`](AGENTS.md): the contributor's operating manual (commands, invariants, gotchas)
 

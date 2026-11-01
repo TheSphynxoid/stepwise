@@ -1,0 +1,14 @@
+{
+  "name": "stepwise-export-video",
+  "private": true,
+  "type": "module",
+  "description": "Export a stepwise explainer as a GIF, or PNG frames for an MP4",
+  "scripts": {
+    "record": "node record.mjs"
+  },
+  "dependencies": {
+    "gifenc": "^1.0.3",
+    "playwright": "^1.48.0",
+    "pngjs": "^7.0.0"
+  }
+}

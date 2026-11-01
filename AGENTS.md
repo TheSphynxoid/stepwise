@@ -309,6 +309,9 @@ signature changes are major while we're pre-1.0.
   `/llms.txt` is the llmstxt.org index (`app/llms.ts`, static route handlers).
   When you change a public API, update LLMS.md too: its snippets were
   typechecked against the built library, keep them that way.
+- `examples/export-video`: a standalone Playwright script that records any
+  `PlayerBar` page as a GIF / PNG frames (recipe in `docs/RECIPES.md`). Not a
+  workspace; it doesn't import the library, it drives the page.
 - `examples/next-mdx` (Next.js + MDX article) installs the **published**
   package too (a second consumer smoke test, Next + MDX + no Tailwind). Bump
   its range on minor releases, like the Vite starter.
