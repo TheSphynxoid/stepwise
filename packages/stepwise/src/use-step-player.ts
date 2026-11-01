@@ -35,6 +35,14 @@ export interface StepPlayerOptions {
    * user presses play. Default true.
    */
   respectReducedMotion?: boolean;
+  /**
+   * Checkpoints: when it returns true for the frame playback just reached,
+   * the built-in timer pauses there and reports `held` until `release()` —
+   * "stop and predict what happens next". Manual stepping and seeks are never
+   * held (the reader keeps control). Ignored when a custom `engine` drives
+   * playback. Each checkpoint holds once per playthrough.
+   */
+  holdAt?: (frame: number) => boolean;
 }
 
 export interface StepPlayer {
@@ -54,6 +62,20 @@ export interface StepPlayer {
    * not set it — `toggle()` at `ended` replays from frame 0.
    */
   ended: boolean;
+  /**
+   * The checkpoint frame playback is paused on (see `holdAt`), or null.
+   * Cleared by `release()` or any cursor movement.
+   */
+  held: number | null;
+  /** Release the current checkpoint and resume playing. No-op when not held. */
+  release: () => void;
+  /**
+   * Move the cursor without touching playback state: playing stays playing,
+   * completion and checkpoints are kept. For re-anchoring after the timeline
+   * changes underneath (`useTrace` with keyed steps) — user-facing moves
+   * should use `seek`.
+   */
+  jump: (frame: number) => void;
   /** Jump to frame 0 and play. */
   start: () => void;
   /** Clear the player (frame = -1, paused). */
@@ -77,6 +99,7 @@ export function useStepPlayer({
   syncHash,
   onEnd,
   respectReducedMotion = true,
+  holdAt,
 }: StepPlayerOptions): StepPlayer {
   const core = useSteps(total);
   // useSteps' movement callbacks are referentially stable; depend on them
@@ -89,6 +112,12 @@ export function useStepPlayer({
   const endedRef = useRef(false);
   const onEndRef = useRef(onEnd);
   onEndRef.current = onEnd;
+  const holdAtRef = useRef(holdAt);
+  holdAtRef.current = holdAt;
+  // Checkpoint state: the frame playback is held on, and the frames already
+  // released this playthrough (so resuming doesn't immediately re-hold).
+  const [held, setHeld] = useState<number | null>(null);
+  const releasedRef = useRef(new Set<number>());
 
   // Completion transitions are idempotent: adapters may repeat `onEnd`
   // (the port allows it); the option callback fires once per run.
@@ -118,6 +147,8 @@ export function useStepPlayer({
   playingRef.current = playing;
   const atEndRef = useRef(atEnd);
   atEndRef.current = atEnd;
+  const heldRef = useRef(held);
+  heldRef.current = held;
 
   const engineRef = useRef(engine);
   engineRef.current = engine;
@@ -171,6 +202,8 @@ export function useStepPlayer({
     setStarted(true);
     setPlaying(true);
     clearEnded();
+    setHeld(null);
+    releasedRef.current = new Set();
     first();
     if (engineRef.current) {
       engineApiRef.current.seek?.(0);
@@ -182,6 +215,8 @@ export function useStepPlayer({
     setStarted(false);
     setPlaying(false);
     clearEnded();
+    setHeld(null);
+    releasedRef.current = new Set();
     if (engineRef.current) engineApiRef.current.pause?.();
   }, [clearEnded]);
 
@@ -192,6 +227,7 @@ export function useStepPlayer({
       setStarted(true);
       setPlaying(false);
       clearEnded();
+      setHeld(null);
       go(Math.max(0, Math.min(f, t - 1)));
       if (engineRef.current) {
         engineApiRef.current.pause?.();
@@ -211,6 +247,7 @@ export function useStepPlayer({
       }
       setStarted(true);
       clearEnded();
+      setHeld(null);
       const target = Math.min(cursorRef.current + 1, t - 1);
       coreNext();
       if (engineRef.current) {
@@ -224,6 +261,7 @@ export function useStepPlayer({
   const prev = useCallback(() => {
     setPlaying(false);
     clearEnded();
+    setHeld(null);
     const target = Math.max(0, cursorRef.current - 1);
     corePrev();
     if (engineRef.current) {
@@ -245,12 +283,37 @@ export function useStepPlayer({
       const nextPlaying = !playingRef.current;
       setPlaying(nextPlaying);
       setStarted(true);
+      // Pressing play is an explicit release of the frame you're on, whether
+      // playback was held there or you seeked onto a checkpoint.
+      if (nextPlaying) {
+        releasedRef.current.add(cursorRef.current);
+        setHeld(null);
+      }
       if (engineRef.current) {
         if (nextPlaying) engineApiRef.current.play?.();
         else engineApiRef.current.pause?.();
       }
     },
     [start]
+  );
+
+  const release = useCallback(() => {
+    const h = heldRef.current;
+    if (h === null) return;
+    releasedRef.current.add(h);
+    setHeld(null);
+    setPlaying(true);
+  }, []);
+
+  const jump = useCallback(
+    (f: number) => {
+      const t = totalRef.current;
+      if (t === 0) return;
+      setStarted(true);
+      go(Math.max(0, Math.min(f, t - 1)));
+      if (engineRef.current) engineApiRef.current.seek?.(f);
+    },
+    [go]
   );
 
   const changeSpeed = useCallback((s: number) => {
@@ -263,12 +326,24 @@ export function useStepPlayer({
     clearEnded();
   }, [total, clearEnded]);
 
+  // A hold belongs to the frame it was reached on: moving off it (a jump
+  // after the timeline changed, an engine frame) clears it.
+  useEffect(() => {
+    if (held !== null && held !== core.index) setHeld(null);
+  }, [held, core.index]);
+
   // Built-in timer loop — skipped entirely when a custom engine takes over.
   useEffect(() => {
     if (engineRef.current) return;
     if (!playing || !started || total === 0) return;
     if (core.index >= total - 1) {
       markEnded();
+      setPlaying(false);
+      return;
+    }
+    // Checkpoint: playback stops on this frame until released.
+    if (holdAtRef.current?.(core.index) && !releasedRef.current.has(core.index)) {
+      setHeld(core.index);
       setPlaying(false);
       return;
     }
@@ -319,6 +394,9 @@ export function useStepPlayer({
       speed,
       atEnd,
       ended,
+      held,
+      release,
+      jump,
       start,
       reset,
       seek,
@@ -328,7 +406,7 @@ export function useStepPlayer({
       setPlaying,
       setSpeed: changeSpeed,
     }),
-    [total, index, playing, speed, atEnd, ended, start, reset, seek, next, prev, toggle, changeSpeed]
+    [total, index, playing, speed, atEnd, ended, held, release, jump, start, reset, seek, next, prev, toggle, changeSpeed]
   );
 }
 

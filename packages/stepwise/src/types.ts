@@ -16,6 +16,13 @@ export type StepwiseStep<Data extends object = Record<never, never>> = {
   label: string;
   code?: string[];
   note?: string;
+  /**
+   * Stable identity of this step across re-runs ("pass 2, compare j=3").
+   * When a trace is recomputed — new input, new seed — `useTrace` keeps the
+   * playhead on the step with the same key instead of the same index. Keys
+   * should be unique within a trace.
+   */
+  key?: string;
 } & Data;
 
 export interface TourStepInput {

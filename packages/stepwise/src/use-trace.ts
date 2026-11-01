@@ -1,9 +1,23 @@
 "use client";
 
-import { useCallback, useMemo, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { reanchor, stepKey } from "./reanchor";
 import { useStepPlayer } from "./use-step-player";
 import type { StepPlayer, StepPlayerOptions } from "./use-step-player";
 import type { StepTone, StepwiseStep } from "./types";
+
+export interface TraceOptions<S extends StepwiseStep> extends Omit<StepPlayerOptions, "total"> {
+  /**
+   * Step identity used to keep the playhead in place when `steps` changes
+   * (see `reanchor`). Defaults to each step's `key` field. Traces without
+   * keys keep the old behavior: the same index, clamped.
+   */
+  keyOf?: (step: S, index: number) => string | undefined;
+}
+
+// Re-anchoring must land before paint, or the old index flashes against the
+// new trace for a frame. Layout effects don't run on the server.
+const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
 export interface TracePlayer<S extends StepwiseStep> {
   /** The underlying player — pass it to PlayerBar. */
@@ -31,16 +45,40 @@ export interface TracePlayer<S extends StepwiseStep> {
  *   const trace = useTrace(STEPS, { autoPlay: true });
  *   <Viz arr={trace.step.arr} />
  *   <PlayerBar player={trace.player} toneAt={trace.toneAt} titleAt={trace.titleAt} />
+ *
+ * `steps` may change (new input, new seed — see `useSimulation`). Keyed
+ * steps re-anchor: the playhead stays on the same logical step, and playback
+ * state is untouched.
  */
 export function useTrace<S extends StepwiseStep>(
   steps: readonly S[],
-  opts?: Omit<StepPlayerOptions, "total">
+  opts?: TraceOptions<S>
 ): TracePlayer<S> {
-  const player = useStepPlayer({ ...opts, total: steps.length });
+  const { keyOf, ...playerOpts } = opts ?? {};
+  const player = useStepPlayer({ ...playerOpts, total: steps.length });
   const stepsRef = useRef(steps);
   stepsRef.current = steps;
+  const keyFn = (keyOf ?? stepKey) as (step: S, index: number) => string | undefined;
 
-  const frame = steps.length === 0 ? -1 : Math.max(0, Math.min(player.index, steps.length - 1));
+  // What was on screen at the last commit. When the trace is replaced, the
+  // anchored index is derived here, during render, so the very first frame
+  // drawn against the new trace is already the right one; the layout effect
+  // then moves the player's cursor to match.
+  const shownRef = useRef<{ steps: readonly S[]; index: number }>({ steps, index: player.index });
+  const shown = shownRef.current;
+  let anchored: number | null = null;
+  if (shown.steps !== steps && shown.index >= 0 && steps.some((s, i) => keyFn(s, i) !== undefined)) {
+    anchored = reanchor(shown.steps, shown.index, steps, keyFn as (s: S, i: number) => string | undefined);
+  }
+  const index = anchored ?? player.index;
+
+  const { jump } = player;
+  useIsomorphicLayoutEffect(() => {
+    if (anchored !== null && anchored >= 0 && anchored !== player.index) jump(anchored);
+    shownRef.current = { steps, index };
+  });
+
+  const frame = steps.length === 0 ? -1 : Math.max(0, Math.min(index, steps.length - 1));
   const step = frame >= 0 ? steps[frame] : undefined;
 
   const toneAt = useCallback((i: number) => stepsRef.current[i]?.tone ?? "neutral", []);
