@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
+import { toVerdict } from "./evaluate";
 import { useSteps } from "./use-steps";
 import type { TourDriver, TourStepInput } from "./types";
 
@@ -15,6 +17,11 @@ export interface GuidedTour {
    * the waitHint) so the user knows what is being waited on.
    */
   blocked: boolean;
+  /**
+   * The active step's gate feedback, when its gate returns a `Verdict` with
+   * one ("Stage at least one file"). Pass it to `TourCard`'s `feedback`.
+   */
+  feedback: ReactNode;
   start: () => void;
   end: () => void;
   next: () => void;
@@ -47,6 +54,12 @@ export interface GuidedTourOptions {
  * never landed on, and skipped/gated behavior is evaluated at transition
  * time, not on every render.
  */
+/** A step's gate as a verdict; no gate always passes. */
+function gateVerdict(step: TourStepInput | undefined) {
+  const r = step?.gate?.();
+  return r === undefined ? { status: "pass" as const, feedback: undefined } : toVerdict(r);
+}
+
 export function useGuidedTour(steps: TourStepInput[], opts?: GuidedTourOptions): GuidedTour {
   const [running, setRunning] = useState(false);
   const runningRef = useRef(running);
@@ -170,7 +183,7 @@ export function useGuidedTour(steps: TourStepInput[], opts?: GuidedTourOptions):
     if (!runningRef.current) return;
     const i = cursorRef.current;
     // A closed gate blocks the advance — the app surfaces `blocked`.
-    if (stepsRef.current[i]?.gate?.() === false) return;
+    if (gateVerdict(stepsRef.current[i]).status !== "pass") return;
     const target = resolveNext(i);
     if (target > stepsRef.current.length - 1) {
       setRunning(false); // linear past the end — the tour exits
@@ -187,9 +200,11 @@ export function useGuidedTour(steps: TourStepInput[], opts?: GuidedTourOptions):
   }, [arrive]);
 
   const current = running ? (stepsRef.current[core.index] ?? null) : null;
-  const blocked = current?.gate?.() === false;
+  const verdict = current ? gateVerdict(current) : null;
+  const blocked = verdict !== null && verdict.status !== "pass";
+  const feedback = verdict?.feedback;
   return useMemo(
-    () => ({ index, current, active: running, blocked, start, end, next, back, goto: goTo, gotoId: goToId }),
-    [index, current, running, blocked, start, end, next, back, goTo, goToId]
+    () => ({ index, current, active: running, blocked, feedback, start, end, next, back, goto: goTo, gotoId: goToId }),
+    [index, current, running, blocked, feedback, start, end, next, back, goTo, goToId]
   );
 }

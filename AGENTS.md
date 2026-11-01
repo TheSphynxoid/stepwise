@@ -27,7 +27,7 @@ npm run build -w @sphynxoid/stepwise             # build library → packages/st
 npm run dev                                   # demo app (same as: npm run dev -w @stepwise/demo)
 
 # tests — run from the package directory, NOT the root
-cd packages/stepwise && npx vitest run        # 121 tests (14 useSteps, 32 player, 29 tour, 9 discoveries, 6 chapters, 4 flatten, 4 trace, 11 synced tracks, 9 lesson stream, 3 createTrace)
+cd packages/stepwise && npx vitest run        # 153 tests (14 useSteps, 32 player, 29 tour, 9 discoveries, 6 chapters, 4 flatten, 4 trace, 11 synced tracks, 9 lesson stream, 3 createTrace, 24 simulation/re-anchoring/checkpoints, 7 evaluators, 1 barrel)
 
 # demo lint (eslint flat config, no interactive prompt)
 cd apps/demo && npm run lint
@@ -94,12 +94,21 @@ types.ts ── schema (StepTone, StepwiseStep, TourStepInput, Chapter)
          └─ ports (PlayerEngine, TourDriver) — inversion points for adapters
 create-trace.ts ── createTrace<Data>().step(…).build(): typed module-scope
                    traces without IIFEs (pure data, no React)
+simulation.ts ──── createRng (seeded), runSimulation (pure, capped): traces
+                   computed from an input by a generator
+reanchor.ts ────── the pure "stay on the same step" rule (keys)
+evaluate.ts ────── Verdict / Evaluator (pass | fail | pending, feedback)
 
 CORE      use-steps.ts      THE primitive: clamped cursor, stable callbacks,
                             re-clamps when count changes
 POLICIES  use-step-player   timer, speed, seek, #hash deep-link, engine port,
-                            reduced-motion autoPlay gate
-          use-trace         player bound to a typed trace (step, toneAt/titleAt)
+                            reduced-motion autoPlay gate, checkpoints
+                            (holdAt/held/release), jump (cursor only)
+          use-trace         player bound to a typed trace (step, toneAt/titleAt);
+                            keyed re-anchoring when steps change
+          use-simulation    live trace: rerun on input change, keep place
+          use-evaluator     verdict as state: auto (gates) / manual (quizzes),
+                            async with abort, attempts
           use-synced-tracks comparison mode: N traces under ONE player; hold
                             the last frame or align on sync keys (alignTracks
                             is the pure table)
@@ -172,6 +181,14 @@ Each of these encodes a bug we already fixed once:
    roots: tooltip card, shortcuts overlay). `styles.css` scopes its preflight
    to those subtrees — a new component without it renders with browser-default
    buttons/margins on non-Tailwind hosts.
+10. **Live traces: three timing rules** (each pinned by a test in
+   `simulation.test.tsx`; `/simulate` broke on all three). (a) `useTrace`
+   always forces one commit after re-anchoring, or a same-commit move back
+   nets out, React bails out, and the screen freezes on the anchored frame.
+   (b) The player's hash writer skips the write that races a fresh hash
+   read (`pendingRead`). (c) The hash is read on mount, `hashchange`, and the
+   first non-empty timeline only, never on every `total` change. Test
+   linked-state flows with **reduced motion** (paused): autoplay hides these.
 
 ## Demo content policy
 
@@ -193,10 +210,11 @@ What each page must keep showcasing (the feature matrix):
 |------------|--------------------------------------------------------------------------------|
 | `/`        | SaaS landing: visual hero player (`HeroPlayer`: quicksort bars on `useTrace` + `PlayerBar`), one-primitive band, feature grid (lesson featured), theming section, light/dark toggle |
 | `/lesson`  | **Flagship composition**: `useChapters` + `ChapterNav` scroll lesson, embedded `useTrace` Dijkstra player (chapter → frame seek while paused), `useGuidedTour` intro whose steps target sections, glossary `Term`s + `GlossaryAppendix`, live three-cursor readout |
+| `/simulate`| `useSimulation` live trace (edit input mid-play, playhead keeps its step via `key`), seeded `createRng`, `#in=…&frame=…` exact replay links, predict mode: `holdAt` checkpoints + manual `useEvaluator` |
 | `/player`  | `useTrace` autoPlay, `PlayerBar`, `useGlobalKeys`, `CodeBlock`, tones, `ended` completion banner |
 | `/compare` | `useSyncedTracks` (bubble vs insertion sort under one player), hold vs align-by-pass toggle, traces built with `createTrace` |
 | `/tour`    | `useGuidedTour` + `TourSpotlight` + `TourCard`, id targets, `waitHint`, live interactive step |
-| `/discovery`| `useDiscoveries` ledger auto-starts a tour once; `when` skips done steps, `gate` blocks Next, reset/replay controls |
+| `/discovery`| `useDiscoveries` ledger auto-starts a tour once; `when` skips done steps, `gate` blocks Next (the query gate returns a `Verdict` → `TourCard feedback`), reset/replay controls |
 | `/glossary`| `Term` chains (HTTP→HTTPS→TLS→CA hits the depth cap), appendix auto-injection + `intro` |
 | `/scroll`  | `useChapters` center tracking, scrubber `groupOf` sub-chapter grouping, recursive `ChapterNav`, glossary tooltips + auto-appendix with `intro`/`footer` |
 | `/minimal` | Bare `PlayerBar`, custom labels, **standalone light theme** (proves theme is injected, not baked in) |
@@ -228,11 +246,12 @@ the library's theming story:
 
 1. Library: `npm run build -w @sphynxoid/stepwise` → "ESM ⚡ Build success" +
    "DTS ⚡ Build success". Tests from `packages/stepwise`.
-2. Demo: `cd apps/demo && npm run build` → "15/15 static pages" (10 routes + OG image).
-   Then `PW_CHANNEL=msedge npx playwright test` (17 smoke tests: every route
+2. Demo: `cd apps/demo && npm run build` → "16/16 static pages" (11 routes + OG image).
+   Then `PW_CHANNEL=msedge npx playwright test` (20 smoke tests: every route
    without console errors, the /eviction redirect, tour card placement - the
    Tailwind `@source` regression guard - player, tour, keyboard glossary
-   tooltip, lesson composition, /compare alignment). Set `PW_PORT` if 3123 is taken.
+   tooltip, lesson composition, /compare alignment, /simulate exact linked frame +
+   re-anchoring after edits, /simulate predict loop). Set `PW_PORT` if 3123 is taken.
 3. **Visual check via headless Edge** (Chrome is not installed here):
    `C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe`, headless,
    against `npm run dev -- -p <port>`. Screenshot after interacting (e.g.

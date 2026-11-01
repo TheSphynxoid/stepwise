@@ -30,6 +30,8 @@ on top of it:
 | You're building | Use | You get |
 |---|---|---|
 | An algorithm or protocol walkthrough | `useTrace` + `PlayerBar` | play/pause/scrub, speed, keyboard, `#frame=12` deep links, reduced-motion aware autoplay, a scrubber colored by step tone |
+| An explainer the reader can poke at | `useSimulation` | the trace is computed from an input; edit it mid-playback and the playhead stays on the same step; seeded randomness, so links replay exactly |
+| "Pause and predict" exercises | `holdAt` checkpoints + `useEvaluator` | autoplay stops where you choose; grade the reader's guess with feedback, async checks, attempt counts |
 | A side-by-side comparison | `useSyncedTracks` | N traces under one playhead, aligned on shared sync points |
 | A product tour / onboarding | `useGuidedTour` + `TourSpotlight` + `TourCard` | steps that *change app state* (`onEnter`), gates that wait for the user to actually do the thing, branches, skip conditions |
 | A show-once feature tutorial | `useDiscoveries` + a tour | a persisted "seen it" ledger (localStorage, cookie, or your API) |
@@ -72,6 +74,34 @@ export function SortDemo() {
 
 How you draw each frame is up to you: DOM, SVG, canvas, or GSAP via the
 `PlayerEngine` adapter. stepwise owns the *timeline*, not the pixels.
+
+## Live simulations: let the reader change the input
+
+Instead of recording frames by hand, write the algorithm as a generator and
+give each step a `key` naming its moment. `useSimulation` reruns it whenever
+the input changes, and the playhead stays on the same moment, even mid-playback
+([try it](https://stepwise.thesphynx.net/simulate)):
+
+```tsx
+const insertionSort = function* (input: number[]) {
+  const a = [...input];
+  for (let i = 1; i < a.length; i++)
+    for (let j = i; j > 0 && a[j - 1] > a[j]; j--) {
+      [a[j - 1], a[j]] = [a[j], a[j - 1]];
+      yield { key: `swap ${i}.${j}`, tone: "write" as const, label: `swap at ${j}`, arr: [...a] };
+    }
+};
+
+function Explorer() {
+  const [input, setInput] = useState([5, 2, 8, 1]);
+  const sim = useSimulation(insertionSort, input, { autoPlay: true });
+  // render sim.step.arr, let the reader edit `input`, add <PlayerBar player={sim.player} … />
+}
+```
+
+Need randomness? Use the seeded `ctx.rng` the generator receives, never
+`Math.random`, and the same input plus seed always gives the same trace.
+Add `holdAt` to pause at checkpoints and `useEvaluator` to grade a guess.
 
 ## How it compares
 
