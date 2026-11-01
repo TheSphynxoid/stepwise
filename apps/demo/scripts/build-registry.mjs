@@ -1,7 +1,7 @@
 // Builds the shadcn registry served at <demo>/r/*.json from the library
 // source, so the copied components can never drift from the published ones.
 //
-//   npx shadcn add https://stepwise-demo.vercel.app/r/player-bar.json
+//   npx shadcn add https://stepwise.thesphynx.net/r/player-bar.json
 //
 // Each item copies PRESENTATION source into the consumer's repo (Tailwind
 // scans it there — no @source line needed) while the hooks, types and
@@ -25,7 +25,10 @@ const here = dirname(fileURLToPath(import.meta.url));
 const src = join(here, "../../../packages/stepwise/src");
 const out = join(here, "../public/r");
 const pkg = JSON.parse(readFileSync(join(src, "../package.json"), "utf8"));
-const BASE = (process.env.STEPWISE_REGISTRY_URL ?? "https://stepwise-demo.vercel.app/r").replace(/\/$/, "");
+// Same origin as app/layout.tsx. Items reference each other by absolute URL,
+// so this must be where the registry is actually served.
+const SITE = process.env.SITE_URL ?? "https://stepwise.thesphynx.net";
+const BASE = (process.env.STEPWISE_REGISTRY_URL ?? `${SITE}/r`).replace(/\/$/, "");
 const NPM = pkg.name;
 
 const read = (f) => readFileSync(join(src, f), "utf8").replace(/\r\n/g, "\n");

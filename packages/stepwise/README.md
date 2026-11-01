@@ -1,6 +1,10 @@
 # @sphynxoid/stepwise
 
-A kit for interactive, narrated, step-driven visualizations — one primitive (`useSteps`) at every scale.
+**Interactive explainers for React: step-through players, guided tours, scroll-driven lessons and glossary tooltips, all on one cursor.**
+
+**[Live demos](https://stepwise.thesphynx.net)** · [API reference](https://stepwise.thesphynx.net/docs) · [StackBlitz starter](https://stackblitz.com/github/TheSphynxoid/stepwise/tree/master/examples/vite-starter) · [GitHub](https://github.com/TheSphynxoid/stepwise)
+
+<img src="https://raw.githubusercontent.com/TheSphynxoid/stepwise/master/docs/assets/hero.gif" alt="A quicksort trace playing in a stepwise PlayerBar" width="516">
 
 Frames in a trace, chapters in a lesson, lessons in a notebook, and tour steps are the same thing at the core: a clamped cursor over an ordered sequence. Timers, tour effects, scroll tracking, and third-party presenters are policies and adapters layered on top.
 
@@ -45,7 +49,7 @@ Tokens: `--stepwise-background`, `-foreground`, `-card`, `-popover`, `-primary`,
 **2. Tailwind + shadcn/ui — copy the components in with the shadcn CLI:**
 
 ```bash
-npx shadcn@latest add https://stepwise-demo.vercel.app/r/player-bar.json
+npx shadcn@latest add https://stepwise.thesphynx.net/r/player-bar.json
 ```
 
 Items: `player-bar`, `code-block`, `tour`, `glossary`, `chapter-nav`, `lesson-pager`, `shortcuts-dialog` — or `stepwise` for all of them. The presentation source lands in `components/stepwise/` (plus `lib/stepwise-theme.ts`), where Tailwind scans it automatically; hooks and types stay imported from this package. Colors come from your shadcn tokens.

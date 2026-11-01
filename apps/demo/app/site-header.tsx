@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { Github } from "lucide-react";
 import { ThemeToggle } from "./theme-provider";
+import { VERSION } from "./version";
 
-// TODO: point at the real repository when it goes public.
 const REPO_URL = "https://github.com/TheSphynxoid/stepwise";
 
 export function SiteHeader() {
@@ -28,7 +28,7 @@ export function SiteHeader() {
           </span>
           <span className="text-[15px] font-semibold tracking-tight">stepwise</span>
           <span className="hidden sm:inline text-[9px] font-mono uppercase tracking-widest text-muted-foreground border border-border rounded px-1.5 py-0.5">
-            v0.1
+            v{VERSION.split(".").slice(0, 2).join(".")}
           </span>
         </Link>
 

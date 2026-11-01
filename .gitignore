@@ -6,3 +6,5 @@ dist
 apps/demo/public/r
 test-results
 playwright-report
+# private launch drafts (not part of the repo)
+launch/

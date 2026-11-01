@@ -1,0 +1,16 @@
+:root {
+  color-scheme: light dark;
+  font-family: system-ui, sans-serif;
+  /* Re-color the components: every stepwise color is a --stepwise-* token. */
+  --stepwise-primary: #6366f1;
+}
+body { margin: 0; }
+main { max-width: 40rem; margin: 3rem auto; padding: 0 1rem; display: grid; gap: 1.25rem; }
+.bars { display: flex; align-items: flex-end; gap: 6px; height: 10rem; padding: 0.75rem;
+  border: 1px solid #8884; border-radius: 10px; }
+.bar { flex: 1; border-radius: 4px 4px 0 0; background: #8886; transition: height 250ms, background 250ms; }
+.bar.active { background: #6366f1; }
+.bar.done { background: #22c55e; }
+.player { border: 1px solid #8884; border-radius: 10px; }
+button.start { justify-self: start; padding: 0.4rem 0.9rem; border-radius: 8px; border: 1px solid #8886;
+  background: transparent; color: inherit; cursor: pointer; }

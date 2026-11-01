@@ -1,6 +1,5 @@
 import Link from "next/link";
 
-// TODO: point at the real repository when it goes public.
 const REPO_URL = "https://github.com/TheSphynxoid/stepwise";
 
 export function SiteFooter() {

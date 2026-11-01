@@ -4,8 +4,9 @@ import { SiteHeader } from "./site-header";
 import { SiteFooter } from "./site-footer";
 import "./globals.css";
 
-// TODO: point at the real deployment origin when the demo is on Vercel.
-const SITE_URL = "https://stepwise-demo.vercel.app";
+// The canonical demo origin (OG tags). SITE_URL overrides it, e.g. for a fork.
+// Keep in sync with scripts/build-registry.mjs.
+const SITE_URL = process.env.SITE_URL ?? "https://stepwise.thesphynx.net";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -24,7 +25,7 @@ export const metadata: Metadata = {
       "A kit for interactive, narrated, step-driven visualizations. One primitive (useSteps) at every scale.",
   },
   twitter: {
-    card: "summary",
+    card: "summary_large_image",
     title: "stepwise — interactive step visualizations",
     description:
       "A kit for interactive, narrated, step-driven visualizations. One primitive (useSteps) at every scale.",

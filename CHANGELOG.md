@@ -1,6 +1,12 @@
 # Changelog
 
-## 0.2.0 — unreleased
+## Unreleased
+
+- **Docs**: README rewritten for first-time visitors (hero GIF, use-case table, honest comparison with tour/scrollytelling libraries); sharper npm description and keywords.
+- **New**: `examples/vite-starter` — the smallest real app on the published package, no Tailwind (`styles.css`); the StackBlitz target.
+- **Demo**: OG tags and registry point at the real demo origin, https://stepwise.thesphynx.net (the deployed registry referenced a non-existent domain, so `shadcn add` failed on dependencies; override with `SITE_URL`); site version badges read the package version; `opengraph-image.png`.
+
+## 0.2.0 — 2026-11-01
 
 - **New**: `useTrace(steps, opts)` — a player bound to a typed trace. Returns `{ player, step, frame, toneAt, titleAt }`; `step` is frame 0 before playback starts, and the scrubber accessors are stable.
 - **New**: `StepwiseStep<Data>` is generic — carry your domain payload in the step type (`StepwiseStep<{ arr: number[] }>`). The default (`StepwiseStep`) is unchanged.
@@ -11,7 +17,7 @@
 - **Fix**: `useStepPlayer` and `useGuidedTour` control callbacks are now referentially stable (they were re-created every frame, breaking memoized children and effect deps). `useChapters` and `useGuidedTour` return memoized objects.
 - **Fix**: `syncHash` no longer overwrites the whole URL fragment — it updates only its own `key=value` part and keeps anchors and other keys. Keys are matched literally (previously interpolated into a regex unescaped).
 - **New**: precompiled stylesheet `@sphynxoid/stepwise/styles.css` — styles the components without Tailwind. Only the kit's own classes, no global preflight (scoped to `[data-stepwise]` roots), no global theme variables; colors are `--stepwise-*` tokens with light/dark defaults (`prefers-color-scheme`, `.dark` / `[data-theme]`). Built by the Tailwind CLI (`npm run build:css`, part of `build`).
-- **New**: shadcn registry served by the demo at `/r/*.json` — `npx shadcn@latest add https://stepwise-demo.vercel.app/r/player-bar.json` copies the component source (`player-bar`, `code-block`, `tour`, `glossary`, `chapter-nav`, `lesson-pager`, `shortcuts-dialog`, or `stepwise` for all) into your repo; hooks stay imported from the package. Generated from the library source on every demo build.
+- **New**: shadcn registry served by the demo at `/r/*.json` — `npx shadcn@latest add https://stepwise.thesphynx.net/r/player-bar.json` copies the component source (`player-bar`, `code-block`, `tour`, `glossary`, `chapter-nav`, `lesson-pager`, `shortcuts-dialog`, or `stepwise` for all) into your repo; hooks stay imported from the package. Generated from the library source on every demo build.
 - **Change**: styled component roots carry a `data-stepwise` attribute (the stylesheet's preflight scope).
 - **Docs**: npm README uses the `@sphynxoid` scope and the `dist` `@source` path. TAILWIND-SETUP covers all three styling routes and documents the shadcn token contract (including the `accent` caveat and the dark-host `white/N` overlays).
 

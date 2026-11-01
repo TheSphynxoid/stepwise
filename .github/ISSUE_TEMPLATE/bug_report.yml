@@ -1,0 +1,41 @@
+name: Bug report
+description: Something renders wrong, throws, or behaves unexpectedly
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: A StackBlitz fork of the starter is ideal - https://stackblitz.com/github/TheSphynxoid/stepwise/tree/master/examples/vite-starter - or a minimal snippet.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: "@sphynxoid/stepwise version"
+      placeholder: "0.2.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: styling
+    attributes:
+      label: How are the components styled?
+      options:
+        - styles.css (no Tailwind)
+        - Tailwind with @source
+        - shadcn registry copy
+        - Headless only (hooks, my own UI)
+  - type: input
+    id: env
+    attributes:
+      label: Framework, React version, browser
+      placeholder: "Next 15 App Router, React 19, Firefox 140"
+  - type: markdown
+    attributes:
+      value: "**Everything unstyled?** That's almost always Tailwind not scanning the package. See docs/TAILWIND-SETUP.md first."

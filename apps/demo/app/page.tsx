@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { VERSION } from "./version";
 import {
   ArrowRight,
   BookMarked,
@@ -126,7 +127,7 @@ export default function Home() {
             <div>
               <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-border bg-card/60 px-3 py-1 text-[11px] font-mono text-muted-foreground sw-fade-up">
                 <span className="h-1.5 w-1.5 rounded-full bg-accent sw-pulse-glow" />
-                v0.1.0 - MIT - React 18 & 19
+                v{VERSION} - MIT - React 18 & 19
               </div>
               <h1 className="text-4xl font-semibold tracking-tight md:text-[3.4rem] md:leading-[1.08] sw-fade-up sw-fade-up-1">
                 Narrate any sequence.

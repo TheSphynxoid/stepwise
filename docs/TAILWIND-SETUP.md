@@ -70,10 +70,10 @@ Limits: only the kit's *own* classes are compiled. Classes you pass through
 ## shadcn registry
 
 The demo site serves a [shadcn registry](https://ui.shadcn.com/docs/registry)
-at `https://stepwise-demo.vercel.app/r/`:
+at `https://stepwise.thesphynx.net/r/`:
 
 ```bash
-npx shadcn@latest add https://stepwise-demo.vercel.app/r/player-bar.json
+npx shadcn@latest add https://stepwise.thesphynx.net/r/player-bar.json
 ```
 
 | Item | Installs |
