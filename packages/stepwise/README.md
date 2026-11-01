@@ -116,6 +116,18 @@ const sim = useSimulation(shuffleThenSort, input, { seed: 7, autoPlay: true, syn
 
 How re-anchoring decides: walk back from the old position to the latest step whose key exists in the new trace, and land there (`reanchor` is exported for custom players). `runSimulation` is the pure, server-safe runner, with a `maxSteps` cap so a runaway generator can't hang the page.
 
+## Following a live timeline
+
+When frames arrive while the reader watches (a log, a stream, an agent's steps, a game's moves), add `follow`: a reader at the edge keeps playing into new frames at the normal pace, and one who scrubbed back to inspect something stays there until they choose to return.
+
+```tsx
+const trace = useTrace(events, { autoPlay: true, follow: true }); // events grows over time
+// trace.player.live: at the edge?  trace.player.goLive(): back to it
+<PlayerBar player={trace.player} toneAt={trace.toneAt} titleAt={trace.titleAt} live />
+```
+
+`PlayerBar live` shows "Live" at the edge and "Go live +N" when the reader is behind. Checkpoints still hold, and with reduced motion nothing starts on its own.
+
 ## Checkpoints and evaluators
 
 Pause autoplay where the reader should think, then grade their answer:

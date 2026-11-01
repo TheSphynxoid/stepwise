@@ -19,13 +19,14 @@ explainer **ask questions** and grade the answers. Both had to stay inside the
 | Re-anchoring | `useTrace` (automatic for keyed steps), `keyOf`, pure `reanchor()` | Unkeyed traces keep index clamping |
 | Simulations | `useSimulation(sim, input, opts)`, `runSimulation`, `createRng` | Generator `(input, { rng }) => Iterable<step>` |
 | Checkpoints | `holdAt` → `held` / `release()` on the player; `holdAt(frame, step)` on traces | Autoplay only |
+| Live edge | `follow` → `live` / `goLive()` on the player; `PlayerBar live` | Growing timelines; appends skip re-anchoring |
 | Cursor-only move | `player.jump(frame)` | Used by re-anchoring; public for restoring linked state |
 | Evaluators | `Verdict`, `Evaluator<Ctx>`, `pass`/`fail`/`pending`/`toVerdict`, `useEvaluator` | Booleans accepted everywhere |
 | Verdict gates | `gate: () => boolean \| Verdict`, `tour.feedback`, `TourCard feedback` | Backward compatible |
 | Hash helpers | `readHashParam` / `writeHashParam` exported | Pages keeping state next to `syncHash` |
 
-Demo: `/simulate` (insertion sort; edit while playing; predict mode) and a
-verdict gate on `/discovery`.
+Demo: `/simulate` (insertion sort; edit while playing; predict mode),
+`/live` (a build log streaming in), and a verdict gate on `/discovery`.
 
 ## Decisions
 
@@ -58,6 +59,18 @@ verdict when the answer changes (a stale "Right!" next to a different answer
 is wrong). Async runs abort when superseded and late results are dropped.
 Tour gates stay **synchronous** (evaluated during render for `blocked`). Async
 gate checks go through `useEvaluator`, and the gate returns its `passed`.
+
+**Follow the live edge by playing, not snapping.** Added after the
+"could stepwise run a memory game?" stress test: in any timeline that grows
+while watched, the player used to stop at the old end and stay there. With
+`follow`, a reader who is live (playing, or parked on the last frame) plays
+into appended frames at the normal pace, so timed beats survive (a game's
+"show both cards, then flip back" is just the timer). A reader who scrubbed
+back or paused mid-trace stays put: the stream never yanks you away from what
+you're inspecting, the same rule as a chat app's "new messages" button.
+`goLive()` is the explicit return. Snapping straight to the newest frame was
+the alternative; it loses those beats, and a reader who wants it can call
+`goLive()` per append.
 
 ## Bugs the demo found (now invariant 10 in AGENTS.md)
 

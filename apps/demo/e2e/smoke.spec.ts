@@ -5,7 +5,7 @@ import { expect, test, type Page } from "@playwright/test";
 // for the library's classes (wrong @source path), which leaves every
 // library-rendered element unstyled while the host page looks fine.
 
-const ROUTES = ["/", "/simulate", "/player", "/compare", "/lesson", "/tour", "/discovery", "/glossary", "/scroll", "/minimal", "/docs"];
+const ROUTES = ["/", "/simulate", "/live", "/player", "/compare", "/lesson", "/tour", "/discovery", "/glossary", "/scroll", "/minimal", "/docs"];
 
 function collectErrors(page: Page): string[] {
   const errors: string[] = [];
@@ -159,4 +159,23 @@ test("simulate: predict mode holds at a checkpoint and grades the guess", async 
   await expect(checkpoint).toContainText("Right");
   await checkpoint.getByRole("button", { name: "Continue" }).click();
   await expect(page.getByTestId("sim-label")).not.toHaveText("compare a[0]=5 with a[1]=2");
+});
+
+test("live: follows the edge, a reader who scrubs back stays put, Go live returns", async ({ page }) => {
+  await page.goto("/live");
+  const bar = page.locator("[data-stepwise]").filter({ has: page.getByRole("slider") }).last();
+  await expect(bar.getByRole("status")).toHaveText("Live");
+  // Events keep arriving and playing in.
+  await expect(page.getByTestId("live-count")).not.toHaveText(/^1\//, { timeout: 5000 });
+
+  await page.getByRole("list", { name: "Event log" }).getByRole("button").first().click();
+  await expect(page.getByTestId("live-label")).toHaveText("fetch sources");
+  await page.getByRole("button", { name: /Burst/ }).click();
+  const goLive = bar.getByRole("button", { name: /Go live/ });
+  await expect(goLive).toBeVisible();
+  await expect(page.getByTestId("live-label")).toHaveText("fetch sources");
+
+  await goLive.click();
+  await expect(bar.getByRole("status")).toHaveText("Live");
+  await expect(page.getByTestId("live-label")).not.toHaveText("fetch sources");
 });

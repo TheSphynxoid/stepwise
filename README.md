@@ -31,6 +31,7 @@ on top of it:
 |---|---|---|
 | An algorithm or protocol walkthrough | `useTrace` + `PlayerBar` | play/pause/scrub, speed, keyboard, `#frame=12` deep links, reduced-motion aware autoplay, a scrubber colored by step tone |
 | An explainer the reader can poke at | `useSimulation` | the trace is computed from an input; edit it mid-playback and the playhead stays on the same step; seeded randomness, so links replay exactly |
+| A live feed: logs, streams, agent steps | `useTrace({ follow })` + `PlayerBar live` | new frames play in while you watch; scrub back to inspect one and the stream doesn't yank you away; "Go live" returns |
 | "Pause and predict" exercises | `holdAt` checkpoints + `useEvaluator` | autoplay stops where you choose; grade the reader's guess with feedback, async checks, attempt counts |
 | A side-by-side comparison | `useSyncedTracks` | N traces under one playhead, aligned on shared sync points |
 | A product tour / onboarding | `useGuidedTour` + `TourSpotlight` + `TourCard` | steps that *change app state* (`onEnter`), gates that wait for the user to actually do the thing, branches, skip conditions |

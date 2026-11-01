@@ -27,7 +27,7 @@ npm run build -w @sphynxoid/stepwise             # build library → packages/st
 npm run dev                                   # demo app (same as: npm run dev -w @stepwise/demo)
 
 # tests — run from the package directory, NOT the root
-cd packages/stepwise && npx vitest run        # 153 tests (14 useSteps, 32 player, 29 tour, 9 discoveries, 6 chapters, 4 flatten, 4 trace, 11 synced tracks, 9 lesson stream, 3 createTrace, 24 simulation/re-anchoring/checkpoints, 7 evaluators, 1 barrel)
+cd packages/stepwise && npx vitest run        # 164 tests (14 useSteps, 32 player, 29 tour, 9 discoveries, 6 chapters, 4 flatten, 4 trace, 11 synced tracks, 9 lesson stream, 3 createTrace, 24 simulation/re-anchoring/checkpoints, 7 evaluators, 11 live edge, 1 barrel)
 
 # demo lint (eslint flat config, no interactive prompt)
 cd apps/demo && npm run lint
@@ -103,7 +103,8 @@ CORE      use-steps.ts      THE primitive: clamped cursor, stable callbacks,
                             re-clamps when count changes
 POLICIES  use-step-player   timer, speed, seek, #hash deep-link, engine port,
                             reduced-motion autoPlay gate, checkpoints
-                            (holdAt/held/release), jump (cursor only)
+                            (holdAt/held/release), jump (cursor only),
+                            follow (live edge: live/goLive)
           use-trace         player bound to a typed trace (step, toneAt/titleAt);
                             keyed re-anchoring when steps change
           use-simulation    live trace: rerun on input change, keep place
@@ -211,6 +212,7 @@ What each page must keep showcasing (the feature matrix):
 | `/`        | SaaS landing: visual hero player (`HeroPlayer`: quicksort bars on `useTrace` + `PlayerBar`), one-primitive band, feature grid (lesson featured), theming section, light/dark toggle |
 | `/lesson`  | **Flagship composition**: `useChapters` + `ChapterNav` scroll lesson, embedded `useTrace` Dijkstra player (chapter → frame seek while paused), `useGuidedTour` intro whose steps target sections, glossary `Term`s + `GlossaryAppendix`, live three-cursor readout |
 | `/simulate`| `useSimulation` live trace (edit input mid-play, playhead keeps its step via `key`), seeded `createRng`, `#in=…&frame=…` exact replay links, predict mode: `holdAt` checkpoints + manual `useEvaluator` |
+| `/live`    | `useTrace({ follow })` over a growing event stream, `PlayerBar live` badge, scrub back stays put, Go live (L) returns, burst to show catch-up |
 | `/player`  | `useTrace` autoPlay, `PlayerBar`, `useGlobalKeys`, `CodeBlock`, tones, `ended` completion banner |
 | `/compare` | `useSyncedTracks` (bubble vs insertion sort under one player), hold vs align-by-pass toggle, traces built with `createTrace` |
 | `/tour`    | `useGuidedTour` + `TourSpotlight` + `TourCard`, id targets, `waitHint`, live interactive step |
@@ -246,12 +248,15 @@ the library's theming story:
 
 1. Library: `npm run build -w @sphynxoid/stepwise` → "ESM ⚡ Build success" +
    "DTS ⚡ Build success". Tests from `packages/stepwise`.
-2. Demo: `cd apps/demo && npm run build` → "16/16 static pages" (11 routes + OG image).
-   Then `PW_CHANNEL=msedge npx playwright test` (20 smoke tests: every route
+2. Demo: `cd apps/demo && npm run build` → "17/17 static pages" (12 routes + OG image).
+   Then `PW_CHANNEL=msedge npx playwright test` (22 smoke tests: every route
    without console errors, the /eviction redirect, tour card placement - the
    Tailwind `@source` regression guard - player, tour, keyboard glossary
    tooltip, lesson composition, /compare alignment, /simulate exact linked frame +
-   re-anchoring after edits, /simulate predict loop). Set `PW_PORT` if 3123 is taken.
+   re-anchoring after edits, /simulate predict loop, /live follow + Go live). Set `PW_PORT` if 3123 is taken.
+   At the default worker count this 16-thread box saturates (Edge launches take
+   ~6 s, the server's HTML ~20 s) and route-load tests time out on
+   `networkidle`; pass `--workers=2` locally. CI's small runners are fine.
 3. **Visual check via headless Edge** (Chrome is not installed here):
    `C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe`, headless,
    against `npm run dev -- -p <port>`. Screenshot after interacting (e.g.
