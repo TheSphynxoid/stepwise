@@ -211,6 +211,17 @@ add the frame to the released set; `start()`/`reset()` clear it. Manual
 moves never consult `holdAt`. Engines own their own timing, so `holdAt`
 is ignored with a custom `engine`.
 
+Following the live edge (`follow`): `live` is derived, not stored —
+playing toward the edge, parked on the last frame, or (before start) waiting
+to autoplay, and never while held. An effect on `total` judges liveness
+against the *old* timeline (cursor on the old last frame, or playing) and
+resumes playback, which re-arms a timer that paused at the old end. Nothing
+else changes: a reader behind the edge is simply not resumed, `goLive()` is
+a seek to the last frame, and checkpoints keep their hold because a held
+player is never resumed by growth. `useTrace` takes a fast path for
+appends: if the step on screen has the same key at the same index in the new
+trace, nothing moves and `reanchor` isn't run.
+
 ### Re-anchoring (`use-trace.ts`, `reanchor.ts`)
 
 When `steps` is replaced (a recomputed simulation), the playhead should

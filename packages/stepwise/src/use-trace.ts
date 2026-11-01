@@ -79,8 +79,13 @@ export function useTrace<S extends StepwiseStep>(
   const shownRef = useRef<{ steps: readonly S[]; index: number }>({ steps, index: player.index });
   const shown = shownRef.current;
   let anchored: number | null = null;
-  if (shown.steps !== steps && shown.index >= 0 && steps.some((s, i) => keyFn(s, i) !== undefined)) {
-    anchored = reanchor(shown.steps, shown.index, steps, keyFn as (s: S, i: number) => string | undefined);
+  if (shown.steps !== steps && shown.index >= 0) {
+    // Fast path for appends (streams, live edges): the step on screen has
+    // the same key at the same index in the new trace, so nothing moves.
+    const i = shown.index;
+    const k = i < shown.steps.length ? keyFn(shown.steps[i], i) : undefined;
+    if (k !== undefined && i < steps.length && keyFn(steps[i], i) === k) anchored = i;
+    else if (steps.some((s, j) => keyFn(s, j) !== undefined)) anchored = reanchor(shown.steps, i, steps, keyFn);
   }
   const index = anchored ?? player.index;
 

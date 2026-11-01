@@ -55,6 +55,7 @@ export function SiteFooter() {
             <ul className="space-y-2 text-[13px] text-foreground/70">
               {[
                 ["/simulate", "Live simulation"],
+                ["/live", "Live edge"],
                 ["/player", "Player"],
                 ["/compare", "Synced tracks"],
                 ["/lesson", "Composed lesson"],

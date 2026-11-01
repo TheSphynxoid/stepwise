@@ -43,6 +43,16 @@ export interface StepPlayerOptions {
    * playback. Each checkpoint holds once per playthrough.
    */
   holdAt?: (frame: number) => boolean;
+  /**
+   * Follow the live edge of a growing timeline (a stream, a log, a game's
+   * move history). When frames are appended while the reader is live
+   * (playing, or parked on the last frame), playback continues through them
+   * at the normal pace. A reader who scrubbed back or paused mid-trace stays
+   * put — `live` turns false and `goLive()` returns them. With `autoPlay`, a
+   * player that mounts empty starts on the first frames. Checkpoints still
+   * hold; a custom `engine` owns its own timing and ignores this.
+   */
+  follow?: boolean;
 }
 
 export interface StepPlayer {
@@ -76,6 +86,14 @@ export interface StepPlayer {
    * should use `seek`.
    */
   jump: (frame: number) => void;
+  /**
+   * With `follow`: the reader is at the live edge (playing toward it, parked
+   * on the last frame, or waiting to start), so appended frames will play.
+   * Always false without `follow`.
+   */
+  live: boolean;
+  /** Move to the last frame (paused, so new frames play from there with `follow`). */
+  goLive: () => void;
   /** Jump to frame 0 and play. */
   start: () => void;
   /** Clear the player (frame = -1, paused). */
@@ -100,13 +118,16 @@ export function useStepPlayer({
   onEnd,
   respectReducedMotion = true,
   holdAt,
+  follow = false,
 }: StepPlayerOptions): StepPlayer {
   const core = useSteps(total);
   // useSteps' movement callbacks are referentially stable; depend on them
   // alone, never on `core` itself (its identity churns with the index).
   const { go, next: coreNext, prev: corePrev, first } = core;
   const [started, setStarted] = useState(autoPlay && total > 0);
-  const [playing, setPlaying] = useState(autoPlay && total > 0);
+  // A following autoPlay player may mount empty: it waits "playing" (not yet
+  // started) and starts when the first frames arrive.
+  const [playing, setPlaying] = useState(autoPlay && (total > 0 || follow));
   const [speed, setSpeed] = useState(1);
   const [ended, setEnded] = useState(false);
   const endedRef = useRef(false);
@@ -136,6 +157,7 @@ export function useStepPlayer({
 
   const index = started && core.index >= 0 ? core.index : -1;
   const atEnd = total > 0 && index >= 0 && index >= total - 1;
+  const live = follow && held === null && (started ? playing || atEnd : playing);
 
   // Live values for the public callbacks — read through refs so every
   // returned function keeps one identity for the player's lifetime.
@@ -149,6 +171,8 @@ export function useStepPlayer({
   atEndRef.current = atEnd;
   const heldRef = useRef(held);
   heldRef.current = held;
+  const startedRef = useRef(started);
+  startedRef.current = started;
 
   const engineRef = useRef(engine);
   engineRef.current = engine;
@@ -316,6 +340,20 @@ export function useStepPlayer({
     [go]
   );
 
+  const goLive = useCallback(() => {
+    const t = totalRef.current;
+    if (t === 0) return;
+    setStarted(true);
+    setPlaying(false);
+    clearEnded();
+    setHeld(null);
+    go(t - 1);
+    if (engineRef.current) {
+      engineApiRef.current.pause?.();
+      engineApiRef.current.seek?.(t - 1);
+    }
+  }, [go, clearEnded]);
+
   const changeSpeed = useCallback((s: number) => {
     setSpeed(s);
     if (engineRef.current) engineApiRef.current.rate?.(s);
@@ -325,6 +363,23 @@ export function useStepPlayer({
   useEffect(() => {
     clearEnded();
   }, [total, clearEnded]);
+
+  // Following the live edge: when frames are appended, a reader who was live
+  // keeps playing into them. Liveness is judged against the timeline as it
+  // was (the old last frame), since `atEnd` already reflects the new total.
+  // A timer that paused at the old end is re-armed by resuming playback.
+  const prevTotal = useRef(total);
+  useEffect(() => {
+    const before = prevTotal.current;
+    prevTotal.current = total;
+    if (!follow || engineRef.current || total <= before) return;
+    if (heldRef.current !== null) return;
+    if (!startedRef.current) {
+      if (playingRef.current) setStarted(true);
+      return;
+    }
+    if (playingRef.current || cursorRef.current >= before - 1) setPlaying(true);
+  }, [total, follow]);
 
   // A hold belongs to the frame it was reached on: moving off it (a jump
   // after the timeline changed, an engine frame) clears it.
@@ -420,6 +475,8 @@ export function useStepPlayer({
       held,
       release,
       jump,
+      live,
+      goLive,
       start,
       reset,
       seek,
@@ -429,7 +486,7 @@ export function useStepPlayer({
       setPlaying,
       setSpeed: changeSpeed,
     }),
-    [total, index, playing, speed, atEnd, ended, held, release, jump, start, reset, seek, next, prev, toggle, changeSpeed]
+    [total, index, playing, speed, atEnd, ended, held, release, jump, live, goLive, start, reset, seek, next, prev, toggle, changeSpeed]
   );
 }
 

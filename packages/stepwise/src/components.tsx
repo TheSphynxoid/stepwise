@@ -215,6 +215,7 @@ export function PlayerBar({
   theme = defaultTheme,
   groupOf,
   labels,
+  live,
 }: {
   player: {
     total: number;
@@ -225,10 +226,18 @@ export function PlayerBar({
     prev: () => void;
     toggle: (onEmpty?: () => void) => void;
     seek: (frame: number) => void;
+    live?: boolean;
+    goLive?: () => void;
   };
   toneAt?: (i: number) => StepTone;
   titleAt?: (i: number) => string;
   leading?: ReactNode;
+  /**
+   * Show the live-edge badge for a following player (`follow` option):
+   * "Live" at the edge, "Go live" with the frame count when the reader is
+   * behind.
+   */
+  live?: boolean;
   /** Fired when the user plays/steps with no timeline loaded. */
   onEmpty?: () => void;
   emptyHint?: string;
@@ -245,6 +254,8 @@ export function PlayerBar({
     pause?: string;
     replay?: string;
     next?: string;
+    live?: string;
+    goLive?: string;
   };
 }) {
   const L = {
@@ -253,7 +264,10 @@ export function PlayerBar({
     pause: labels?.pause ?? "Pause",
     replay: labels?.replay ?? "Replay",
     next: labels?.next ?? "Next step",
+    live: labels?.live ?? "Live",
+    goLive: labels?.goLive ?? "Go live",
   };
+  const behind = Math.max(0, player.total - 1 - Math.max(player.index, 0));
   const playLabel = player.playing ? L.pause : player.total > 0 && player.atEnd ? L.replay : L.play;
 
   return (
@@ -281,6 +295,17 @@ export function PlayerBar({
       <span className={cn("text-[10px] font-mono w-11 text-right shrink-0", theme.muted)}>
         {player.total > 0 ? `${player.index + 1}/${player.total}` : "—"}
       </span>
+      {live &&
+        (player.live || behind === 0 ? (
+          <span role="status" className="flex items-center gap-1 text-[10px] font-mono uppercase text-primary shrink-0">
+            <span aria-hidden="true" className={cn("h-1.5 w-1.5 rounded-full bg-primary", player.playing && "motion-safe:animate-pulse")} />
+            {L.live}
+          </span>
+        ) : (
+          <StepButton variant="ghost" onClick={() => player.goLive?.()} className="h-7 px-2 text-[10px] font-mono shrink-0">
+            {L.goLive} +{behind}
+          </StepButton>
+        ))}
     </div>
   );
 }

@@ -97,6 +97,7 @@ export const API: ApiGroup[] = [
               { name: "onEnd", type: "() => void", desc: "Fired once when playback runs to the final frame on its own. Cleared by any cursor movement." },
               { name: "respectReducedMotion", type: "boolean", def: "true", desc: "With autoPlay, land on frame 0 but stay paused under prefers-reduced-motion." },
               { name: "holdAt", type: "(frame: number) => boolean", desc: "Checkpoints: autoplay pauses on these frames and reports held until release(). Manual steps and seeks are never held; each checkpoint holds once per playthrough." },
+              { name: "follow", type: "boolean", def: "false", desc: "Follow the live edge of a growing timeline: when frames are appended while the reader is live (playing, or parked on the last frame), playback continues into them. A reader who scrubbed back or paused mid-trace stays put. With autoPlay, a player that mounts empty starts on the first frames. Checkpoints still hold; ignored with an engine." },
             ],
           },
           {
@@ -111,6 +112,8 @@ export const API: ApiGroup[] = [
               { name: "held", type: "number | null", desc: "The checkpoint frame playback is paused on (see holdAt)." },
               { name: "release", type: "() => void", desc: "Release the checkpoint and resume playing." },
               { name: "jump", type: "(frame: number) => void", desc: "Move the cursor without touching play state - for re-anchoring after the timeline changes. User-facing moves should seek." },
+              { name: "live", type: "boolean", desc: "With follow: the reader is at the live edge, so appended frames will play. Always false without follow." },
+              { name: "goLive", type: "() => void", desc: "Move to the last frame (paused); with follow, new frames play from there." },
               { name: "start", type: "() => void", desc: "Jump to frame 0 and play." },
               { name: "reset", type: "() => void", desc: "Clear the player (frame = -1, paused)." },
               { name: "seek", type: "(frame: number) => void", desc: "Jump to a frame." },
@@ -454,13 +457,14 @@ export const API: ApiGroup[] = [
           {
             title: "Props",
             rows: [
-              { name: "player", type: "StepPlayer (subset)", desc: "total, index, playing, atEnd, next, prev, toggle, seek." },
+              { name: "player", type: "StepPlayer (subset)", desc: "total, index, playing, atEnd, next, prev, toggle, seek (+ live, goLive for the live badge)." },
               { name: "toneAt / titleAt", type: "(i) => StepTone / string", desc: "Segment color and tooltip per frame." },
               { name: "leading", type: "ReactNode", desc: "Content before the controls." },
               { name: "onEmpty", type: "() => void", desc: "Fired when the user plays/steps with no timeline." },
               { name: "emptyHint", type: "string", desc: "Scrubber text when there are no frames." },
               { name: "groupOf", type: "(i: number) => number", desc: "Group consecutive segments (see StepScrubber)." },
-              { name: "labels", type: "{ previous, play, pause, replay, next }", desc: "Button labels / aria." },
+              { name: "live", type: "boolean", desc: "Show the live-edge badge for a following player: Live at the edge, Go live +N when the reader is behind." },
+              { name: "labels", type: "{ previous, play, pause, replay, next, live, goLive }", desc: "Button labels / aria." },
               THEME_ROW,
               CLASS_ROW,
             ],

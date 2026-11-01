@@ -7,6 +7,7 @@ import {
   Columns2,
   FileText,
   FlaskConical,
+  Radio,
   Github,
   Layers,
   Milestone,
@@ -44,6 +45,13 @@ const DEMOS: {
     title: "Live simulation",
     desc: "Edit the input while it plays: the trace is recomputed and the playhead stays on the same step. Predict mode pauses at checkpoints and grades your guess.",
     tag: "useSimulation + useEvaluator",
+  },
+  {
+    href: "/live",
+    icon: Radio,
+    title: "Live edge",
+    desc: "Events stream in like a build log or an agent's steps. Follow the edge as they play in, scrub back to inspect one, then Go live.",
+    tag: "useTrace({ follow })",
   },
   {
     href: "/player",
