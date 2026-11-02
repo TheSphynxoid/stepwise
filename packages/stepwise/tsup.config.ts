@@ -5,7 +5,7 @@ import { defineConfig } from "tsup";
 // by `import { … } from "@sphynxoid/stepwise"` — adapters are separate chunks
 // behind the ./adapters/* export subpaths.
 export default defineConfig({
-  entry: ["src/index.ts", "src/adapters/gsap.ts", "src/adapters/driver-js.ts", "src/adapters/scroll.ts"],
+  entry: ["src/index.ts", "src/experimental.ts", "src/adapters/gsap.ts", "src/adapters/driver-js.ts", "src/adapters/scroll.ts"],
   format: ["esm"],
   dts: true,
   external: ["react", "react-dom", "driver.js", "gsap"],

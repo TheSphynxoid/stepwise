@@ -145,6 +145,7 @@ Details and the "everything renders unstyled" checklist: [`docs/TAILWIND-SETUP.m
 - **React 18 and 19**, SSR-safe (`"use client"` modules, no `window` at import), tested in Next.js (App Router) and Vite.
 - **Small dependency surface**: React plus `clsx`/`tailwind-merge`. GSAP and driver.js integrations are optional subpath imports.
 - **Accessible by default**: keyboard control, focus-trapped tour card, ARIA slider scrubber, `prefers-reduced-motion` respected.
+- **Experimental: branching walks.** `@sphynxoid/stepwise/experimental` has `useWalk`, where steps can wait for the reader's choice and branch on it (the trace becomes a graph; the path is still scrubbable and linkable), and `fromGraph` for automata you can run and draw. See [/automaton](https://stepwise.thesphynx.net/automaton). It may change in a minor release.
 - **Works with AI assistants**: the package ships [`LLMS.md`](packages/stepwise/LLMS.md), and the site serves [`/llms.txt`](https://stepwise.thesphynx.net/llms.txt) and [`/llms-full.txt`](https://stepwise.thesphynx.net/llms-full.txt), so an assistant that has never seen stepwise can read the patterns and pitfalls instead of guessing.
 - **ESM only.**
 - **Pre-1.0**: the API may still change between minor versions. Breaking changes are listed in the [CHANGELOG](CHANGELOG.md). Feedback on the API is the most useful thing you can send right now.

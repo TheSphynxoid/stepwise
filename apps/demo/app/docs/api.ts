@@ -779,4 +779,108 @@ export const API: ApiGroup[] = [
       },
     ],
   },
+  {
+    title: "Experimental: transitions",
+    blurb: "From @sphynxoid/stepwise/experimental: may change in a minor release. A trace becomes a graph: choice points branch on the reader's answers, and the path taken is still a plain array, so the player, links and re-anchoring work unchanged.",
+    entries: [
+      {
+        id: "useWalk",
+        name: "useWalk",
+        signature: "useWalk<Input, S extends WalkStep, Choice>(simulation: WalkSimulation<Input, S, Choice>, input: Input, opts?: WalkOptions<S, Input, Choice>): WalkPlayer<S, Choice>",
+        summary:
+          "useSimulation plus choices. A walk is replayed from (input, seed, choices) on every change, so it stays pure. The unanswered choice point at the end of the path holds playback until choose().",
+        demo: "/automaton",
+        tables: [
+          {
+            title: "WalkOptions (plus every SimulationOptions field)",
+            rows: [
+              { name: "choices", type: "readonly Choice[]", desc: "Choices to start with (read once, on mount)." },
+              { name: "anchor", type: '"key" | "index"', def: '"key"', desc: "Where the playhead stays when the input changes: on the step with the same key, or at the same index (for walks where step i means \"after i inputs\", like fromGraph)." },
+              { name: "syncChoices", type: "{ key, serialize, parse }", desc: "Keep the choices in the URL (#p=a.b.a). Restored together with syncInput, before the linked frame. A choice parse rejects drops the whole linked path." },
+            ],
+          },
+          {
+            title: "WalkPlayer<S, Choice> (returned: every SimulationPlayer field, plus)",
+            rows: [
+              { name: "choose", type: "(choice: Choice) => void", desc: "Answer the choice point the playhead is on. At the end of the path the walk continues; on an earlier choice point a different answer cuts off the old future (the same answer keeps it). The playhead moves past the choice point; held playback resumes. Off a choice point: no-op (dev warning)." },
+              { name: "choices", type: "readonly Choice[]", desc: "The choices made so far. With the input, they are the walk." },
+              { name: "choicePoints", type: "readonly number[]", desc: "Indices of the choice points on the path." },
+              { name: "awaiting", type: "boolean", desc: "The path ends on a choice point waiting for an answer." },
+              { name: "choiceAt", type: "(frame: number) => Choice | undefined", desc: "The answer given at frame, if it's an answered choice point." },
+              { name: "lastChange", type: "TraceDiff | null", desc: "What the last re-run changed (see diffTraces), paired the way the playhead anchors." },
+            ],
+          },
+        ],
+      },
+      {
+        id: "runWalk",
+        name: "runWalk / WalkSimulation",
+        signature: "runWalk(simulation, input, opts?: { seed?, maxSteps?, choices? }): WalkResult<S>",
+        summary:
+          "A walk simulation is a generator; a step with await: true is a choice point, and that yield returns the reader's choice: const pick = yield { key: \"fork\", await: true, … }. runWalk replays it purely, stopping at the first unanswered choice point. Linear simulations are walks without choice points.",
+        tables: [
+          {
+            title: "WalkResult<S>",
+            rows: [
+              { name: "steps", type: "S[]", desc: "The path, up to the end or the first unanswered choice point." },
+              { name: "choicePoints", type: "number[]", desc: "Indices of the choice points on the path." },
+              { name: "awaiting", type: "boolean", desc: "The path ends on an unanswered choice point." },
+              { name: "used", type: "number", desc: "How many choices were consumed; extra ones are ignored." },
+              { name: "truncated / error / seed", type: "boolean / unknown / number", desc: "As in runSimulation." },
+            ],
+          },
+        ],
+      },
+      {
+        id: "fromGraph",
+        name: "fromGraph",
+        signature: "fromGraph<Sym extends string, N>(spec: { start, nodes, edges: { from, on, to }[], accept?, otherwise? }): StepGraph<Sym, N>",
+        summary:
+          "A declared automaton: nodes, labeled edges, accept states. Throws on an inconsistent graph. A missing edge goes to otherwise (a dead state) or ends the run with an error.",
+        demo: "/automaton",
+        tables: [
+          {
+            title: "StepGraph (returned)",
+            rows: [
+              { name: "simulation", type: "GraphSimulation<Sym>", desc: "Runs the graph over a word (a string or any iterable): one step per symbol read, keyed by position. Use with useSimulation or useWalk (anchor: \"index\")." },
+              { name: "graph", type: "{ start, nodes, edges, accept: Set, otherwise }", desc: "The declared graph, to draw it." },
+              { name: "delta", type: "(from: string, on: Sym) => string | null", desc: "The transition function, otherwise included." },
+              { name: "stepAt", type: "(read, node, from?, on?) => GraphStep", desc: "The step for a position, for custom walks over the same graph." },
+            ],
+          },
+          {
+            title: "GraphStep (plus StepwiseStep)",
+            rows: [
+              { name: "node / from / on", type: "string / string | null / Sym | null", desc: "Where the walk is, where it came from, and the symbol read (null on the start step)." },
+              { name: "read", type: "number", desc: "Symbols read so far." },
+              { name: "accepted", type: "boolean", desc: "The node is an accepting one (tone good)." },
+            ],
+          },
+        ],
+      },
+      {
+        id: "diffTraces",
+        name: "diffTraces",
+        signature: "diffTraces<S>(oldSteps, newSteps, opts?: { keyOf?, equals? }): TraceDiff",
+        summary:
+          "What an edit changed between two runs, to mark the changed steps instead of only saying that something did. useWalk exposes it as lastChange.",
+        tables: [
+          {
+            title: "TraceDiff",
+            rows: [
+              { name: "divergedAt", type: "number", desc: "First index where the runs differ position by position; -1 when equal. Everything before it is the same." },
+              { name: "changed", type: "ReadonlySet<number>", desc: "Indices in the new run that are new or differ from their counterpart (by key with keyOf, else by index)." },
+            ],
+          },
+          {
+            title: "Options",
+            rows: [
+              { name: "keyOf", type: "(step, index) => string | undefined", desc: "Pair steps by key instead of index." },
+              { name: "equals", type: "(a, b) => boolean", def: "structuralEqual", desc: "Step equality. The default compares plain data structurally; anything else by identity." },
+            ],
+          },
+        ],
+      },
+    ],
+  },
 ];

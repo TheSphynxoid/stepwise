@@ -5,6 +5,7 @@ import {
   BookMarked,
   BookOpen,
   Columns2,
+  Workflow,
   FileText,
   FlaskConical,
   Radio,
@@ -52,6 +53,13 @@ const DEMOS: {
     title: "Live edge",
     desc: "Events stream in like a build log or an agent's steps. Follow the edge as they play in, scrub back to inspect one, then Go live.",
     tag: "useTrace({ follow })",
+  },
+  {
+    href: "/automaton",
+    icon: Workflow,
+    title: "Automaton (experimental)",
+    desc: "Transitions: a trace becomes a graph. Watch a DFA read the word you type, then be the automaton yourself; change an earlier answer and the future is replayed.",
+    tag: "useWalk + fromGraph",
   },
   {
     href: "/player",

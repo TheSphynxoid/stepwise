@@ -32,6 +32,39 @@ exactly one core primitive (`useSteps`) and everything else composes it:
 Presentation (`components.tsx`, `glossary.tsx`) is a thin styled layer over
 the hooks; a host can replace any of it via the `theme` / `labels` props.
 
+## The model
+
+A loose formal model of the simulation and walk layers. Each line is kept
+because it explains a rule the code already has to follow.
+
+1. **Input.** `I = (x₁, …, xₙ)`: opaque values with a chosen equality (and
+   optionally an order). It may arrive along the run as `I(k)`: edits,
+   streamed events, the reader's choices. Two inputs are equal when their
+   components are, value by value.
+   → *Equality inside one input is not identity*: two equal values are still
+   different components, so step keys come from positions, never values.
+2. **A run.** `sw = (f, I, σ)`, where `σ` is the seed and the step cap, and
+   states are a scan: `s₀ = σ`, `s_{k+1} = f(I(k), s_k)`. The trace keeps
+   every state.
+   → The state may change, but every trace entry must be an unchangeable
+   snapshot: yield copies (`[...arr]`), or every frame shows the final state.
+3. **Identity.** Two runs are the same iff `(f, I, σ)` are equal. Re-runs,
+   links and caching all use this.
+   → Rerun iff the input changed; the code compares by reference, which is
+   why the rebuilt-input warning exists. A link is a run's identity
+   serialized: `#in=…` (plus the choices, for a walk) and a frame.
+4. **The player.** `δ(s, action) → s′` over actions `{ tick, next, prev,
+   seek k, release, … }`: a guard (the evaluator; `holdAt` blocks `tick`)
+   followed by a move. Steps are identified by key; re-anchoring maps a key
+   from the old trace to the new one.
+5. **Transitions.** An evaluator's verdict (or any choice) picks the edge,
+   so the possible steps form a graph and a run is a path through it. The
+   scrubber shows the path, which keeps it linear; every node carries its
+   full state, so any position is restorable without undo logic. Going
+   back and choosing differently truncates the old future; graph nodes are
+   identified by key (paths may merge and loop), steps on the path by
+   position.
+
 ## Module map
 
 | Module | Responsibility | Notes |
@@ -43,6 +76,10 @@ the hooks; a host can replace any of it via the `theme` / `labels` props.
 | `reanchor.ts` | The pure re-anchoring rule (+ default `stepKey`) | Exported for custom players |
 | `simulation.ts` | `createRng` (seeded mulberry32), `runSimulation` (pure, capped), the `Simulation` type | No React; safe at module scope and on the server |
 | `use-simulation.ts` | `useSimulation`: memoized `runSimulation` → `useTrace` | Recomputes on `simulation` / `input` / `seed` / `maxSteps` identity |
+| `use-run-links.ts` | Internal: a run's identity in the URL hash (input, choices) restored before the linked frame; shared by `useSimulation` and `useWalk` | See "linked inputs" below |
+| `walk.ts` / `use-walk.ts` | **Experimental.** `runWalk` (pure replay of input + choices), `useWalk` (`choose`, `anchor`, `lastChange`, `syncChoices`) | See "branching walks" below |
+| `graph.ts` | **Experimental.** `fromGraph`: a declared automaton, run over a word and drawable | Steps keyed by position |
+| `diff-traces.ts` | **Experimental.** `diffTraces` / `structuralEqual`: what an edit changed between two runs | Pure |
 | `evaluate.ts` / `use-evaluator.ts` | `Verdict`, `Evaluator`, `pass`/`fail`/`pending`/`toVerdict`; `useEvaluator` (auto/manual, async with abort) | Tour gates accept verdicts; `TourCard feedback` renders them |
 | `create-trace.ts` | `createTrace<Data>()` → `.step()` / `.length` / `.last()` / `.build()` | Pure data; `build()` snapshots. Replaces the module-scope IIFE pattern (invariant 6) |
 | `use-synced-tracks.ts` | Comparison mode: `alignTracks` (pure) + `useSyncedTracks` (one player over the aligned table, per-track `TrackView`) | Alignment memoized by shallow track-array identity, so `{ a, b }` literals are fine; `toneAt`/`titleAt` summarize the tracks that moved |
@@ -260,6 +297,35 @@ player's writer may even put `frame=0` in the URL). So:
    the double mount would otherwise write the default over the link.
 
 Values are `encodeURIComponent`-ed, so `serialize` may use any characters.
+The logic lives in `use-run-links.ts` as a list of linked parts; a walk adds
+its choices as a second part, and the frame is applied once every restored
+part has come back.
+
+### Branching walks (`walk.ts`, `use-walk.ts`, experimental)
+
+A walk simulation is a generator whose `yield` returns the reader's
+choice at choice points (steps with `await: true`). Rules, each with a
+reason:
+
+- **Always replay, never resume.** `runWalk(sim, input, { seed, choices })`
+  reruns from the start on every change. A generator can't be copied, and
+  StrictMode runs `useMemo` twice in development, so resuming a shared
+  generator would skip steps. Replay is pure and cheap at explainer sizes.
+- **Stop at the first unanswered choice point** (`awaiting`). The hook
+  makes it a checkpoint via `holdAt`; the player checks checkpoints
+  *before* the end of the timeline, so a hold on the last frame works.
+- **`choose(c)` answers the choice point under the playhead.** A different
+  answer on an earlier one truncates the choices after it (the old future is
+  gone); the same answer keeps them. After the new path renders, a layout
+  effect declared after `useTrace` jumps past the choice point (key
+  re-anchoring alone would leave the playhead on it), and a held player is
+  released.
+- **Input edits replay the same choices**, then anchor by key (default) or
+  by index (`anchor: "index"`, for walks where step i means "after i
+  inputs", like `fromGraph`). Choices the new path doesn't reach stay in
+  `choices` until a new answer truncates them.
+- **`lastChange`** is `diffTraces(previous, current)`, paired the same way
+  the playhead anchors.
 
 ## The Tailwind contract
 

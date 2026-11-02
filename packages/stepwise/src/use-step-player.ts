@@ -391,14 +391,16 @@ export function useStepPlayer({
   useEffect(() => {
     if (engineRef.current) return;
     if (!playing || !started || total === 0) return;
-    if (core.index >= total - 1) {
-      markEnded();
+    // Checkpoint: playback stops on this frame until released. Checked
+    // before the end, so a checkpoint on the last frame holds too (a walk
+    // waiting for a choice); released, playback then ends normally.
+    if (holdAtRef.current?.(core.index) && !releasedRef.current.has(core.index)) {
+      setHeld(core.index);
       setPlaying(false);
       return;
     }
-    // Checkpoint: playback stops on this frame until released.
-    if (holdAtRef.current?.(core.index) && !releasedRef.current.has(core.index)) {
-      setHeld(core.index);
+    if (core.index >= total - 1) {
+      markEnded();
       setPlaying(false);
       return;
     }

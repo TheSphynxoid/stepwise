@@ -24,8 +24,10 @@ Recipes: https://github.com/TheSphynxoid/stepwise/blob/master/docs/RECIPES.md
   - shadcn: `npx shadcn@latest add https://stepwise.thesphynx.net/r/player-bar.json`.
 - Hooks are headless; you render the frames (DOM, SVG, canvas). The library
   owns the timeline, not the pixels.
-- All exports come from the root: `import { useTrace, PlayerBar, pass, fail } from "@sphynxoid/stepwise"`.
+- All stable exports come from the root: `import { useTrace, PlayerBar, pass, fail } from "@sphynxoid/stepwise"`.
   Types that are type-only need `import type` (e.g. `GlossaryEntry`).
+- Experimental APIs (branching walks, section 8) come from
+  `@sphynxoid/stepwise/experimental` and may change in a minor release.
 
 ## The model
 
@@ -184,6 +186,46 @@ a user has seen.
   `<Term id="tls">TLS</Term>`; `<GlossaryAppendix />` lists the entries.
   **`Term` and `GlossaryAppendix` must be inside the provider.**
 
+## 8. Branching walks (experimental)
+
+A walk is a simulation that branches on the reader's answers. A step with
+`await: true` is a **choice point**: that `yield` returns the choice.
+The path taken is still a plain array, so `PlayerBar`, links and
+re-anchoring work as usual. Import from `@sphynxoid/stepwise/experimental`.
+
+```tsx
+import { PlayerBar } from "@sphynxoid/stepwise";
+import { useWalk, type WalkSimulation, type WalkStep } from "@sphynxoid/stepwise/experimental";
+
+type Pick = "first" | "median";
+type S = WalkStep & { arr: number[] };
+
+const pivotLesson: WalkSimulation<number[], S, Pick> = function* (input) {
+  const arr = [...input];
+  yield { key: "start", tone: "neutral", label: "Unsorted", arr: [...arr] };
+  const pick = yield { key: "fork", tone: "accent", label: "Which pivot?", arr: [...arr], await: true };
+  if (pick === "first") yield { key: "first", tone: "bad", label: "First element: worst case on sorted input", arr: [...arr] };
+  else yield { key: "median", tone: "good", label: "Median of three: balanced splits", arr: [...arr] };
+};
+
+const walk = useWalk(pivotLesson, input, { autoPlay: true, syncHash: "frame",
+  syncChoices: { key: "path", serialize: (c) => c, parse: (v) => (v === "first" || v === "median" ? v : null) } });
+const asking = walk.choicePoints.includes(walk.frame);
+// {asking && ["first", "median"].map((c) => <button onClick={() => walk.choose(c)}>{c}</button>)}
+// <PlayerBar player={walk.player} toneAt={walk.toneAt} titleAt={walk.titleAt} />
+```
+
+- Playback holds on the unanswered choice point at the end; `choose()`
+  continues the walk and resumes. On an earlier choice point a *different*
+  answer cuts off the old future and replays from there.
+- A walk is (simulation, input, seed, choices): `syncChoices` puts the
+  choices in the URL, so a link replays the same path.
+- Automata: `fromGraph({ start, nodes, edges: [{ from, on, to }], accept, otherwise })`
+  gives `.simulation` (run it over a word: one step per symbol) and
+  `.graph` (draw it). Use `useWalk(dfa.simulation, word, { anchor: "index" })`
+  so editing the word keeps the position.
+- `walk.lastChange` (`diffTraces`) says which steps an edit changed.
+
 ## Pitfalls checklist
 
 1. Unstyled components → missing `styles.css` import or Tailwind `@source`.
@@ -199,3 +241,4 @@ a user has seen.
     "createContext is not a function"); pass remark plugins by name under Turbopack.
 11. CommonJS (`require`) → not supported; use ESM or `await import()`.
 12. Browser tests: prefer `data-testid`; emulate reduced motion for linked-URL tests.
+13. A choice point without `await: true` → the walk never pauses for the answer; the `yield` gets `undefined`.

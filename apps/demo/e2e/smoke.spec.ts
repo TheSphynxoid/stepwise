@@ -5,7 +5,7 @@ import { expect, test, type Page } from "@playwright/test";
 // for the library's classes (wrong @source path), which leaves every
 // library-rendered element unstyled while the host page looks fine.
 
-const ROUTES = ["/", "/simulate", "/live", "/player", "/compare", "/lesson", "/tour", "/discovery", "/glossary", "/scroll", "/minimal", "/docs"];
+const ROUTES = ["/", "/simulate", "/live", "/automaton", "/player", "/compare", "/lesson", "/tour", "/discovery", "/glossary", "/scroll", "/minimal", "/docs"];
 
 function collectErrors(page: Page): string[] {
   const errors: string[] = [];
@@ -200,4 +200,27 @@ test("hero: clicking a bar mid-run re-runs the sort and keeps the player's step"
   await card.getByRole("button", { name: /^Bar / }).nth(7).click();
   await expect(card.getByTestId("hero-status")).toContainText("re-ran from your edit");
   await expect(slider).toHaveAttribute("aria-valuenow", frame!);
+});
+
+test("automaton: the typed word is read to accept or reject, and an edit re-reads it", async ({ page }) => {
+  await page.goto("/automaton#w=110");
+  await expect(page.getByTestId("verdict")).toHaveText("accepted", { timeout: 10_000 }); // 6
+  await page.getByLabel("Binary word").fill("111"); // 7
+  await expect(page.getByTestId("verdict")).toHaveText("rejected", { timeout: 10_000 });
+  await expect(page.getByTestId("run-label")).toHaveText("'1': r0 → r1");
+});
+
+test("automaton: a wrong pick takes a detour, a new answer cuts it off, links replay the walk", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  // Word "1", answer r0 (wrong: '1' in r0 leads to r1), linked on the question.
+  await page.goto("/automaton#w=1&p=0&g=1");
+  await expect(page.getByTestId("quiz-label")).toHaveText("Read '1' in r0: which state next?");
+  await expect(page.getByTestId("quiz-score")).toHaveText("1 answered · 1 detour");
+  const choices = page.getByTestId("quiz-choices");
+  await expect(choices.getByRole("button", { name: /^r0/ })).toHaveAttribute("aria-pressed", "true");
+
+  await choices.getByRole("button", { name: /^r1/ }).click();
+  await expect(page.getByTestId("quiz-score")).toHaveText("1 answered · 0 detours");
+  await expect(page.getByTestId("quiz-label")).toHaveText("'1' read: now in r1");
+  await expect(page).toHaveURL(/p=1/);
 });

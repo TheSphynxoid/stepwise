@@ -26,6 +26,7 @@ export function llmsIndex(): string {
 
 - [Live simulation](${SITE}/simulate): useSimulation, syncInput links, predict mode
 - [Live edge](${SITE}/live): a growing timeline with follow and Go live
+- [Automaton](${SITE}/automaton): experimental branching walks (useWalk, fromGraph): a DFA run and drawn from one declaration, and a walk that branches on the reader's answers
 - [Composed lesson](${SITE}/lesson): scroll chapters + embedded player + tour + glossary
 - [Next.js + MDX article](${REPO}/tree/master/examples/next-mdx): a complete interactive article
 - [Vite starter](${REPO}/tree/master/examples/vite-starter): the smallest app, no Tailwind

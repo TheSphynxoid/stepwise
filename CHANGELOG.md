@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+Transitions: a trace becomes a graph. Everything new is in the new
+`@sphynxoid/stepwise/experimental` entry point and may change in a minor
+release; the root entry is unchanged.
+
+- **New (experimental)**: `useWalk` / `runWalk`: simulations that branch on the reader's choices. A step with `await: true` is a choice point, and that `yield` returns the choice. `choose()` answers the choice point under the playhead: at the end the walk continues; a different answer on an earlier one cuts off the old future. A walk is (simulation, input, seed, choices); `syncChoices` puts the choices in the URL so a link replays the path. `anchor: "index"` keeps the position on input edits for walks where step i means "after i inputs".
+- **New (experimental)**: `fromGraph`: a declared automaton (nodes, labeled edges, accept states, an `otherwise` dead state), run over a word and drawable from `.graph`.
+- **New (experimental)**: `diffTraces` / `structuralEqual`: which steps an edit changed (`useWalk` exposes `lastChange`).
+- **Fix**: a checkpoint (`holdAt`) on the last frame now holds; playback used to end there instead.
+- **Demo**: `/automaton`: a divisible-by-3 automaton run and drawn from one declaration, and a "be the automaton" walk where wrong answers take a detour.
+- **Docs**: "The model" in docs/ARCHITECTURE.md; LLMS.md section 8.
+
 ## 0.4.0 — 2026-11-01
 
 Shareable simulation links, and docs built from two outside test builds (AI

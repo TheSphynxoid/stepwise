@@ -56,6 +56,7 @@ export function SiteFooter() {
               {[
                 ["/simulate", "Live simulation"],
                 ["/live", "Live edge"],
+                ["/automaton", "Automaton"],
                 ["/player", "Player"],
                 ["/compare", "Synced tracks"],
                 ["/lesson", "Composed lesson"],
