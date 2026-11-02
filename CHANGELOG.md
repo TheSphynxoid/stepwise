@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.0 — 2026-11-02
 
 Transitions: a trace becomes a graph. Everything new is in the new
 `@sphynxoid/stepwise/experimental` entry point and may change in a minor

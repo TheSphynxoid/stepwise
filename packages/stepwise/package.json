@@ -1,6 +1,6 @@
 {
   "name": "@sphynxoid/stepwise",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "React hooks and components for interactive explainers: step-through algorithm players, guided product tours, scroll-driven lessons and glossary tooltips, all on one cursor.",
   "license": "MIT",
   "author": "The Sphynx <jmail.hamza@gmail.com>",
