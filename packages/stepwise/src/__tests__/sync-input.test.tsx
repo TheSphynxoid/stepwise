@@ -60,6 +60,13 @@ describe("useSimulation — syncInput", () => {
     expect(window.location.hash).toBe("#n=banana");
   });
 
+  it("a value that is not valid percent-encoding falls back to the default input", () => {
+    window.history.replaceState(null, "", "#n=%");
+    const { result } = renderHook(() => useLinked(3));
+    expect(result.current.input).toBe(3);
+    expect(result.current.sim.steps).toHaveLength(3);
+  });
+
   it("without syncHash, restores the input and starts from frame 0", () => {
     window.history.replaceState(null, "", "#n=4");
     const { result } = renderHook(() => useLinked(2, undefined));

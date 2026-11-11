@@ -86,6 +86,8 @@ export type { TraceOptions, TracePlayer } from "./use-trace";
 export { reanchor } from "./core";
 export { useSimulation } from "./use-simulation";
 export type { SimulationOptions, SimulationPlayer, SyncInputOptions } from "./use-simulation";
+// The shape of `initialTrace` (an option of useSimulation); `precompute` makes one from ./core.
+export type { PrecomputedTrace } from "./core";
 export { createRng, runSimulation } from "./core";
 export type { Rng, Simulation, SimulationContext, SimulationResult, SimulationRunOptions } from "./core";
 export { createTrace } from "./core";

@@ -11,11 +11,17 @@ const ROOT = resolve(__dirname, "..", "..");
 const SRC = join(ROOT, "src");
 const DIST = join(ROOT, "dist");
 
-const PURE = ["simulation", "walk", "graph", "reanchor", "create-trace", "diff-traces", "evaluate", "flatten", "align-tracks", "explainer"];
-
 const USE_CLIENT = /^\s*["']use client["']/;
 const RUNTIME_REACT = /^import (?!type)[^;]*from ["']react["']/m;
 const RELATIVE_IMPORT = /(?:import|export)[^;]*?from\s*["'](\.{1,2}\/[^"']+)["']/g;
+// One relative import or re-export statement, from the start of its line;
+// group 1 is set for `import type` / `export type`, which are erased at build
+// time and so may name any module.
+const RELATIVE_STATEMENT = /^(?:import|export)(\s+type\b)?[^;]*?from\s*["'](\.{1,2}\/[^"']+)["']/gm;
+// Any way a built file can load React (react, react-dom, react/jsx-runtime):
+// from, side-effect import, dynamic import, require.
+const REACT_IMPORT = /(?:\bfrom\s*|\bimport\s*\(?\s*|\brequire\s*\(\s*)["'](?:react|react-dom)(?:\/[^"']*)?["']/;
+const DIST_RELATIVE_IMPORT = /(?:\bfrom\s*|\bimport\s*\(?\s*)["'](\.{1,2}\/[^"']+)["']/g;
 
 function resolveSource(from: string, spec: string): string | undefined {
   const base = resolve(dirname(from), spec);
@@ -71,20 +77,28 @@ describe("core boundary", () => {
     }
   });
 
-  it("client modules reach pure code only through ./core", () => {
+  it("client modules and the client barrels reach pure code only through ./core", () => {
     const clientFiles = walkFiles(
       SRC,
       (f) => /\.tsx?$/.test(f) && !f.includes("__tests__") && USE_CLIENT.test(readFileSync(f, "utf8"))
     );
     expect(clientFiles.length).toBeGreaterThan(0);
-    // Compared by resolved file, not by specifier: src/kit/explainer.tsx is a
-    // client module that merely shares a name with the pure src/explainer.ts.
-    const pureFiles = new Set(PURE.map((name) => resolveSource(join(SRC, "core.ts"), `./${name}`)));
-    for (const file of clientFiles) {
+    // The barrels carry no directive but are bundled as client entries.
+    const checked = [...clientFiles, join(SRC, "index.ts"), join(SRC, "experimental.ts")];
+    // The pure set is core's own import graph, so a renamed or new pure
+    // module is covered without a list to keep. Compared by resolved file,
+    // not by specifier: src/kit/explainer.tsx is a client module that merely
+    // shares a name with the pure src/explainer.ts.
+    const core = join(SRC, "core.ts");
+    const pureFiles = new Set(coreFiles().filter((f) => f !== core));
+    expect(pureFiles.has(join(SRC, "simulation.ts"))).toBe(true);
+    expect(pureFiles.has(join(SRC, "explainer.ts"))).toBe(true);
+    for (const file of checked) {
       const source = readFileSync(file, "utf8");
-      for (const m of source.matchAll(RELATIVE_IMPORT)) {
-        const target = resolveSource(file, m[1]);
-        expect(target && pureFiles.has(target), `${file} imports ${m[1]} directly`).toBeFalsy();
+      for (const m of source.matchAll(RELATIVE_STATEMENT)) {
+        if (m[1]) continue;
+        const target = resolveSource(file, m[2]);
+        expect(target && pureFiles.has(target), `${file} imports ${m[2]} directly`).toBeFalsy();
       }
     }
   });
@@ -120,5 +134,19 @@ describe("core boundary", () => {
     );
     expect(holders).toHaveLength(1);
     expect(USE_CLIENT.test(readFileSync(holders[0], "utf8"))).toBe(false);
+  });
+
+  it.skipIf(!existsSync(join(DIST, "core.js")))("dist/core.js and every chunk it imports load no react", () => {
+    const seen = new Set<string>();
+    const queue = [join(DIST, "core.js")];
+    while (queue.length) {
+      const file = queue.pop()!;
+      if (seen.has(file)) continue;
+      seen.add(file);
+      const built = readFileSync(file, "utf8");
+      expect(built.match(REACT_IMPORT), `${file} imports react`).toBeNull();
+      for (const m of built.matchAll(DIST_RELATIVE_IMPORT)) queue.push(resolve(dirname(file), m[1]));
+    }
+    expect(seen.size).toBeGreaterThan(1);
   });
 });

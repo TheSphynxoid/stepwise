@@ -106,6 +106,38 @@ describe("Predict", () => {
     ]);
   });
 
+  it("takes a paragraph as the question (as MDX writes it) without nesting <p> in <p>", () => {
+    const error = vi.spyOn(console, "error");
+    vi.useFakeTimers();
+    const { container } = render(
+      <Explainer definition={counting} view={View} link={false} autoPlay predict>
+        <Stage />
+        <Predict>
+          <p>Up or down?</p>
+        </Predict>
+      </Explainer>
+    );
+    tick();
+    expect(screen.getByRole("radiogroup")).toBeTruthy();
+    expect(container.textContent).toContain("Up or down?");
+    expect(container.querySelector("p p")).toBeNull();
+    expect(error).not.toHaveBeenCalled();
+  });
+
+  it("does not hold on a checkpoint with no next frame; playback ends normally", () => {
+    const atLast = defineExplainer({
+      ...counting,
+      predict: { ...counting.predict!, at: (s: CountStep) => s.i === 2 },
+    });
+    renderPredict({ definition: atLast });
+    tick(3);
+    expect(screen.getByTestId("i").textContent).toBe("2");
+    expect(api.sim.player.held).toBeNull();
+    expect(api.predict!.held).toBe(false);
+    expect(api.sim.player.ended).toBe(true);
+    expect(screen.queryByRole("radiogroup")).toBeNull();
+  });
+
   it("uses the default question without children, and renders nothing unless held", () => {
     vi.useFakeTimers();
     render(

@@ -22,7 +22,8 @@ export function Predict({ children, className }: { children?: ReactNode; classNa
     cn(theme.buttonBase, theme.buttonVariants[variant], "h-7 px-2.5 text-xs");
   return (
     <div data-stepwise="" className={cn(theme.surface, "flex flex-col gap-2 rounded-sm p-3", className)}>
-      <p className="text-sm text-foreground/85">{children ?? "What happens next?"}</p>
+      {/* A div, not a p: MDX wraps multi-line children in their own <p>. */}
+      <div className="text-sm text-foreground/85">{children ?? "What happens next?"}</div>
       <div role="radiogroup" aria-label="Your prediction" className="flex flex-wrap gap-2">
         {options.map((o) => (
           <button

@@ -163,6 +163,12 @@ export type ExplainerPropName = (typeof EXPLAINER_PROP_NAMES)[number];
  * The input fields an explainer component accepts as props: the own keys of
  * a plain-object input, minus the reserved prop names. Nothing for arrays and
  * primitives (pass `input` instead).
+ *
+ * A field prop only takes effect for a key present in the default input
+ * value: an optional field the default leaves out is typed here but ignored
+ * at runtime (pass `input` to set it). A field named like a reserved prop
+ * (`id`, `link`, `theme`, ...) can't be overridden by a field prop either;
+ * that name is always the prop. Use `input` for both.
  */
 export type FieldOverrides<Input> = Input extends readonly unknown[]
   ? {}

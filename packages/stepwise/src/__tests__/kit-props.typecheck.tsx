@@ -7,6 +7,8 @@ import type { ReactElement } from "react";
 import { defineExplainer } from "../core";
 import type { Simulation } from "../core";
 import { createExplainer } from "../kit";
+import type { ExplainerApi } from "../kit";
+import type { PrecomputedTrace } from "../index";
 import { precomputed } from "../kit/server";
 
 type Step = { key: string; tone: "neutral"; label: string; n: number };
@@ -63,4 +65,14 @@ export function wrong(): ReactElement {
       <Server trace={{ input: { arr: [], target: 0, id: 0 }, seed: 0, steps: [] }} />
     </>
   );
+}
+
+// The root entry names the shape of useSimulation's `initialTrace`.
+export const rootTrace: PrecomputedTrace<number, Step> = { input: 1, seed: 0, steps: [] };
+
+// The api reports a failed or capped run.
+export function report(api: ExplainerApi<Input, Step>): string {
+  const truncated: boolean = api.truncated;
+  const error: unknown = api.error;
+  return `${truncated} ${String(error)}`;
 }

@@ -53,7 +53,7 @@ export interface ExplainerProps<Input, S extends StepwiseStep> {
   id?: string;
   /** Stop at the definition's checkpoints and ask the reader. Read once, at mount: it is predict mode's starting state. */
   predict?: boolean;
-  /** Keyboard shortcuts. Default true. */
+  /** Keyboard shortcuts (arrows, Space), once the reader has clicked or focused this explainer. Default true. */
   keys?: boolean;
   /** Keep the frame (and the input, when the definition can serialize it) in the URL hash. Default true. */
   link?: boolean;
@@ -104,6 +104,10 @@ export interface ExplainerApi<Input = unknown, S extends StepwiseStep = Stepwise
   setInput: (next: Input | ((prev: Input) => Input)) => void;
   /** True when there is a definition to re-run. */
   editable: boolean;
+  /** What the simulation threw (the trace keeps the steps before it); null when it ran clean, and for a recorded explainer. */
+  error: unknown;
+  /** The run hit `maxSteps` and was cut short. Always false for a recorded explainer. */
+  truncated: boolean;
   predict: PredictApi | null;
   id: string | undefined;
   theme: StepwiseTheme;
@@ -165,6 +169,8 @@ function LiveExplainer<Input, S extends StepwiseStep>(
   // The `predict` prop is the starting state only; the reader owns it after.
   const [predictOn, setPredictOn] = useState(() => Boolean(props.predict));
   const predictDef = definition.predict;
+  // The player asks holdAt from an effect, after this render has set the ref.
+  const stepsRef = useRef<readonly S[]>([]);
   const sim = useSimulation(definition.simulation, input, {
     seed: definition.seed,
     maxSteps: definition.maxSteps,
@@ -172,14 +178,44 @@ function LiveExplainer<Input, S extends StepwiseStep>(
     autoPlay,
     syncHash: link ? hashKey(id, "frame") : undefined,
     syncInput,
+    // A checkpoint is graded against the frame after it, so one with no
+    // successor can't be answered: skip it rather than park the reader.
     holdAt: predictDef
-      ? (frame, step) => predictOn && step !== undefined && predictDef.at(step, frame)
+      ? (frame, step) =>
+          predictOn && step !== undefined && stepsRef.current[frame + 1] !== undefined && predictDef.at(step, frame)
       : undefined,
   });
+  stepsRef.current = sim.steps;
+  useReportError(definition.name, sim.error);
   // useState's setter is already stable; the wrapper only pins the type.
   const setInput = useCallback((next: Input | ((prev: Input) => Input)) => setInputState(next), []);
   const predict = usePredict(predictDef, sim, predictOn, setPredictOn);
-  return <Shell {...props} sim={sim} input={input} setInput={setInput} editable predictApi={predict} />;
+  return (
+    <Shell
+      {...props}
+      sim={sim}
+      input={input}
+      setInput={setInput}
+      editable
+      error={sim.error}
+      truncated={sim.truncated}
+      predictApi={predict}
+    />
+  );
+}
+
+/**
+ * A simulation that throws leaves a short trace and no other sign. In dev,
+ * say so once per distinct error, so an author sees why the run stops early.
+ */
+function useReportError(name: string | undefined, error: unknown) {
+  const logged = useRef<unknown>(null);
+  useEffect(() => {
+    if (!isDev || error === null || error === undefined || logged.current === error) return;
+    logged.current = error;
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`[stepwise] ${name ?? "explainer"}: the simulation threw: ${message}`);
+  }, [name, error]);
 }
 
 /**
@@ -270,7 +306,17 @@ function RecordedExplainer<Input, S extends StepwiseStep>(
       );
     }
   }, []);
-  return <Shell {...props} sim={sim} input={trace.input} setInput={setInput} editable={false} />;
+  return (
+    <Shell
+      {...props}
+      sim={sim}
+      input={trace.input}
+      setInput={setInput}
+      editable={false}
+      error={null}
+      truncated={false}
+    />
+  );
 }
 
 function Shell<Input, S extends StepwiseStep>({
@@ -278,6 +324,8 @@ function Shell<Input, S extends StepwiseStep>({
   input,
   setInput,
   editable,
+  error,
+  truncated,
   id,
   keys = true,
   link = true,
@@ -305,8 +353,8 @@ function Shell<Input, S extends StepwiseStep>({
   );
   const claimKeys = useCallback(() => activate(token.current), []);
   const api = useMemo<ExplainerApi<Input, S>>(
-    () => ({ sim, step, input, setInput, editable, predict: predictApi, id, theme }),
-    [sim, step, input, setInput, editable, predictApi, id, theme]
+    () => ({ sim, step, input, setInput, editable, error, truncated, predict: predictApi, id, theme }),
+    [sim, step, input, setInput, editable, error, truncated, predictApi, id, theme]
   );
   return (
     <ExplainerContext.Provider value={api as unknown as ExplainerApi<unknown, StepwiseStep>}>

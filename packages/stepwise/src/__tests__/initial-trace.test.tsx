@@ -73,6 +73,23 @@ describe("useSimulation initialTrace", () => {
     expect(result.current.steps).not.toBe(trace.steps);
   });
 
+  it("a fresh but equal input on rerender keeps the steps and runs nothing", () => {
+    const warn = vi.spyOn(console, "warn");
+    const sim = gen();
+    const trace = traceFor(sim, 3);
+    sim.mockClear();
+    const { result, rerender } = renderHook(({ input }) => useSimulation(sim, input, { initialTrace: trace }), {
+      initialProps: { input: { n: 3 } },
+    });
+    const first = result.current.steps;
+    expect(first).toBe(trace.steps);
+    rerender({ input: { n: 3 } });
+    expect(result.current.steps).toBe(first);
+    expect(sim).toHaveBeenCalledTimes(0);
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
   it("first render is identical with and without a trace", () => {
     const sim = gen();
     const trace = traceFor(sim, 3);

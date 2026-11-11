@@ -52,9 +52,10 @@ export function ExplainerBar({ className }: { className?: string }): ReactElemen
 export function EndNote({ children, className }: { children?: ReactNode; className?: string }): ReactElement | null {
   const { sim, theme } = useExplainer();
   if (!sim.player.ended) return null;
+  // A div, not a p: MDX wraps multi-line children in their own <p>.
   return (
-    <p data-stepwise="" role="status" className={cn("text-xs font-mono", theme.muted, className)}>
+    <div data-stepwise="" role="status" className={cn("text-xs font-mono", theme.muted, className)}>
       {children ?? "End of the run. Play to replay."}
-    </p>
+    </div>
   );
 }

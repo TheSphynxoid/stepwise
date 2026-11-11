@@ -22,6 +22,7 @@ function View() {
 
 const frame = (id: string) => document.querySelector(`[data-testid="i-${id}"]`)!.textContent;
 const press = (key: string) => fireEvent.keyDown(window, { key });
+const touch = (id: string) => fireEvent.pointerDown(document.querySelector(`[data-explainer="${id}"]`)!);
 
 let warn: ReturnType<typeof vi.spyOn>;
 
@@ -38,8 +39,19 @@ afterEach(() => {
 });
 
 describe("explainer keyboard routing", () => {
-  it("with one explainer, arrows and space drive it", () => {
+  it("before any click or focus, no explainer takes the keys: Space is left to the page", () => {
     render(<Explainer definition={count} view={View} link={false} />);
+    press("ArrowRight");
+    expect(frame("solo")).toBe("0");
+    const ev = new KeyboardEvent("keydown", { key: " ", cancelable: true, bubbles: true });
+    act(() => void window.dispatchEvent(ev));
+    expect(ev.defaultPrevented).toBe(false);
+    expect(frame("solo")).toBe("0");
+  });
+
+  it("with one explainer, once clicked, arrows and space drive it", () => {
+    render(<Explainer definition={count} view={View} link={false} />);
+    touch("");
     press("ArrowRight");
     press("ArrowRight");
     expect(frame("solo")).toBe("2");
@@ -60,7 +72,7 @@ describe("explainer keyboard routing", () => {
     vi.useRealTimers();
   });
 
-  it("with two, keys go to the first until the second is interacted with", () => {
+  it("with two, keys go to the one interacted with last", () => {
     render(
       <>
         <Explainer definition={count} view={View} id="a" />
@@ -68,10 +80,13 @@ describe("explainer keyboard routing", () => {
       </>
     );
     press("ArrowRight");
+    expect(frame("a")).toBe("0");
+    expect(frame("b")).toBe("0");
+    touch("a");
+    press("ArrowRight");
     expect(frame("a")).toBe("1");
     expect(frame("b")).toBe("0");
-    const b = document.querySelector('[data-explainer="b"]')!;
-    fireEvent.pointerDown(b);
+    touch("b");
     press("ArrowRight");
     expect(frame("a")).toBe("1");
     expect(frame("b")).toBe("1");
@@ -93,24 +108,26 @@ describe("explainer keyboard routing", () => {
     expect(frame("b")).toBe("1");
   });
 
-  it("keys={false} opts out", () => {
+  it("keys={false} opts out, even when clicked", () => {
     render(<Explainer definition={count} view={View} link={false} keys={false} />);
+    touch("");
     press("ArrowRight");
     expect(frame("solo")).toBe("0");
   });
 
-  it("a keys={false} explainer mounted first does not take the keyboard", () => {
+  it("a keys={false} explainer does not take the keyboard from the active one", () => {
     render(
       <>
         <Explainer definition={count} view={View} id="a" keys={false} />
         <Explainer definition={count} view={View} id="b" />
       </>
     );
+    touch("b");
     press("ArrowRight");
     expect(frame("a")).toBe("0");
     expect(frame("b")).toBe("1");
     // Touching the opted-out one does not claim the keys either.
-    fireEvent.pointerDown(document.querySelector('[data-explainer="a"]')!);
+    touch("a");
     act(() => (document.querySelector('[data-explainer="a"] button') as HTMLButtonElement).focus());
     press("ArrowRight");
     expect(frame("a")).toBe("0");
@@ -125,8 +142,8 @@ describe("explainer keyboard routing", () => {
         <Explainer definition={count} view={View} id="c" keys={false} />
       </>
     );
-    fireEvent.pointerDown(document.querySelector('[data-explainer="b"]')!);
-    fireEvent.pointerDown(document.querySelector('[data-explainer="c"]')!);
+    touch("b");
+    touch("c");
     press("ArrowRight");
     expect(frame("a")).toBe("0");
     expect(frame("b")).toBe("1");
@@ -143,7 +160,7 @@ describe("explainer keyboard routing", () => {
     expect(warn).toHaveBeenCalledTimes(1);
   });
 
-  it("unmounting the active explainer hands keys to the first remaining one", () => {
+  it("unmounting the active explainer leaves none active until the next interaction", () => {
     const tree = (ids: string[]) => (
       <>
         {ids.map((id) => (
@@ -152,13 +169,17 @@ describe("explainer keyboard routing", () => {
       </>
     );
     const { rerender } = render(tree(["a", "b", "c"]));
-    fireEvent.pointerDown(document.querySelector('[data-explainer="c"]')!);
+    touch("c");
     press("ArrowRight");
     expect(frame("c")).toBe("1");
     rerender(tree(["a", "b"]));
     press("ArrowRight");
-    expect(frame("a")).toBe("1");
+    expect(frame("a")).toBe("0");
     expect(frame("b")).toBe("0");
+    touch("b");
+    press("ArrowRight");
+    expect(frame("a")).toBe("0");
+    expect(frame("b")).toBe("1");
   });
 
   it("space is ignored by an explainer that is not active", () => {
@@ -169,6 +190,7 @@ describe("explainer keyboard routing", () => {
         <Explainer definition={count} view={View} id="b" />
       </>
     );
+    touch("a");
     press(" ");
     act(() => void vi.advanceTimersByTime(5000));
     expect(Number(frame("a"))).toBeGreaterThan(0);

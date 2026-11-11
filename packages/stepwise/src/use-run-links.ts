@@ -107,7 +107,17 @@ export function inputPart<Input>(sync: SyncInputOptions<Input> | undefined, inpu
   if (!sync) return null;
   return {
     key: sync.key,
-    read: (raw) => sync.parse(decodeURIComponent(raw)),
+    read: (raw) => {
+      // A hand-mangled link (`#in=%`) is malformed, not fatal: the throw
+      // would land in a mount effect and take the page down.
+      let value: string;
+      try {
+        value = decodeURIComponent(raw);
+      } catch {
+        return null;
+      }
+      return sync.parse(value);
+    },
     write: (v) => encodeURIComponent(sync.serialize(v as Input)),
     value: input,
     restore: (v) => sync.onRestore(v as Input),

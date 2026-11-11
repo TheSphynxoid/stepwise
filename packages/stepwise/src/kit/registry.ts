@@ -43,11 +43,14 @@ export function activate(token: object): void {
   if (entries.some((e) => e.token === token && e.keyed)) activeToken = token;
 }
 
-/** The last keyed one touched; with none (or it left), the first keyed one mounted. */
+/**
+ * The last keyed one the reader touched. Until the reader clicks or focuses
+ * one, none is: the keys belong to the page (Space scrolls it), not to
+ * whichever explainer happened to mount first. Same after the active one
+ * unmounts.
+ */
 export function isActive(token: object): boolean {
-  const keyed = entries.filter((e) => e.keyed);
-  const current = activeToken !== null && keyed.some((e) => e.token === activeToken) ? activeToken : keyed[0]?.token;
-  return current === token;
+  return activeToken !== null && activeToken === token;
 }
 
 /** Test-only: forget every explainer and the once-per-page warning. */

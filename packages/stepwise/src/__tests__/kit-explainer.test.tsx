@@ -10,6 +10,7 @@ import { precomputed } from "../kit/server";
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   vi.restoreAllMocks();
   window.history.replaceState(null, "", window.location.pathname);
 });
@@ -310,6 +311,58 @@ describe("Explainer", () => {
     const section = container.querySelector("section")!;
     expect(section.children).toHaveLength(1);
     expect(section.children[0].className).toContain("custom");
+  });
+
+  it("EndNote takes paragraph children (as MDX writes them) without nesting <p> in <p>", () => {
+    const error = vi.spyOn(console, "error");
+    vi.useFakeTimers();
+    const { container } = render(
+      <Explainer definition={count} view={View} link={false} autoPlay>
+        <Stage />
+        <kit.EndNote>
+          <p>Done.</p>
+        </kit.EndNote>
+      </Explainer>
+    );
+    // One act per frame: the next timer is armed as each act commits.
+    for (let f = 0; f < 3; f++) act(() => void vi.advanceTimersByTime(900));
+    expect(api.sim.player.ended).toBe(true);
+    expect(container.textContent).toContain("Done.");
+    expect(container.querySelector("p p")).toBeNull();
+    expect(error).not.toHaveBeenCalled();
+  });
+
+  it("a throwing simulation surfaces `error` and logs it once", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const boom = defineExplainer({
+      name: "boom",
+      simulation: function* (n: number): Generator<CountStep> {
+        yield { key: "k0", tone: "neutral", label: "step 0", i: 0 };
+        if (n > 0) throw new Error("bad input");
+      },
+      input: { default: 1 },
+    });
+    render(<Explainer definition={boom} view={View} link={false} />);
+    expect(api.error).toBeInstanceOf(Error);
+    expect((api.error as Error).message).toBe("bad input");
+    expect(api.truncated).toBe(false);
+    // A rerender with the same error does not log again.
+    act(() => api.sim.player.next());
+    const logged = error.mock.calls.filter((c) => String(c[0]).startsWith("[stepwise]"));
+    expect(logged).toHaveLength(1);
+    expect(logged[0][0]).toBe("[stepwise] boom: the simulation threw: bad input");
+  });
+
+  it("truncated is exposed; a recorded explainer has error null and truncated false", () => {
+    const capped = defineExplainer({ ...count, maxSteps: 2 });
+    render(<Explainer definition={capped} view={View} link={false} />);
+    expect(api.truncated).toBe(true);
+    expect(api.error).toBeNull();
+    cleanup();
+    const Recorded = createExplainer<number, CountStep>({ view: View });
+    render(<Recorded trace={precompute(count, 4)} link={false} />);
+    expect(api.error).toBeNull();
+    expect(api.truncated).toBe(false);
   });
 
   it("the kit barrel exports every runtime entry point", () => {

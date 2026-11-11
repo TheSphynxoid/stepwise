@@ -84,7 +84,8 @@
     "build": "npm run clean && tsup && npm run build:css",
     "build:css": "tailwindcss -i src/styles.css -o dist/styles.css --minify",
     "test": "vitest run",
-    "prepublishOnly": "npm run build && npm run test",
+    "typecheck": "tsc --noEmit -p .",
+    "prepublishOnly": "npm run build && npm run typecheck && npm run test",
     "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
     "release": "npm publish --access public",
     "bump": "npm version"
