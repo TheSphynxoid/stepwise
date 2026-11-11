@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo, useRef } from "react";
-import { runSimulation } from "./core";
-import type { Simulation, SimulationResult, SimulationRunOptions } from "./core";
+import { createRng, runSimulation } from "./core";
+import type { PrecomputedTrace, Simulation, SimulationResult, SimulationRunOptions } from "./core";
 import { useTrace } from "./use-trace";
 import type { TraceOptions, TracePlayer } from "./use-trace";
 import { inputPart, useRunLinks } from "./use-run-links";
@@ -20,6 +20,13 @@ export interface SimulationOptions<S extends StepwiseStep, Input = unknown>
    * the trace computed from it, not to the default input's trace.
    */
   syncInput?: SyncInputOptions<Input>;
+  /**
+   * A trace computed ahead of time (see `precompute`). While `input` (by
+   * content) and the seed match it, the hook returns its steps without
+   * running the simulation, so server HTML and the first client render agree.
+   * Once the input changes the trace is recomputed as usual.
+   */
+  initialTrace?: PrecomputedTrace<Input, S>;
 }
 
 export interface SimulationPlayer<S extends StepwiseStep> extends TracePlayer<S> {
@@ -54,11 +61,24 @@ export function useSimulation<Input, S extends StepwiseStep>(
   input: Input,
   opts?: SimulationOptions<S, Input>
 ): SimulationPlayer<S> {
-  const { seed, maxSteps, syncInput, ...traceOpts } = opts ?? {};
-  const result: SimulationResult<S> = useMemo(
-    () => runSimulation(simulation, input, { seed, maxSteps }),
-    [simulation, input, seed, maxSteps]
-  );
+  const { seed, maxSteps, syncInput, initialTrace, ...traceOpts } = opts ?? {};
+  // The trace input's JSON, computed once: matching is by content, so a fresh
+  // but equal input object still counts as the precomputed one.
+  const traceJson = useRef<{ trace: unknown; json: string | undefined }>({ trace: undefined, json: undefined });
+  const initialRef = useRef(initialTrace);
+  initialRef.current = initialTrace;
+  const result: SimulationResult<S> = useMemo(() => {
+    const t = initialRef.current;
+    if (t && createRng(seed ?? 0).seed === t.seed) {
+      if (traceJson.current.trace !== t) traceJson.current = { trace: t, json: safeJson(t.input) };
+      const json = traceJson.current.json;
+      if (json !== undefined && json === safeJson(input)) {
+        return { steps: t.steps, truncated: false, error: null, seed: t.seed };
+      }
+    }
+    return runSimulation(simulation, input, { seed, maxSteps });
+    // initialTrace is read through a ref: it only seeds the first match, it is not a trigger.
+  }, [simulation, input, seed, maxSteps]);
   const trace = useTrace(result.steps, traceOpts);
 
   useRebuiltInputWarning(input);
@@ -70,6 +90,14 @@ export function useSimulation<Input, S extends StepwiseStep>(
     () => ({ ...trace, steps: result.steps, truncated: result.truncated, error: result.error, seed: result.seed }),
     [trace, result]
   );
+}
+
+function safeJson(value: unknown): string | undefined {
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return undefined;
+  }
 }
 
 /**
