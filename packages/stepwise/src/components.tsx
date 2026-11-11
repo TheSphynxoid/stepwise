@@ -3,7 +3,7 @@
 import { useEffect, useState, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "./cn";
-import { flattenChapters } from "./flatten";
+import { flattenChapters } from "./core";
 import { defaultTheme, type StepwiseTheme } from "./theme";
 import { useFocusTrap } from "./use-focus-trap";
 import type { Chapter, ShortcutItem, StepTone, TourStepInput } from "./types";

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSteps } from "./use-steps";
-import { flattenChapters } from "./flatten";
+import { flattenChapters } from "./core";
 import type { Chapter } from "./types";
 
 export interface ChaptersApi {

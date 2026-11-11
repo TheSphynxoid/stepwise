@@ -1,20 +1,60 @@
-import { defineConfig } from "tsup";
+import { defineConfig, type Options } from "tsup";
 
-// One entry per public subpath. The root barrel (src/index.ts) must stay free
-// of adapter imports so optional peers (gsap, driver.js) are never pulled in
-// by `import { … } from "@sphynxoid/stepwise"` — adapters are separate chunks
-// behind the ./adapters/* export subpaths.
-export default defineConfig({
-  entry: ["src/index.ts", "src/experimental.ts", "src/adapters/gsap.ts", "src/adapters/driver-js.ts", "src/adapters/scroll.ts"],
-  format: ["esm"],
+// esbuild is tsup's dependency, not ours: take its plugin type through tsup.
+type Plugin = NonNullable<Options["esbuildPlugins"]>[number];
+
+// Two builds share dist/:
+//
+// - client: one entry per public client subpath. The root barrel
+//   (src/index.ts) must stay free of adapter imports so optional peers (gsap,
+//   driver.js) are never pulled in by `import { … } from "@sphynxoid/stepwise"`;
+//   adapters are separate entries behind the ./adapters/* export subpaths.
+//   esbuild strips per-file "use client" directives while bundling, so they
+//   come back as a banner: everything here is hooks or client components.
+// - plain: ./core, the pure half, with NO banner so server components and
+//   build scripts can call it.
+//
+// The hinge keeps exactly one copy of the pure code: client sources import it
+// only through ./core, and this plugin turns that import into a runtime
+// import of dist/core.js instead of bundling it again.
+
+const coreHinge: Plugin = {
+  name: "core-hinge",
+  setup(build) {
+    // Client bundles import the pure code at runtime instead of containing
+    // it. Chunks and entries that may import core all sit in dist/ root.
+    build.onResolve({ filter: /^\.\.?\/core$/ }, (args) =>
+      args.importer ? { path: "./core.js", external: true } : undefined
+    );
+  },
+};
+
+const shared = {
+  format: ["esm" as const],
   dts: true,
   external: ["react", "react-dom", "driver.js", "gsap"],
-  clean: true,
+  // Both configs write into dist/, so neither may wipe it: `npm run clean`
+  // runs once before tsup instead.
+  clean: false,
   sourcemap: true,
   target: "es2020",
-  // esbuild strips per-file "use client" directives while bundling; restore
-  // them as a banner so React Server Components can import the package.
-  // Everything exported here is hooks or client components — the whole
-  // package is a client module.
-  banner: { js: `"use client";` },
-});
+};
+
+export default defineConfig([
+  {
+    ...shared,
+    entry: {
+      index: "src/index.ts",
+      experimental: "src/experimental.ts",
+      "adapters/gsap": "src/adapters/gsap.ts",
+      "adapters/driver-js": "src/adapters/driver-js.ts",
+      "adapters/scroll": "src/adapters/scroll.ts",
+    },
+    banner: { js: `"use client";` },
+    esbuildPlugins: [coreHinge],
+  },
+  {
+    ...shared,
+    entry: { core: "src/core.ts" },
+  },
+]);

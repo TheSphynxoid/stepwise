@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { toVerdict } from "./evaluate";
-import type { Evaluator, EvaluatorResult, Verdict, VerdictStatus } from "./evaluate";
+import { toVerdict } from "./core";
+import type { Evaluator, EvaluatorResult, Verdict, VerdictStatus } from "./core";
 
 export interface EvaluatorOptions {
   /**

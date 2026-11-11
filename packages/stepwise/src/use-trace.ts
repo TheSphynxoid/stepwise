@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef } from "react";
-import { reanchor, stepKey } from "./reanchor";
+import { reanchor, stepKey } from "./core";
 import { useStepPlayer } from "./use-step-player";
 import type { StepPlayer, StepPlayerOptions } from "./use-step-player";
 import type { StepTone, StepwiseStep } from "./types";

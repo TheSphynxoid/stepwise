@@ -13,12 +13,15 @@
 //   graph         — fromGraph: a declared automaton (nodes, edges, accept),
 //                   runnable over a word and drawable
 //   diff-traces   — diffTraces: what an edit changed between two runs
+//
+// The pure names (runWalk, fromGraph, diffTraces) are also in ./core, which
+// is where this entry takes them from: one copy, callable on a server.
 
-export { runWalk } from "./walk";
-export type { WalkResult, WalkRunOptions, WalkSimulation, WalkStep } from "./walk";
+export { runWalk } from "./core";
+export type { WalkResult, WalkRunOptions, WalkSimulation, WalkStep } from "./core";
 export { useWalk } from "./use-walk";
 export type { SyncChoicesOptions, WalkOptions, WalkPlayer } from "./use-walk";
-export { fromGraph } from "./graph";
-export type { GraphEdge, GraphSimulation, GraphSpec, GraphStep, StepGraph } from "./graph";
-export { diffTraces, structuralEqual } from "./diff-traces";
-export type { DiffTracesOptions, TraceDiff } from "./diff-traces";
+export { fromGraph } from "./core";
+export type { GraphEdge, GraphSimulation, GraphSpec, GraphStep, StepGraph } from "./core";
+export { diffTraces, structuralEqual } from "./core";
+export type { DiffTracesOptions, TraceDiff } from "./core";

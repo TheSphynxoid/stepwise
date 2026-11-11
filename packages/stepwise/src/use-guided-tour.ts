@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { toVerdict } from "./evaluate";
+import { toVerdict } from "./core";
 import { useSteps } from "./use-steps";
 import type { TourDriver, TourStepInput } from "./types";
 

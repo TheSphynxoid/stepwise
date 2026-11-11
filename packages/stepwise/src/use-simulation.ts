@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo, useRef } from "react";
-import { runSimulation } from "./simulation";
-import type { Simulation, SimulationResult, SimulationRunOptions } from "./simulation";
+import { runSimulation } from "./core";
+import type { Simulation, SimulationResult, SimulationRunOptions } from "./core";
 import { useTrace } from "./use-trace";
 import type { TraceOptions, TracePlayer } from "./use-trace";
 import { inputPart, useRunLinks } from "./use-run-links";

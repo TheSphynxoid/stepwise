@@ -21,6 +21,10 @@
 //                       seeded createRng, pure runSimulation (capped)
 //   use-simulation    — live trace: recompute on input change, keep place;
 //                       syncInput deep-links the input next to the frame
+//   core              — the pure half (@sphynxoid/stepwise/core): every
+//                       pure name below is re-exported from it, so the
+//                       client bundle imports one shared copy at runtime
+//                       and servers can call it without "use client"
 //   evaluate          — Verdict / Evaluator: one shape for gates,
 //                       checkpoints and exercises (booleans accepted)
 //   use-evaluator     — verdict as state: auto (gates) or manual (quizzes),
@@ -71,7 +75,7 @@ export type {
   TourContext,
   TourDriver,
   TourStepInput,
-} from "./types";
+} from "./core";
 export { useSteps } from "./use-steps";
 export type { StepsCore, UseStepsOptions } from "./use-steps";
 export { useStepPlayer } from "./use-step-player";
@@ -79,34 +83,29 @@ export type { StepPlayer, StepPlayerOptions } from "./use-step-player";
 export { readHashParam, writeHashParam } from "./use-step-player";
 export { useTrace } from "./use-trace";
 export type { TraceOptions, TracePlayer } from "./use-trace";
-export { reanchor } from "./reanchor";
+export { reanchor } from "./core";
 export { useSimulation } from "./use-simulation";
 export type { SimulationOptions, SimulationPlayer, SyncInputOptions } from "./use-simulation";
-export { createRng, runSimulation } from "./simulation";
-export type { Rng, Simulation, SimulationContext, SimulationResult, SimulationRunOptions } from "./simulation";
-export { createTrace } from "./create-trace";
-export type { TraceBuilder } from "./create-trace";
-export { useSyncedTracks, alignTracks } from "./use-synced-tracks";
-export type {
-  AlignedCell,
-  AlignedRow,
-  SyncedTracks,
-  SyncedTracksOptions,
-  TrackKeyFn,
-  TrackView,
-  Tracks,
-} from "./use-synced-tracks";
+export { createRng, runSimulation } from "./core";
+export type { Rng, Simulation, SimulationContext, SimulationResult, SimulationRunOptions } from "./core";
+export { createTrace } from "./core";
+export type { TraceBuilder } from "./core";
+export { useSyncedTracks } from "./use-synced-tracks";
+export { alignTracks } from "./core";
+export type { AlignedCell, AlignedRow, TrackKeyFn, Tracks } from "./core";
+export type { SyncedTracks, SyncedTracksOptions, TrackView } from "./use-synced-tracks";
 export { useLessonStream, useFadeIn } from "./use-lesson-stream";
 export type { LessonStream, LessonStreamOptions } from "./use-lesson-stream";
 export { useEvaluator } from "./use-evaluator";
 export type { EvaluatorOptions, EvaluatorState } from "./use-evaluator";
-export { toVerdict, pass, fail, pending } from "./evaluate";
-export type { Evaluator, EvaluatorResult, Verdict, VerdictStatus } from "./evaluate";
+export { toVerdict, pass, fail, pending } from "./core";
+export type { Evaluator, EvaluatorResult, Verdict, VerdictStatus } from "./core";
 export { useGuidedTour } from "./use-guided-tour";
 export type { GuidedTour, GuidedTourOptions } from "./use-guided-tour";
-export { useChapters, flattenChapters } from "./use-chapters";
+export { useChapters } from "./use-chapters";
 export type { ChaptersApi } from "./use-chapters";
-export type { FlatChapter } from "./flatten";
+export { flattenChapters } from "./core";
+export type { FlatChapter } from "./core";
 export { useGlobalKeys } from "./use-global-keys";
 export type { GlobalKeysOptions, KeyMap } from "./use-global-keys";
 export { useDiscoveries, localStorageStore, cookieStore, memoryStore } from "./use-discoveries";

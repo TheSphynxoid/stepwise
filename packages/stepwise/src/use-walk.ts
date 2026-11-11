@@ -1,11 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { diffTraces } from "./diff-traces";
-import type { TraceDiff } from "./diff-traces";
-import { stepKey } from "./reanchor";
-import { runWalk } from "./walk";
-import type { WalkResult, WalkSimulation, WalkStep } from "./walk";
+import { diffTraces, runWalk, stepKey } from "./core";
+import type { TraceDiff, WalkResult, WalkSimulation, WalkStep } from "./core";
 import { inputPart, useRunLinks } from "./use-run-links";
 import { useRebuiltInputWarning } from "./use-simulation";
 import type { SimulationOptions, SimulationPlayer } from "./use-simulation";
