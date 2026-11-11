@@ -46,6 +46,8 @@ export default defineConfig([
     entry: {
       index: "src/index.ts",
       experimental: "src/experimental.ts",
+      // In dist/ root like every client entry: the core hinge emits "./core.js".
+      kit: "src/kit/index.ts",
       "adapters/gsap": "src/adapters/gsap.ts",
       "adapters/driver-js": "src/adapters/driver-js.ts",
       "adapters/scroll": "src/adapters/scroll.ts",

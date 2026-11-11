@@ -77,11 +77,14 @@ describe("core boundary", () => {
       (f) => /\.tsx?$/.test(f) && !f.includes("__tests__") && USE_CLIENT.test(readFileSync(f, "utf8"))
     );
     expect(clientFiles.length).toBeGreaterThan(0);
+    // Compared by resolved file, not by specifier: src/kit/explainer.tsx is a
+    // client module that merely shares a name with the pure src/explainer.ts.
+    const pureFiles = new Set(PURE.map((name) => resolveSource(join(SRC, "core.ts"), `./${name}`)));
     for (const file of clientFiles) {
       const source = readFileSync(file, "utf8");
-      for (const name of PURE) {
-        const direct = new RegExp(`from\\s*["']\\.{1,2}/${name}["']`);
-        expect(source.match(direct), `${file} imports ./${name} directly`).toBeNull();
+      for (const m of source.matchAll(RELATIVE_IMPORT)) {
+        const target = resolveSource(file, m[1]);
+        expect(target && pureFiles.has(target), `${file} imports ${m[1]} directly`).toBeFalsy();
       }
     }
   });

@@ -49,6 +49,10 @@
       "types": "./dist/experimental.d.ts",
       "import": "./dist/experimental.js"
     },
+    "./kit": {
+      "types": "./dist/kit.d.ts",
+      "import": "./dist/kit.js"
+    },
     "./adapters/gsap": {
       "types": "./dist/adapters/gsap.d.ts",
       "import": "./dist/adapters/gsap.js"

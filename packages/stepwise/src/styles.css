@@ -29,6 +29,7 @@
 
 @source "./components.tsx";
 @source "./glossary.tsx";
+@source "./kit";
 @source "./theme.ts";
 
 @theme inline {
