@@ -12,7 +12,11 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "declaration": true,
-    "declarationMap": true
+    "declarationMap": true,
+    "paths": {
+      "@sphynxoid/stepwise": ["./src/index.ts"],
+      "@sphynxoid/stepwise/kit": ["./src/kit/index.ts"]
+    }
   },
   "include": ["src"]
 }

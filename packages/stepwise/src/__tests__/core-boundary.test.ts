@@ -89,6 +89,30 @@ describe("core boundary", () => {
     }
   });
 
+  // kit/server is plain too, but it hands out client components: it must
+  // reach them by the package's name (an external runtime import), never by a
+  // relative path, which would bundle client code into a file with no
+  // "use client". importGraph follows only relative imports, so a package-name
+  // import correctly ends the walk.
+  it("kit/server reaches client code only by the package's name", () => {
+    const server = join(SRC, "kit", "server.tsx");
+    const source = readFileSync(server, "utf8");
+    expect(USE_CLIENT.test(source)).toBe(false);
+    expect(source).toMatch(/from ["']@sphynxoid\/stepwise\/kit["']/);
+    for (const file of importGraph(server)) {
+      expect(USE_CLIENT.test(readFileSync(file, "utf8")), `${file} is a client module`).toBe(false);
+    }
+  });
+
+  it.skipIf(!existsSync(join(DIST, "kit", "server.js")))("dist/kit/server.js imports the client entries", () => {
+    const built = readFileSync(join(DIST, "kit", "server.js"), "utf8");
+    expect(USE_CLIENT.test(built)).toBe(false);
+    expect(built).toMatch(/from ["']@sphynxoid\/stepwise\/kit["']/);
+    expect(built).toMatch(/from ["']@sphynxoid\/stepwise["']/);
+    // No component source: the parts' hooks would show up if they were bundled.
+    expect(built).not.toMatch(/useExplainer|data-stepwise/);
+  });
+
   it.skipIf(!existsSync(join(DIST, "core.js")))("dist holds one copy of the pure code", () => {
     expect(USE_CLIENT.test(readFileSync(join(DIST, "core.js"), "utf8"))).toBe(false);
     const holders = walkFiles(DIST, (f) => f.endsWith(".js")).filter((f) =>
