@@ -30,7 +30,8 @@ const search: Simulation<SearchInput, SearchStep> = function* ({ arr, target }) 
     key: "start",
     kind: "start",
     tone: "neutral",
-    label: `start: lo=0, hi=${hi}, the range covers everything`,
+    // Names the target, so an edit shows on the paused first frame too.
+    label: `start: looking for ${target} between lo=0 and hi=${hi}`,
     code: ["let lo = 0, hi = a.length - 1"],
     mid: -1,
   });

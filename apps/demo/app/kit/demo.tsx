@@ -1,6 +1,6 @@
 "use client";
 
-import type { ComponentProps } from "react";
+import { useEffect, useState, type ComponentProps } from "react";
 import { TONE_CHIP_CLASS } from "@sphynxoid/stepwise";
 import { createExplainer, useExplainer } from "@sphynxoid/stepwise/kit";
 import { useSiteTheme } from "../theme-provider";
@@ -12,11 +12,19 @@ import { binarySearch, MAX_VALUE, MIN_VALUE, type SearchInput, type SearchStep }
 
 function SearchView() {
   const { step, input, setInput } = useExplainer<SearchInput, SearchStep>();
+  // The box holds a draft, so a half-typed number is never forced back; every
+  // draft that is a valid target is applied at once (typing and the spinner
+  // arrows alike), with no Enter and no blur needed.
+  const [draft, setDraft] = useState(String(input.target));
+  useEffect(() => {
+    // The target changed from outside the box (a restored link): show it.
+    setDraft((d) => (Number(d) === input.target ? d : String(input.target)));
+  }, [input.target]);
   if (!step) return null;
-  const commit = (raw: string) => {
-    const value = Math.round(Number(raw));
-    if (!Number.isFinite(value)) return;
-    const target = Math.max(MIN_VALUE, Math.min(MAX_VALUE, value));
+  const edit = (raw: string) => {
+    setDraft(raw);
+    const target = Number(raw);
+    if (raw.trim() === "" || !Number.isInteger(target) || target < MIN_VALUE || target > MAX_VALUE) return;
     if (target !== input.target) setInput((prev) => ({ ...prev, target }));
   };
   return (
@@ -55,19 +63,15 @@ function SearchView() {
       </div>
 
       <div className="flex items-center gap-3 mt-3 text-[11px] font-mono text-foreground/60">
-        {/* Keyed by the target, so a restored link or a reset redraws the draft. */}
         <label className="inline-flex items-center gap-2">
           Target
           <input
-            key={input.target}
             type="number"
             min={MIN_VALUE}
             max={MAX_VALUE}
-            defaultValue={input.target}
-            onBlur={(e) => commit(e.currentTarget.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") commit(e.currentTarget.value);
-            }}
+            value={draft}
+            onChange={(e) => edit(e.currentTarget.value)}
+            onBlur={() => setDraft(String(input.target))}
             className="w-16 rounded-md border border-border bg-background px-2 py-1 text-foreground"
           />
         </label>

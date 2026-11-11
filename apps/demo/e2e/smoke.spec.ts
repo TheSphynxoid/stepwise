@@ -171,7 +171,7 @@ test("/kit: the first frame is in the server HTML", async ({ browser, baseURL })
     const res = await page.goto("/kit");
     expect(res?.ok()).toBe(true);
     const first = page.locator('[data-explainer="a"]');
-    await expect(first.locator("p[aria-live]").first()).toHaveText("start: lo=0, hi=6, the range covers everything");
+    await expect(first.locator("p[aria-live]").first()).toHaveText("start: looking for 34 between lo=0 and hi=6");
     await expect(first.getByRole("img", { name: /^Array 3, 9, 14, 25, 34, 47, 61/ })).toBeVisible();
   } finally {
     await context.close();
@@ -192,7 +192,7 @@ test("/kit: two explainers keep separate links and keys", async ({ page }) => {
   await expect(narrationB).toHaveText("compare a[3]=25 with target 61");
   await expect(page).toHaveURL(/b\.frame=/);
   expect(page.url()).not.toContain("a.frame=");
-  await expect(narrationA).toHaveText("start: lo=0, hi=6, the range covers everything");
+  await expect(narrationA).toHaveText("start: looking for 34 between lo=0 and hi=6");
 
   // A click claims the keyboard: ArrowRight then moves the first, not the second.
   const bFrame = await sliderB.getAttribute("aria-valuenow");
@@ -202,6 +202,33 @@ test("/kit: two explainers keep separate links and keys", async ({ page }) => {
   await expect(narrationB).toHaveText("compare a[3]=25 with target 61");
   await expect(sliderB).toHaveAttribute("aria-valuenow", bFrame!);
   await expect(page).toHaveURL(/a\.frame=/);
+});
+
+test("/kit: editing the target re-runs at once and shows on the start frame", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/kit");
+  const a = page.locator('[data-explainer="a"]');
+  const narration = a.locator("p[aria-live]").first();
+  const target = a.getByRole("spinbutton", { name: "Target" });
+  await expect(narration).toHaveText("start: looking for 34 between lo=0 and hi=6");
+
+  // The spinner arrows (ArrowUp here) change the value with no Enter and no
+  // blur: the run must follow, and the paused start frame must show it.
+  await target.click();
+  await target.press("ArrowUp");
+  await expect(narration).toHaveText("start: looking for 35 between lo=0 and hi=6");
+  await expect(page).toHaveURL(/a\.in=3\.9\.14\.25\.34\.47\.61~35/);
+
+  // Typing applies as soon as the draft is a valid value, and keeps the focus.
+  await target.fill("9");
+  await expect(narration).toHaveText("start: looking for 9 between lo=0 and hi=6");
+  await expect(target).toBeFocused();
+
+  // An empty or out-of-range draft changes nothing; leaving the field restores the value.
+  await target.fill("");
+  await expect(narration).toHaveText("start: looking for 9 between lo=0 and hi=6");
+  await narration.click();
+  await expect(target).toHaveValue("9");
 });
 
 test("/kit: predict loop", async ({ page }) => {
