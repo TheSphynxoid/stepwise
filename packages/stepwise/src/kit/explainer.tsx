@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ComponentType,
   type ReactElement,
@@ -22,6 +23,7 @@ import type {
 } from "../core";
 import { defaultTheme, type StepwiseTheme } from "../theme";
 import { useEvaluator } from "../use-evaluator";
+import { useGlobalKeys } from "../use-global-keys";
 import { useSimulation } from "../use-simulation";
 import type { SyncInputOptions } from "../use-simulation";
 import { useTrace } from "../use-trace";
@@ -29,6 +31,7 @@ import type { TracePlayer } from "../use-trace";
 import type { StepwiseStep } from "../types";
 import { EndNote, ExplainerBar, Narration, Stage, StepCode } from "./parts";
 import { Predict } from "./predict";
+import { activate, isActive, register } from "./registry";
 
 // The explainer kit: one provider around useSimulation (or useTrace, for a
 // recorded run) plus flat part components that read it from context. An
@@ -287,6 +290,8 @@ function Shell<Input, S extends StepwiseStep>({
   setInput,
   editable,
   id,
+  keys = true,
+  link = true,
   theme = defaultTheme,
   view,
   className,
@@ -295,6 +300,19 @@ function Shell<Input, S extends StepwiseStep>({
 }: ExplainerProps<Input, S> &
   Omit<ExplainerApi<Input, S>, "step" | "predict" | "id" | "theme"> & { predictApi?: PredictApi | null }) {
   const step = sim.step;
+  // One keyboard, many explainers: the registry says which one owns it.
+  const token = useRef<object>({});
+  useEffect(() => register(token.current, link ? (id ?? "") : null), [id, link]);
+  const { next, prev, toggle, start } = sim.player;
+  useGlobalKeys(
+    {
+      ArrowRight: () => next(),
+      ArrowLeft: () => prev(),
+      " ": () => toggle(start),
+    },
+    { enabled: () => keys && isActive(token.current) }
+  );
+  const claimKeys = useCallback(() => activate(token.current), []);
   const api = useMemo<ExplainerApi<Input, S>>(
     () => ({ sim, step, input, setInput, editable, predict: predictApi, id, theme }),
     [sim, step, input, setInput, editable, predictApi, id, theme]
@@ -302,7 +320,13 @@ function Shell<Input, S extends StepwiseStep>({
   return (
     <ExplainerContext.Provider value={api as unknown as ExplainerApi<unknown, StepwiseStep>}>
       <ViewContext.Provider value={view}>
-        <section data-stepwise="" data-explainer={id ?? ""} className={cn("flex flex-col gap-3", className)}>
+        <section
+          data-stepwise=""
+          data-explainer={id ?? ""}
+          className={cn("flex flex-col gap-3", className)}
+          onPointerDownCapture={claimKeys}
+          onFocusCapture={claimKeys}
+        >
           {children ?? (
             <>
               <Stage />
