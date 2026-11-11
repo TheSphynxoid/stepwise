@@ -118,7 +118,7 @@ const sim = useSimulation(shuffleThenSort, input, { seed: 7, autoPlay: true, syn
 // sim.step, sim.player, sim.toneAt, sim.titleAt: like useTrace, plus sim.steps / truncated / error
 ```
 
-How re-anchoring decides: walk back from the old position to the latest step whose key exists in the new trace, and land there (`reanchor` is exported for custom players). `runSimulation` is the pure, server-safe runner, with a `maxSteps` cap so a runaway generator can't hang the page.
+How re-anchoring decides: walk back from the old position to the latest step whose key exists in the new trace, and land there (`reanchor` is exported for custom players). `runSimulation` is the pure runner, with a `maxSteps` cap so a runaway generator can't hang the page. The root entry is a client module: on a server or in a build script, import `runSimulation` (and every other pure function) from `@sphynxoid/stepwise/core`.
 
 Keep an object input in state or `useMemo`: `useSimulation(sim, { arr, target })` written inline is a new object every render, so the trace is recomputed every render (development builds warn).
 
@@ -181,6 +181,37 @@ Things worth knowing before you build one:
 - **A held checkpoint doesn't resume on its own.** Call `player.release()` (your Continue button), or the reader presses play.
 - **The truth is usually the next frame**: `const truth = sim.steps[player.held + 1]?.kind`. Phrase the question so every possible next frame is an answer option (binary search can also *find* the target, so "left, right, or found?").
 - **Manual mode clears the verdict when `ctx` changes** (a new guess), but keeps `attempts`, since it's still the same question. When the question changes, reset it: `useEffect(() => { setGuess(null); answer.reset(); }, [player.held])`.
+
+## Authoring kit (experimental)
+
+For articles with several explainers, the kit turns one into a definition, a view and a tag. Three entries, all experimental (they may change in a minor release): `@sphynxoid/stepwise/core` (pure, no `"use client"`), `@sphynxoid/stepwise/kit` (client) and `@sphynxoid/stepwise/kit/server`.
+
+```tsx
+// sorting.explainer.ts — plain module: what to simulate, the default input, where to ask
+export const sorting = defineExplainer({
+  name: "sorting",
+  simulation: bubble,                                   // a Simulation, as above
+  input: { default: { arr: [5, 2, 8, 1] } },
+  predict: { at: (s) => s.kind === "compare", options: ["swap", "keep"], truth: (next) => next?.kind },
+});
+
+// sorting.tsx — "use client": the view reads the frame; createExplainer does the rest
+function Bars() {
+  const { step } = useExplainer<SortInput, Frame>();
+  return step ? <BarsFor values={step.arr} /> : null;
+}
+export const SortingClient = createExplainer({ definition: sorting, view: Bars });
+
+// sorting.server.tsx — no "use client": compute the trace where the page renders
+export const Sorting = precomputed(sorting, SortingClient);
+```
+
+```mdx
+<Sorting id="intro" />
+<Sorting id="quiz" arr={[3, 1, 2]} predict />
+```
+
+The default layout is the view, the narration, the predict question, the step's code, a `PlayerBar` and an end note; children replace it with any arrangement of the same parts (`Stage`, `Narration`, `Predict`, `PredictToggle`, `StepCode`, `ExplainerBar`, `EndNote`). Spread `stepwiseComponents` (from `/kit/server`) into `mdx-components.tsx` to use them from MDX. Each explainer keeps its frame and input in the URL under its `id`, and the arrow keys drive the one the reader touched last. `precomputed` doesn't put the first frame in the HTML (a client component is server-rendered anyway); it saves the re-run on hydration and makes a broken definition fail the build. Walkthrough: [RECIPES.md](https://github.com/TheSphynxoid/stepwise/blob/master/docs/RECIPES.md#an-interactive-article-in-nextjs--mdx); full API: [LLMS.md section 9](https://github.com/TheSphynxoid/stepwise/blob/master/packages/stepwise/LLMS.md) and the [reference](https://stepwise.thesphynx.net/docs#createExplainer).
 
 ## The three scales
 
@@ -252,7 +283,7 @@ An adapter plugs into a tiny port (`PlayerEngine` / `TourDriver`), so you can wr
 
 ## React
 
-Supports React 18 and 19. All hooks are SSR-safe (`"use client"` modules, no window access at module evaluation) and every public hook returns referentially stable callbacks.
+Supports React 18 and 19. All hooks are SSR-safe (`"use client"` modules, no window access at module evaluation) and every public hook returns referentially stable callbacks. `@sphynxoid/stepwise/core` and `@sphynxoid/stepwise/kit/server` are the two entries without `"use client"`.
 
 ## License
 

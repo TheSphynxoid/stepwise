@@ -16,7 +16,13 @@ stuck on it. The API reference is at
 
 Interactive explainers mostly live in articles. The complete version of this
 recipe is [`examples/next-mdx`](../examples/next-mdx): a binary-search article
-with an editable player, predict mode and a glossary.
+with an editable player, predict mode and a glossary. The `/kit` page of the
+demo site is the same explainer, with its source.
+
+The explainer comes from the authoring kit (`@sphynxoid/stepwise/core`,
+`/kit` and `/kit/server`, experimental: they may change in a minor release).
+An author writes a definition and a view; the player, the links, the keyboard,
+predict mode and the layout come from the kit.
 
 **1. Install**
 
@@ -43,15 +49,22 @@ export default withMDX({ pageExtensions: ["ts", "tsx", "mdx"] } satisfies NextCo
 **3. `mdx-components.tsx` at the project root.** The App Router requires this
 file. Without it the build fails with an unhelpful
 `createContext is not a function`, which looks like a client/server problem
-in the library but isn't.
+in the library but isn't. Spread `stepwiseComponents` into it, so every
+article can use the explainer parts and the glossary without importing them:
 
 ```tsx
 import type { MDXComponents } from "mdx/types";
+import { stepwiseComponents } from "@sphynxoid/stepwise/kit/server";
 
 export function useMDXComponents(components: MDXComponents): MDXComponents {
-  return components;
+  return { ...stepwiseComponents, ...components };
 }
 ```
+
+`stepwiseComponents` is `Term`, `GlossaryAppendix`, `Stage`, `Narration`,
+`StepCode`, `Predict`, `PredictToggle`, `ExplainerBar` and `EndNote`. It comes
+from `/kit/server` because a server file can't spread an object exported by a
+client module (it only gets references).
 
 **4. `app/layout.tsx`**: the stylesheet (skip it if you use Tailwind, see
 the README's Styling section) and the glossary provider around everything, so
@@ -88,26 +101,118 @@ export const GLOSSARY: GlossaryEntry[] = [
 ];
 ```
 
-**5. Write the article.** Interactive pieces are client components in their
-own files (`"use client"` at the top); the library's components can be used
-straight from MDX.
+**5. The explainer: three small files.** MDX can't call functions, so the
+binding happens in `.ts(x)` files and the article only renders a tag.
+
+The definition is a plain module (no `"use client"`), so the server can run it
+and the client can re-run it when the reader edits the input. Import from
+`/core` here: the root entry is a client module.
+
+```ts
+// components/binary-search.explainer.ts
+import { defineExplainer, type Simulation, type StepwiseStep } from "@sphynxoid/stepwise/core";
+
+export type SearchInput = { arr: number[]; target: number };
+export type SearchStep = StepwiseStep<{ kind: "start" | "compare" | "left" | "right" | "found" | "missing"; lo: number; hi: number; mid: number }>;
+
+const search: Simulation<SearchInput, SearchStep> = function* ({ arr, target }) { /* yield keyed steps */ };
+
+export const binarySearch = defineExplainer({
+  name: "binary-search",
+  simulation: search,
+  input: {
+    default: { arr: [3, 9, 14, 25, 34, 47, 61], target: 34 },
+    serialize: ({ arr, target }) => `${arr.join(".")}~${target}`, // #in=3.9.14.25.34.47.61~34
+    parse: (raw) => { /* validate: links come from strangers; null ignores the link */ },
+  },
+  predict: {
+    at: (step) => step.kind === "compare",           // never the last frame
+    options: ["left", "right", "found"],             // every possible next frame
+    truth: (next) => next?.kind,                     // graded against the frame after
+    hint: "Compare the highlighted probe with the target.",
+  },
+});
+```
+
+The view is a client component that takes no props and reads the frame from
+`useExplainer()`; `createExplainer` binds it to the definition:
+
+```tsx
+// components/binary-search.tsx
+"use client";
+import { createExplainer, useExplainer } from "@sphynxoid/stepwise/kit";
+import { binarySearch, type SearchInput, type SearchStep } from "./binary-search.explainer";
+
+function SearchView() {
+  const { step, input, setInput } = useExplainer<SearchInput, SearchStep>();
+  if (!step) return null;
+  // draw step.arr, step.lo / hi / mid; an input calls setInput({ ...input, target })
+}
+
+export const BinarySearchClient = createExplainer({ definition: binarySearch, view: SearchView });
+```
+
+The server wrapper (no `"use client"`) computes the trace where the page
+renders and hands it to the client as JSON:
+
+```tsx
+// components/binary-search.server.tsx
+import { precomputed } from "@sphynxoid/stepwise/kit/server";
+import { binarySearch } from "./binary-search.explainer";
+import { BinarySearchClient } from "./binary-search";
+
+export const BinarySearch = precomputed(binarySearch, BinarySearchClient);
+```
+
+What that buys: the page is server-rendered either way, so the first frame
+is in the HTML with or without the wrapper. `precomputed` means the client
+doesn't re-run the search on hydration (it starts from the shipped trace),
+and a definition that throws, never terminates or yields non-JSON data fails
+`next build` instead of the reader's page. Without it, export
+`BinarySearchClient` and use that.
+
+**6. Write the article.**
 
 ```mdx
 {/* app/page.mdx */}
-import { Term, GlossaryAppendix } from "@sphynxoid/stepwise";
-import { BinarySearchPlayer } from "@/components/binary-search-player";
+import { BinarySearch } from "@/components/binary-search.server";
 
 # How binary search finds a number
 
 Binary search needs a <Term id="sorted-array" />, and runs in <Term id="log-time" />.
 
-<BinarySearchPlayer />
+<BinarySearch id="intro" />
+
+Now you drive. It pauses at every probe: where does the search go?
+
+<BinarySearch id="quiz" target={61} predict>
+  <Stage />
+  <Narration />
+  <PredictToggle />
+  <Predict>Will the search go left, right, or stop?</Predict>
+  <ExplainerBar />
+  <EndNote>Try a target that isn't in the array.</EndNote>
+</BinarySearch>
 
 <GlossaryAppendix />
 ```
 
-The player itself is an ordinary `useSimulation` component: see the README's
-"Live simulations" section, and the next recipe to make its links shareable.
+- **Give every explainer on a page an `id`.** Each keeps its frame (and its
+  input) in the URL under its own keys (`intro.frame`, `quiz.in`); two
+  without distinct ids share keys, and development builds warn.
+- **Props are data.** `target={61}` overrides one field of the default input
+  (the default is a plain object); `input={{ ... }}` replaces it all. Both
+  are read once, at mount. Field props aren't type-checked (`unknown`), and a
+  misspelled prop such as `autoplay` is silently ignored: the kit's
+  `autoPlay` defaults to false.
+- **Children replace the default layout** (`Stage`, `Narration`, `Predict`,
+  `StepCode`, `ExplainerBar`, `EndNote`), in any order, with prose in
+  `Predict` and `EndNote`.
+- **Keyboard**: ArrowRight, ArrowLeft and Space drive the explainer the
+  reader last clicked or focused. `keys={false}` opts one out.
+
+The next recipe covers the same links without the kit, and the one after it
+the grading that predict mode does for you.
 
 ---
 
@@ -215,7 +320,11 @@ const { steps } = runSimulation(binarySearch, { arr: [1, 3, 5, 7], target: 5 });
 expect(steps.map((s) => s.key)).toEqual(["start", "c0", "r0", "c1", "f1"]);
 ```
 
-It's also the fastest way to debug a simulation: print the keys.
+It's also the fastest way to debug a simulation: print the keys. (A test
+runner is fine with the root entry; a server component or a build script
+should import `runSimulation` from `@sphynxoid/stepwise/core`, since the root
+is a client module. An explainer definition is tested the same way:
+`precompute(definition, input).steps`.)
 
 **Browser tests:**
 

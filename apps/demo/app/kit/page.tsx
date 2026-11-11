@@ -18,8 +18,10 @@ import { BinarySearchClient } from "./demo";
 export const metadata: Metadata = { title: "Explainer kit" };
 
 // A server component: the trace for each explainer is computed here, at
-// build time, so the first frame is in the HTML before any JavaScript runs.
-// Everything passed below is plain data; the parts are client components.
+// build time, and handed to the client component as plain JSON. The client
+// starts from it instead of re-running the search on hydration, and a broken
+// definition fails the build. Everything passed below is plain data; the
+// parts are client components.
 const BinarySearch = precomputed(binarySearch, BinarySearchClient);
 
 export default function Page() {
@@ -35,8 +37,8 @@ export default function Page() {
           <p className="text-[13px] text-foreground/60 leading-relaxed mb-8 sw-fade-up sw-fade-up-2">
             Both players below come from one <code className="text-primary">defineExplainer</code> and one view.{" "}
             <code className="text-primary">createExplainer</code> binds them into a component;{" "}
-            <code className="text-primary">precomputed</code> runs the definition on the server, so the first frame is
-            in the page before any script loads. Each explainer has its own <code className="text-primary">id</code>,
+            <code className="text-primary">precomputed</code> runs the definition on the server and ships the finished
+            trace, so the browser starts from it instead of running the search again. Each explainer has its own <code className="text-primary">id</code>,
             so its frame and input live under their own keys in the URL, and the arrow keys drive whichever one you
             touched last. Change the target and the search re-runs on the client.
           </p>
@@ -63,6 +65,7 @@ export default function Page() {
         </div>
       </main>
       <ViewSource file="app/kit/demo.tsx" />
+      <ViewSource file="app/kit/page.tsx" />
     </>
   );
 }

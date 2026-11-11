@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.6.0 — unreleased
+
+The authoring kit: an explainer from a definition, a view and one tag, from
+TSX or MDX. Three new entry points, all experimental (they may change in a
+minor release). Additive: the root entry and `./experimental` keep every
+export.
+
+- **New (experimental)**: `@sphynxoid/stepwise/core`, the pure half of the library (simulations, traces, walks, re-anchoring, alignment, verdicts, explainer definitions and the schema) with no `"use client"` and no React at runtime, for server components, route handlers and build scripts.
+- **New (experimental)**: `defineExplainer` and `precompute` (in `./core`): a definition is the simulation, the default input (with optional `serialize` / `parse` for links) and an optional `predict` block. `precompute(def, input?)` runs it to a JSON trace and throws a labelled error for a non-JSON input or step (cycles report kind `cycle`), a simulation that throws, or one that hits `maxSteps`. `resolveInput`, `normalizeOptions` and `assertJsonInput` expose the kit's rules.
+- **New (experimental)**: `@sphynxoid/stepwise/kit`: `createExplainer({ definition, view })` / `Explainer`, `useExplainer`, and flat parts (`Stage`, `Narration`, `StepCode`, `ExplainerBar`, `EndNote`, `Predict`, `PredictToggle`) with a default layout that children replace. Explainers keep their frame and input in the URL under their `id` (`link`, default true), share the keyboard (it goes to the one the reader touched last; `keys={false}` opts out), and run predict mode from the definition (autoplay holds at `at`, graded against the next frame, `hint` after two misses). `autoPlay` defaults to false. Without a definition an explainer plays a recorded `trace` and ships no simulation code.
+- **New (experimental)**: `@sphynxoid/stepwise/kit/server`: `precomputed(definition, Client)`, a hook-free server component that computes the trace where the page renders and passes it as `trace`, and `stepwiseComponents`, the parts plus `Term` / `GlossaryAppendix` as one map for `mdx-components.tsx`. The first frame is server-rendered with or without it; it saves the simulation re-run on hydration and turns a broken definition into a build error.
+- **New**: `useSimulation({ initialTrace })`: while the input (by content) and the seed match a precomputed trace, the hook plays it without running the simulation; an input change recomputes as usual.
+- **Changed**: `alignTracks` moved to its own pure module (`align-tracks.ts`) so `./core` can carry it. Still exported from the root, unchanged.
+- **Build**: two tsup configs share `dist/`. The pure code exists once, in the banner-free `core` bundle (a chunk shared with `kit/server`); the client bundles import `./core.js` at runtime through an esbuild resolve rule instead of carrying a copy. Client `.d.ts` files inline their own copies of the pure types, which match `core.d.ts` structurally. `clean` now runs as a script before tsup.
+- **Correction**: earlier notes (0.3.0) and docs called `runSimulation` from the root entry "server safe". The root entry is a client module, so a React Server Component that imports from it gets a client reference, not a function. On a server or in a build script, import pure functions from `@sphynxoid/stepwise/core`.
+- **Demo**: `/kit`: two binary-search explainers from one definition and one view, precomputed on the server, with separate links and keyboard focus, one in a custom layout with predict mode.
+- **Docs**: LLMS.md section 9; the Next.js + MDX recipe rebuilt around the kit (`stepwiseComponents` in `mdx-components.tsx`); "The core/client boundary" and "The authoring kit" in docs/ARCHITECTURE.md; the API reference's "Experimental: authoring kit" group.
+
 ## 0.5.0 — 2026-11-02
 
 Transitions: a trace becomes a graph. Everything new is in the new

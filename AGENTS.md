@@ -27,7 +27,7 @@ npm run build -w @sphynxoid/stepwise             # build library → packages/st
 npm run dev                                   # demo app (same as: npm run dev -w @stepwise/demo)
 
 # tests — run from the package directory, NOT the root
-cd packages/stepwise && npx vitest run        # 196 tests (14 useSteps, 32 player, 29 tour, 9 discoveries, 6 chapters, 4 flatten, 4 trace, 11 synced tracks, 9 lesson stream, 3 createTrace, 24 simulation/re-anchoring/checkpoints, 7 evaluators, 11 live edge, 8 syncInput + rebuilt-input warning, 1 barrel, 24 walks/graphs/diffs/experimental barrel)
+cd packages/stepwise && npx vitest run        # 280 tests (14 useSteps, 32 player, 29 tour, 9 discoveries, 6 chapters, 4 flatten, 4 trace, 11 synced tracks, 9 lesson stream, 3 createTrace, 24 simulation/re-anchoring/checkpoints, 7 evaluators, 11 live edge, 8 syncInput + rebuilt-input warning, 4 barrels (root, core, kit, kit/server), 24 walks/graphs/diffs/experimental barrel, 6 core boundary, 15 explainer definitions/precompute, 6 initialTrace, 22 kit explainer, 15 kit predict, 9 kit keys/registry, 8 kit/server)
 
 # demo lint (eslint flat config, no interactive prompt)
 cd apps/demo && npm run lint
@@ -95,12 +95,21 @@ bad paths). Details and verification steps: `docs/TAILWIND-SETUP.md`.
 ```
 types.ts ── schema (StepTone, StepwiseStep, TourStepInput, Chapter)
          └─ ports (PlayerEngine, TourDriver) — inversion points for adapters
+core.ts ────────── the ./core entry: every pure module below + the schema.
+                   No "use client", no React at runtime. The ONLY path from
+                   client code to pure code (the hinge: client bundles
+                   import dist/core.js at runtime). Server components and
+                   build scripts call runSimulation & co. from ./core only:
+                   the root entry is a client module
 create-trace.ts ── createTrace<Data>().step(…).build(): typed module-scope
                    traces without IIFEs (pure data, no React)
 simulation.ts ──── createRng (seeded), runSimulation (pure, capped): traces
                    computed from an input by a generator
 reanchor.ts ────── the pure "stay on the same step" rule (keys)
+align-tracks.ts ── alignTracks, the comparison-mode table (pure)
 evaluate.ts ────── Verdict / Evaluator (pass | fail | pending, feedback)
+explainer.ts ───── EXPERIMENTAL: defineExplainer, precompute (JSON-checked
+                   trace, labelled errors), resolveInput, assertJsonInput
 
 CORE      use-steps.ts      THE primitive: clamped cursor, stable callbacks,
                             re-clamps when count changes
@@ -113,7 +122,8 @@ POLICIES  use-step-player   timer, speed, seek, #hash deep-link, engine port,
           use-simulation    live trace: rerun on input change, keep place;
                             syncInput (input in the URL, restored before the
                             linked frame is applied); dev warning for inputs
-                            rebuilt every render
+                            rebuilt every render; initialTrace (precomputed
+                            steps while input matches by content)
           use-walk          EXPERIMENTAL (./experimental): walks that branch
                             on choices (await: true steps), always replayed
                             from (input, seed, choices); fromGraph automata;
@@ -140,12 +150,25 @@ PRESENT   components.tsx    PlayerBar, StepScrubber (groupOf!), ChapterNav,
           glossary.tsx      GlossaryProvider / Term (recursive, depth-capped
                             at 4) / GlossaryAppendix (auto-collect + intro/
                             footer/renderEntry customization)
+KIT       kit/explainer.tsx EXPERIMENTAL (./kit): Explainer / createExplainer
+                            (definition + view → one component; recorded-only
+                            without a definition), useExplainer, predict mode
+          kit/parts.tsx     Stage, Narration, StepCode, ExplainerBar, EndNote
+          kit/predict.tsx   Predict, PredictToggle
+          kit/registry.ts   which explainer owns the keyboard; duplicate hash
+                            namespace warning (module state, SSR-safe)
+          kit/server.tsx    EXPERIMENTAL (./kit/server, no "use client"):
+                            precomputed (hook-free server wrapper, trace
+                            cache), stepwiseComponents (MDX map); imports the
+                            client entries by package name (kept external)
 ADAPTERS  adapters/gsap.ts (PlayerEngine), adapters/driver-js.ts (TourDriver),
           adapters/scroll.ts (PlayerEngine, dependency-free)
 ```
 
 Dependency direction is strict: adapters → policies → core; presentation
-depends only on core + types + theme. Full details, algorithms, and the why
+depends only on core + types + theme; the kit sits on policies +
+presentation. Build mechanism (the hinge, the DTS copies):
+`docs/ARCHITECTURE.md` "The core/client boundary". Full details, algorithms, and the why
 behind each: `docs/ARCHITECTURE.md`.
 
 ## Invariants — do not break these
@@ -200,6 +223,16 @@ Each of these encodes a bug we already fixed once:
    read (`pendingRead`). (c) The hash is read on mount, `hashchange`, and the
    first non-empty timeline only, never on every `total` change. Test
    linked-state flows with **reduced motion** (paused): autoplay hides these.
+11. **Client modules import pure code only through `./core`; `./core` has no
+   `"use client"`.** In a `"use client"` source, pure code comes from
+   `./core` / `../core`, never `./simulation`, `./reanchor`, … directly: the
+   `coreHinge` plugin only rewrites the `core` specifier, so a direct import
+   bundles a second copy into the client chunk. `src/core.ts` and everything
+   it imports carry no directive, no runtime `react` import (`import type` is
+   fine), and no `class` or `unique symbol` (the client `.d.ts` copies of
+   core's types must stay structurally compatible). `kit/server.tsx` imports
+   client code by package name only. `core-boundary.test.ts` enforces all of
+   it, including "one file in dist contains `function runSimulation(`".
 
 ## Demo content policy
 
@@ -210,7 +243,9 @@ path of the player demo) permanently redirects to `/player` via
 `next.config.ts`.
 
 Page structure: each route's `page.tsx` is a tiny **server** component that
-renders the client `demo.tsx` plus `<ViewSource file="app/<route>/demo.tsx" />`,
+renders the client `demo.tsx` plus `<ViewSource file="app/<route>/demo.tsx" />`
+(`/kit` is the exception: its server page holds the `precomputed` call and
+the layout, so it shows a second panel for `page.tsx`),
 which reads that file with `fs` at build time and shows it in a collapsible
 `CodeBlock` (with GitHub / StackBlitz links). So the source panel can't drift
 from the running code - keep the demo itself in `demo.tsx`.
@@ -223,6 +258,7 @@ What each page must keep showcasing (the feature matrix):
 | `/lesson`  | **Flagship composition**: `useChapters` + `ChapterNav` scroll lesson, embedded `useTrace` Dijkstra player (chapter → frame seek while paused), `useGuidedTour` intro whose steps target sections, glossary `Term`s + `GlossaryAppendix`, live three-cursor readout |
 | `/simulate`| `useSimulation` live trace (edit input mid-play, playhead keeps its step via `key`), seeded `createRng`, `#in=…&frame=…` exact replay links via `syncInput` (no hand-rolled linking), predict mode: `holdAt` checkpoints + manual `useEvaluator` |
 | `/automaton`| **Experimental** transitions: `fromGraph` divisible-by-3 DFA run over a typed word (`anchor: "index"`) and drawn from `dfa.graph`; "be the automaton" `useWalk` with choice points, wrong-answer detours, re-answer truncation, `syncChoices` links |
+| `/kit`     | **Experimental** authoring kit: one `defineExplainer` (in `binary-search.explainer.ts`, imported from `./core`) + one view via `createExplainer`, wrapped by `precomputed` in the server `page.tsx`; two explainers with ids `a` / `b` (separate `a.frame` / `b.in` links, keyboard goes to the last touched), the second with a custom child layout, a field prop (`target={61}`) and `predict`. Shows both `demo.tsx` and `page.tsx` source |
 | `/live`    | `useTrace({ follow })` over a growing event stream, `PlayerBar live` badge, scrub back stays put, Go live (L) returns, burst to show catch-up |
 | `/player`  | `useTrace` autoPlay, `PlayerBar`, `useGlobalKeys`, `CodeBlock`, tones, `ended` completion banner |
 | `/compare` | `useSyncedTracks` (bubble vs insertion sort under one player), hold vs align-by-pass toggle, traces built with `createTrace` |
@@ -259,12 +295,12 @@ the library's theming story:
 
 1. Library: `npm run build -w @sphynxoid/stepwise` → "ESM ⚡ Build success" +
    "DTS ⚡ Build success". Tests from `packages/stepwise`.
-2. Demo: `cd apps/demo && npm run build` → "20/20 static pages" (13 routes + OG image + `/llms.txt` + `/llms-full.txt`).
-   Then `PW_CHANNEL=msedge npx playwright test` (27 smoke tests: every route
+2. Demo: `cd apps/demo && npm run build` → "21/21 static pages" (14 routes + OG image + `/llms.txt` + `/llms-full.txt`).
+   Then `PW_CHANNEL=msedge npx playwright test` (31 smoke tests: every route
    without console errors, the /eviction redirect, tour card placement - the
    Tailwind `@source` regression guard - player, tour, keyboard glossary
    tooltip, lesson composition, /compare alignment, /simulate exact linked frame +
-   re-anchoring after edits, /simulate predict loop, /live follow + Go live, /llms.txt + /llms-full.txt, hero bar edit keeps the step, /automaton run + choices with link restore). Set `PW_PORT` if 3123 is taken.
+   re-anchoring after edits, /simulate predict loop, /live follow + Go live, /llms.txt + /llms-full.txt, hero bar edit keeps the step, /automaton run + choices with link restore, /kit first frame in the no-JS HTML + two explainers with separate links and keys + predict loop). Set `PW_PORT` if 3123 is taken.
    At the default worker count this 16-thread box saturates (Edge launches take
    ~6 s, the server's HTML ~20 s) and route-load tests time out on
    `networkidle`; pass `--workers=2` locally. CI's small runners are fine.
@@ -354,3 +390,5 @@ signature changes are major while we're pre-1.0.
 - "How does X work / why is it built this way?" → `docs/ARCHITECTURE.md`
 - "What can I import?" → `packages/stepwise/src/index.ts` (the barrel is the
   public API; its header comment is the design rationale)
+- "What can a server component or build script call?" → `packages/stepwise/src/core.ts`
+  (`./core`); the kit's entries are `src/kit/index.ts` and `src/kit/server.tsx`

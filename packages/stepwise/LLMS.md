@@ -12,9 +12,15 @@ Recipes: https://github.com/TheSphynxoid/stepwise/blob/master/docs/RECIPES.md
 
 ## Setup facts
 
-- `npm install @sphynxoid/stepwise`. **ESM only** (no `require`). Every
-  module is `"use client"`; import components into server files freely, but
-  call hooks only in client components.
+- `npm install @sphynxoid/stepwise`. **ESM only** (no `require`). The root
+  entry, `./experimental` and `./kit` are `"use client"` modules; import
+  components into server files freely, but call hooks only in client
+  components.
+- **On a server or in a build script, import pure functions from
+  `@sphynxoid/stepwise/core`** (`runSimulation`, `createTrace`, `precompute`,
+  `pass`, ...). The root entry is a client module, so a React Server Component
+  that imports `runSimulation` from it gets a client reference, not a function
+  it can call. `./core` has no `"use client"` and no React at runtime.
 - **Styling, pick one** (without it the components render unstyled):
   - no Tailwind: `import "@sphynxoid/stepwise/styles.css";` once (app entry
     or root layout). Theme with `--stepwise-primary`, `--stepwise-accent`, etc.
@@ -26,8 +32,10 @@ Recipes: https://github.com/TheSphynxoid/stepwise/blob/master/docs/RECIPES.md
   owns the timeline, not the pixels.
 - All stable exports come from the root: `import { useTrace, PlayerBar, pass, fail } from "@sphynxoid/stepwise"`.
   Types that are type-only need `import type` (e.g. `GlossaryEntry`).
-- Experimental APIs (branching walks, section 8) come from
-  `@sphynxoid/stepwise/experimental` and may change in a minor release.
+- Experimental APIs come from their own entries and may change in a minor
+  release: branching walks (section 8) from `@sphynxoid/stepwise/experimental`,
+  the authoring kit (section 9) from `@sphynxoid/stepwise/core`,
+  `@sphynxoid/stepwise/kit` and `@sphynxoid/stepwise/kit/server`.
 
 ## The model
 
@@ -105,6 +113,11 @@ export function Explorer() {
   `useSimulation(sim, { arr, target })` inline recomputes every render
   (development builds warn).
 - `runSimulation(sim, input).steps` is the pure runner: use it in unit tests.
+  On a server, import it from `@sphynxoid/stepwise/core`.
+- `initialTrace` (0.6+) takes a trace computed ahead of time (`precompute`,
+  section 9): while the input (by content) and the seed match it, the hook
+  plays it without running the simulation. An input change recomputes as
+  usual.
 
 ## 3. Shareable links (input + frame in the URL)
 
@@ -226,6 +239,205 @@ const asking = walk.choicePoints.includes(walk.frame);
   so editing the word keeps the position.
 - `walk.lastChange` (`diffTraces`) says which steps an edit changed.
 
+## 9. Authoring kit (experimental)
+
+An explainer from a definition, a view and one tag, usable from TSX and MDX.
+Three files, each on its own side of the server/client line:
+
+```ts
+// sorting.explainer.ts: the definition. A plain module (no "use client"),
+// so a server can run it and the client can re-run it on edits.
+import { defineExplainer, type Simulation, type StepwiseStep } from "@sphynxoid/stepwise/core";
+
+export type SortInput = { arr: number[] };
+export type Frame = StepwiseStep<{ kind: "start" | "compare" | "swap" | "keep" | "done"; arr: number[] }>;
+
+const bubble: Simulation<SortInput, Frame> = function* ({ arr }) {
+  const a = [...arr];
+  yield { key: "start", kind: "start", tone: "neutral", label: "start", arr: [...a] };
+  for (let i = 0; i < a.length - 1; i++)
+    for (let j = 0; j < a.length - 1 - i; j++) {
+      yield { key: `c${i}.${j}`, kind: "compare", tone: "accent", label: `compare a[${j}] and a[${j + 1}]`, arr: [...a] };
+      if (a[j] > a[j + 1]) {
+        [a[j], a[j + 1]] = [a[j + 1], a[j]];
+        yield { key: `s${i}.${j}`, kind: "swap", tone: "write", label: `swap a[${j}] and a[${j + 1}]`, arr: [...a] };
+      } else {
+        yield { key: `k${i}.${j}`, kind: "keep", tone: "neutral", label: "already in order", arr: [...a] };
+      }
+    }
+  yield { key: "done", kind: "done", tone: "good", label: "sorted", arr: [...a] };
+};
+
+export const sorting = defineExplainer({
+  name: "sorting",
+  simulation: bubble,
+  input: {
+    default: { arr: [5, 2, 8, 1] },
+    serialize: ({ arr }) => arr.join("."), // optional: puts the input in links
+    parse: (s) => {
+      const arr = s.split(".").map(Number);
+      return arr.length >= 2 && arr.every(Number.isInteger) ? { arr } : null;
+    },
+  },
+  predict: { // optional: pause and ask
+    at: (step) => step.kind === "compare",
+    options: ["swap", "keep"], // bare strings get a label: "Swap", "Keep"
+    truth: (next) => next?.kind, // the frame after the held one
+    hint: "Is the left bar taller than the right one?",
+  },
+});
+```
+
+```tsx
+// sorting.tsx: the client binding. The view takes no props.
+"use client";
+import { createExplainer, useExplainer } from "@sphynxoid/stepwise/kit";
+import { sorting, type Frame, type SortInput } from "./sorting.explainer";
+
+export function Bars() {
+  const { step } = useExplainer<SortInput, Frame>();
+  if (!step) return null;
+  return (
+    <div style={{ display: "flex", alignItems: "end", gap: 4, height: 80 }}>
+      {step.arr.map((v, i) => <div key={i} style={{ width: 16, height: v * 8, background: "currentColor" }} />)}
+    </div>
+  );
+}
+
+export const SortingClient = createExplainer({ definition: sorting, view: Bars });
+```
+
+```tsx
+// sorting-server.tsx: the server wrapper. No "use client".
+import { precomputed } from "@sphynxoid/stepwise/kit/server";
+import { sorting } from "./sorting.explainer";
+import { SortingClient } from "./sorting";
+
+export const Sorting = precomputed(sorting, SortingClient);
+```
+
+Then, in a server component or an MDX file:
+
+```mdx
+import { Sorting } from "@/components/sorting-server";
+
+<Sorting id="intro" />
+
+<Sorting id="quiz" arr={[3, 1, 2]} predict>
+  <Stage />
+  <Narration />
+  <PredictToggle />
+  <Predict>Swap these two, or keep them?</Predict>
+  <ExplainerBar />
+  <EndNote>Sorted. Try your own numbers.</EndNote>
+</Sorting>
+```
+
+MDX can't call functions, so `createExplainer` and `precomputed` live in the
+`.ts(x)` files and MDX only renders tags. The parts (`Stage`, `Narration`,
+...) come from the MDX component map: spread `stepwiseComponents` into
+`mdx-components.tsx` (Next.js App Router):
+
+```tsx
+import type { MDXComponents } from "mdx/types";
+import { stepwiseComponents } from "@sphynxoid/stepwise/kit/server";
+
+export function useMDXComponents(components: MDXComponents): MDXComponents {
+  return { ...stepwiseComponents, ...components };
+}
+```
+
+`stepwiseComponents` is `Term`, `GlossaryAppendix`, `Stage`, `Narration`,
+`StepCode`, `Predict`, `PredictToggle`, `ExplainerBar` and `EndNote`. Your
+explainers are not in it: import them in the MDX file or add them to the map.
+In TSX, import the parts from `@sphynxoid/stepwise/kit`.
+
+**What `precomputed` buys, exactly.** In a server-rendering host (Next.js),
+a client component is server-rendered anyway, so the first frame is in the
+HTML with or without `precomputed`. What it adds: the client starts from the
+passed trace and does not re-run the simulation on hydration (it re-runs on
+the first input edit), and a simulation that throws, hits `maxSteps` or
+yields non-JSON data fails the build instead of the page. For a run the
+reader never edits, a recorded-only explainer ships no simulation code to the
+client:
+
+```tsx
+// sorting-replay.tsx: no definition, so no simulation in this bundle
+"use client";
+import { createExplainer } from "@sphynxoid/stepwise/kit";
+import type { Frame, SortInput } from "./sorting.explainer";
+import { Bars } from "./bars"; // the view from sorting.tsx, in a file that doesn't import the definition
+
+export const SortingReplay = createExplainer<SortInput, Frame>({ view: Bars });
+```
+
+```tsx
+// page.tsx (server)
+import { precompute } from "@sphynxoid/stepwise/core";
+import { sorting } from "./sorting.explainer";
+import { SortingReplay } from "./sorting-replay";
+
+const trace = precompute(sorting); // or precompute(sorting, { arr: [4, 3, 2, 1] })
+
+export default function Page() {
+  return <SortingReplay trace={trace} />;
+}
+```
+
+Explainer props (all optional):
+
+- `id`: namespaces the hash keys (`intro.frame`, `intro.in`). Give every
+  explainer on a page its own; two linked explainers without distinct ids
+  write the same keys, and development builds warn once.
+- `link` (default true): keep the frame in the URL hash, and the input too
+  when the definition has `serialize` and `parse`. `link={false}` opts out.
+- `autoPlay` (default **false**), `keys` (default true), `theme`,
+  `className`, `children` (replaces the default layout: `Stage`, `Narration`,
+  `Predict`, `StepCode`, `ExplainerBar`, `EndNote`).
+- `predict`: start in predict mode. The reader owns it after mount
+  (`PredictToggle`).
+- Input: `input={...}` replaces the whole input; for a plain-object default,
+  a prop named after one of its own keys overrides that field
+  (`arr={[3, 1, 2]}` above). Input props are read once, at mount; after that
+  the reader's edits own the input. `undefined` means "use the default", so
+  it can't be passed as a real input.
+- **Typing is loose here.** The props type has an index signature (for the
+  field props), so a misspelled prop such as `autoplay` typechecks and is
+  silently ignored, and on the `precomputed` wrapper field props are typed
+  `unknown`. Check prop names by hand.
+
+Behaviour worth knowing:
+
+- `precompute` and `precomputed` reject a non-JSON input as well as non-JSON
+  steps (NaN, Infinity, a Map, a Date, a class instance, a function, a cycle,
+  an `undefined` inside an array), with an error naming the definition and
+  the path:
+  `[stepwise] precompute("sorting"): input.arr[1] is not JSON-serializable (undefined)`.
+  Cyclic values report kind `cycle`. An
+  `undefined` object field is fine (JSON drops it).
+- Keyboard: ArrowRight, ArrowLeft and Space go to the explainer the reader
+  last clicked or focused; before any, to the first one mounted. `keys={false}`
+  opts one out.
+- Before playback starts, frame 0 is already on screen, so the first Next
+  (or ArrowRight) shows frame 1.
+- Predict mode holds **autoplay** only, at frames where `at` is true; manual
+  steps and seeks are never blocked. The answer is graded against the frame
+  after the held one (`truth(next, held)`), so a checkpoint on the last frame
+  (where `next` is undefined) can never be answered correctly: make sure `at`
+  doesn't match it. The `hint` is appended to `feedback` after two failed
+  attempts (there is no separate hint field). The guess, the verdict and the
+  attempts reset at each new held frame, and when the trace changes while
+  held.
+- Custom parts read the provider: `useExplainer<Input, Step>()` returns
+  `{ step, input, setInput, editable, sim, predict, id, theme }`. `step` is
+  frame 0 before playback; `sim` is the `useSimulation` result (`sim.player`
+  for your own controls); `setInput` is a no-op with a development warning on
+  a recorded-only explainer.
+- Pass `theme` as a module constant (or memoize it): an object literal
+  created per render re-renders every part.
+- The kit's components need styling like the rest (`styles.css` or the
+  Tailwind `@source` line).
+
 ## Pitfalls checklist
 
 1. Unstyled components → missing `styles.css` import or Tailwind `@source`.
@@ -242,3 +454,6 @@ const asking = walk.choicePoints.includes(walk.frame);
 11. CommonJS (`require`) → not supported; use ESM or `await import()`.
 12. Browser tests: prefer `data-testid`; emulate reduced motion for linked-URL tests.
 13. A choice point without `await: true` → the walk never pauses for the answer; the `yield` gets `undefined`.
+14. `runSimulation` / `createTrace` / `precompute` imported from the root entry in a server component or build script → import them from `@sphynxoid/stepwise/core`.
+15. A misspelled explainer prop (`autoplay`) → typechecks and is silently ignored; the kit's `autoPlay` defaults to false.
+16. Two explainers on a page without distinct `id`s → they share `#frame=` / `#in=`; give each an `id`.

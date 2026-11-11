@@ -59,7 +59,7 @@ describe("useSimulation initialTrace", () => {
     expect(result.current.seed).toBe(7);
   });
 
-  it("recomputes after the input changes, then never returns to the trace by identity", () => {
+  it("recomputes after the input changes", () => {
     const sim = gen();
     const trace = traceFor(sim, 3);
     sim.mockClear();

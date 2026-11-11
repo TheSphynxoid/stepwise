@@ -74,15 +74,18 @@ because it explains a rule the code already has to follow.
 | `use-step-player.ts` | Player policy: base delay, speed multiplier, play/pause/seek/replay, `syncHash` deep-link, engine port, reduced-motion autoPlay gate | `frame` is the raw counter (**-1 = not started**); `index` clamps into `[0, total-1]`, -1 when nothing to show. Controls read live state through refs, so they never change identity. `syncHash` edits only its own `key=value` part of the `&`-separated fragment |
 | `use-trace.ts` | A player bound to a typed `StepwiseStep<Data>[]`: `step`, `frame`, stable `toneAt`/`titleAt`; keyed re-anchoring when `steps` changes | Encodes invariant "-1 renders frame 0" once, so pages don't repeat the fallback. See "re-anchoring" below |
 | `reanchor.ts` | The pure re-anchoring rule (+ default `stepKey`) | Exported for custom players |
-| `simulation.ts` | `createRng` (seeded mulberry32), `runSimulation` (pure, capped), the `Simulation` type | No React; safe at module scope and on the server |
-| `use-simulation.ts` | `useSimulation`: memoized `runSimulation` → `useTrace` | Recomputes on `simulation` / `input` / `seed` / `maxSteps` identity |
+| `core.ts` | The `./core` entry: re-exports every pure module and the schema | No `"use client"`, no React at runtime. The only way client modules reach pure code (see "The core/client boundary") |
+| `simulation.ts` | `createRng` (seeded mulberry32), `runSimulation` (pure, capped), the `Simulation` type | No React; safe at module scope. On a server, reached through `./core` |
+| `use-simulation.ts` | `useSimulation`: memoized `runSimulation` → `useTrace`; `initialTrace` | Recomputes on `simulation` / `input` / `seed` / `maxSteps` identity. With `initialTrace`, an input equal by content (JSON) and a matching seed return the precomputed steps instead of running |
+| `explainer.ts` | **Experimental.** `defineExplainer`, `precompute` (run to a JSON-checked trace), `resolveInput`, `normalizeOptions`, `assertJsonInput` | Pure; part of `./core` |
+| `kit/*` | **Experimental.** `./kit`: `Explainer` / `createExplainer` / `useExplainer`, the parts, predict mode, the keyboard registry. `./kit/server`: `precomputed`, `stepwiseComponents` | See "The authoring kit" below |
 | `use-run-links.ts` | Internal: a run's identity in the URL hash (input, choices) restored before the linked frame; shared by `useSimulation` and `useWalk` | See "linked inputs" below |
 | `walk.ts` / `use-walk.ts` | **Experimental.** `runWalk` (pure replay of input + choices), `useWalk` (`choose`, `anchor`, `lastChange`, `syncChoices`) | See "branching walks" below |
 | `graph.ts` | **Experimental.** `fromGraph`: a declared automaton, run over a word and drawable | Steps keyed by position |
 | `diff-traces.ts` | **Experimental.** `diffTraces` / `structuralEqual`: what an edit changed between two runs | Pure |
 | `evaluate.ts` / `use-evaluator.ts` | `Verdict`, `Evaluator`, `pass`/`fail`/`pending`/`toVerdict`; `useEvaluator` (auto/manual, async with abort) | Tour gates accept verdicts; `TourCard feedback` renders them |
 | `create-trace.ts` | `createTrace<Data>()` → `.step()` / `.length` / `.last()` / `.build()` | Pure data; `build()` snapshots. Replaces the module-scope IIFE pattern (invariant 6) |
-| `use-synced-tracks.ts` | Comparison mode: `alignTracks` (pure) + `useSyncedTracks` (one player over the aligned table, per-track `TrackView`) | Alignment memoized by shallow track-array identity, so `{ a, b }` literals are fine; `toneAt`/`titleAt` summarize the tracks that moved |
+| `align-tracks.ts` / `use-synced-tracks.ts` | Comparison mode: `alignTracks` (pure, in its own module so `./core` can carry it) + `useSyncedTracks` (one player over the aligned table, per-track `TrackView`) | Alignment memoized by shallow track-array identity, so `{ a, b }` literals are fine; `toneAt`/`titleAt` summarize the tracks that moved |
 | `use-guided-tour.ts` | Tour policy: start/end/goto, `onEnter` per step, optional driver | `onEnter` reads latest steps via ref — closures stay fresh without re-triggering effects; `next` past the end exits |
 | `use-chapters.ts` | Scroll-driven cursor + smooth `goTo` | See "scroll tracking" below |
 | `use-lesson-stream.ts` | Windowed notebook reader: mounted window, approach loading, prepend compensation, center-tracked active lesson; `useFadeIn` | See "lesson stream" below; composes `useSteps` like `useChapters` |
@@ -130,7 +133,7 @@ that as "it advances when scrolled past, not when the chapter is at the
 center". Center-containment matches reading intuition and is what the
 production notebook uses.
 
-### Track alignment (`use-synced-tracks.ts`)
+### Track alignment (`align-tracks.ts`, `use-synced-tracks.ts`)
 
 Comparison mode runs one input through several engines and plays the traces
 under **one** cursor. `alignTracks` turns `{ name: steps[] }` into a table of
@@ -327,6 +330,95 @@ reason:
 - **`lastChange`** is `diffTraces(previous, current)`, paired the same way
   the playhead anchors.
 
+## The core/client boundary
+
+The root entry is a client module: tsup re-adds `"use client"` as a banner on
+every client bundle (esbuild strips per-file directives). In a React Server
+Component, an import from a client module is a *reference*, not the function,
+so `runSimulation` from the root can't be called on a server or at build
+time. The pure half therefore has its own entry, `./core` (`src/core.ts`),
+with no directive and no runtime React import.
+
+The constraint that shaped the build: **each pure function exists in exactly
+one file of `dist`.** Two copies (one in the client bundle, one in core)
+would work until something compared identities or held module state, and
+would double the bytes. The mechanism is a **hinge**:
+
+```
+src/core.ts ─── plain tsup config (no banner) ───► dist/core.js ─┐
+src/kit/server.tsx ── same config ──► dist/kit/server.js ─────────┼─► dist/chunk-*.js
+                                                                  │   (the pure code, once)
+src/index.ts, experimental.ts, kit/index.ts                       │
+  ── client config ("use client" banner + coreHinge plugin) ──►   │
+     dist/index.js, experimental.js, kit.js, chunk-*.js ── import "./core.js" at runtime
+```
+
+- **Client sources import pure code only through `./core` (or `../core`).**
+  The `coreHinge` esbuild plugin in `tsup.config.ts` resolves exactly that
+  specifier to an external `./core.js`, so the client bundles and their
+  shared chunk import the one copy at runtime. An import of `./simulation`
+  from a client module would bundle a second copy; `core-boundary.test.ts`
+  bans it for every `"use client"` source, and its dist case checks that one
+  file contains `function runSimulation(` and that it has no banner.
+- Every client entry and chunk sits at the `dist/` root, so `./core.js` is
+  the right relative path for all of them. The adapters emit to
+  `dist/adapters/` and would get a wrong path, but they only `import type`,
+  so they never reach core at runtime.
+- `./kit/server` is built by the plain config next to core, so esbuild's
+  splitting puts the pure code in one chunk both import. It imports the
+  client components by the package's own name (`@sphynxoid/stepwise`,
+  `@sphynxoid/stepwise/kit`), which that config keeps external: resolved, it
+  would bundle client code into a file with no `"use client"`. (In this
+  repo, `tsconfig` paths and vitest aliases point those names at `src`.)
+- **Types are copied, not hinged.** tsup's declaration build ignores esbuild
+  plugins, so the client `.d.ts` files inline their own copies of the
+  schema and pure types instead of referencing `core.d.ts`. A
+  `StepwiseStep` from the root and one from `./core` are compatible only
+  structurally. That is why `core-boundary.test.ts` also bans `class` and
+  `unique symbol` in core's files: either would make the two declaration
+  copies nominally incompatible.
+- Both configs write into `dist/` in one `tsup` run, so neither may use
+  `clean: true`; the `clean` script wipes `dist` before tsup.
+
+## The authoring kit (`kit/*`, experimental)
+
+An author writes a **definition** (pure, `defineExplainer`) and a **view**
+(a component with no props); the kit supplies the rest.
+
+- **One provider, flat parts.** `Explainer` runs the definition through
+  `useSimulation` (or, without a definition, plays a recorded `trace` through
+  `useTrace`) and puts an `ExplainerApi` in context: `step`, `input`,
+  `setInput`, `editable`, `sim`, `predict`, `id`, `theme`. The parts
+  (`Stage`, `Narration`, `StepCode`, `ExplainerBar`, `EndNote`, `Predict`,
+  `PredictToggle`) read it and take no props beyond `className` and prose
+  children, so they compose the same from TSX and MDX. The view lives in a
+  second context: it is the author's component, not state, and `Stage`
+  renders it. Live and recorded are two components because hooks can't be
+  conditional.
+- **Input from props, once.** `resolveInput` gives `input` precedence, then
+  same-named fields of a plain-object default (anything not in the known
+  prop list is a candidate field). It runs in a `useState` initializer: a
+  page that re-renders with an equal but new literal must neither recompute
+  nor wipe the reader's edits.
+- **Predict mode lives in the provider**, because its checkpoints are a
+  `holdAt` option of the simulation it runs. The truth is the frame after the
+  held one; the guess and the evaluator reset on every new held frame and
+  when the trace changes while held (an input edit re-anchors onto the same
+  index, but the next frame may differ).
+- **The keyboard is shared.** One window-level key map per explainer, gated
+  by a module-level registry (`kit/registry.ts`): the explainer the reader
+  last pointed at or focused owns ArrowRight / ArrowLeft / Space, else the
+  first mounted. The same registry notices two linked explainers with the
+  same hash namespace and warns once.
+- **`precomputed` is a plain function component** (no hooks) in
+  `./kit/server`: it resolves the input like the client, runs `precompute`
+  (cached per definition, 8 inputs, keyed by the input's JSON, which is why
+  non-JSON inputs are rejected before the lookup) and forwards every prop
+  plus `trace`. On the client, `useSimulation`'s `initialTrace` plays that
+  trace while the input matches by content, so hydration does no
+  simulation work. The first frame is in the server HTML either way, since
+  client components are server-rendered too.
+
 ## The Tailwind contract
 
 The library ships class *names*, not CSS. The host's Tailwind build must scan
@@ -336,8 +428,9 @@ symptom (page works, library elements naked) does not point at the cause.
 
 ## SSR notes
 
-- Every module is `"use client"`; hooks no-op or defer `window` access behind
-  effects/mounted flags.
+- Every client module is `"use client"`; hooks no-op or defer `window`
+  access behind effects/mounted flags. `./core` and `./kit/server` are the
+  exceptions, by design (see "The core/client boundary").
 - `useLessonStream` seeds its window around the entry lesson, so SSR renders
   that window; its layout effects use an isomorphic wrapper (no server
   warning). Routing stays consumer-side: URL/title sync goes through
