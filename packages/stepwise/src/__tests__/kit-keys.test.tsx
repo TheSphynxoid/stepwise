@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { defineExplainer } from "../core";
 import type { Simulation } from "../core";
+import { StrictMode } from "react";
 import { Explainer, useExplainer } from "../kit";
 import { __resetRegistryForTests } from "../kit/registry";
 
@@ -31,6 +32,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   vi.restoreAllMocks();
   window.history.replaceState(null, "", window.location.pathname);
 });
@@ -44,9 +46,18 @@ describe("explainer keyboard routing", () => {
     press("ArrowLeft");
     expect(frame("solo")).toBe("1");
     // Space toggles playback: it starts the run (and must not scroll the page).
+    vi.useFakeTimers();
     const ev = new KeyboardEvent("keydown", { key: " ", cancelable: true, bubbles: true });
     act(() => void window.dispatchEvent(ev));
     expect(ev.defaultPrevented).toBe(true);
+    act(() => void vi.advanceTimersByTime(5000));
+    expect(Number(frame("solo"))).toBeGreaterThan(1);
+    // A second press stops it: time passing no longer moves the frame.
+    press(" ");
+    const stopped = frame("solo");
+    act(() => void vi.advanceTimersByTime(5000));
+    expect(frame("solo")).toBe(stopped);
+    vi.useRealTimers();
   });
 
   it("with two, keys go to the first until the second is interacted with", () => {
@@ -104,6 +115,38 @@ describe("explainer keyboard routing", () => {
     press("ArrowRight");
     expect(frame("a")).toBe("1");
     expect(frame("b")).toBe("0");
+  });
+
+  it("space is ignored by an explainer that is not active", () => {
+    vi.useFakeTimers();
+    render(
+      <>
+        <Explainer definition={count} view={View} id="a" />
+        <Explainer definition={count} view={View} id="b" />
+      </>
+    );
+    press(" ");
+    act(() => void vi.advanceTimersByTime(5000));
+    expect(Number(frame("a"))).toBeGreaterThan(0);
+    expect(frame("b")).toBe("0");
+    vi.useRealTimers();
+  });
+
+  it("under StrictMode, one explainer does not warn and two sharing a namespace warn once", () => {
+    const { unmount } = render(
+      <StrictMode>
+        <Explainer definition={count} view={View} />
+      </StrictMode>
+    );
+    expect(warn).not.toHaveBeenCalled();
+    unmount();
+    render(
+      <StrictMode>
+        <Explainer definition={count} view={View} />
+        <Explainer definition={count} view={View} />
+      </StrictMode>
+    );
+    expect(warn).toHaveBeenCalledTimes(1);
   });
 
   it("two explainers sharing a hash namespace warn once in dev", () => {
