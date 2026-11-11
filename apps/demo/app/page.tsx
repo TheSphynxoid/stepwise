@@ -2,6 +2,7 @@ import Link from "next/link";
 import { VERSION } from "./version";
 import {
   ArrowRight,
+  Blocks,
   BookMarked,
   BookOpen,
   Columns2,
@@ -46,6 +47,13 @@ const DEMOS: {
     title: "Live simulation",
     desc: "Edit the input while it plays: the trace is recomputed and the playhead stays on the same step. Predict mode pauses at checkpoints and grades your guess.",
     tag: "useSimulation + useEvaluator",
+  },
+  {
+    href: "/kit",
+    icon: Blocks,
+    title: "Explainer kit (experimental)",
+    desc: "A definition and a view become one component. The server renders the first frame; two on one page keep their own links and keys; predict mode asks your question.",
+    tag: "defineExplainer + createExplainer + precomputed",
   },
   {
     href: "/live",

@@ -5,7 +5,7 @@ import { expect, test, type Page } from "@playwright/test";
 // for the library's classes (wrong @source path), which leaves every
 // library-rendered element unstyled while the host page looks fine.
 
-const ROUTES = ["/", "/simulate", "/live", "/automaton", "/player", "/compare", "/lesson", "/tour", "/discovery", "/glossary", "/scroll", "/minimal", "/docs"];
+const ROUTES = ["/", "/simulate", "/kit", "/live", "/automaton", "/player", "/compare", "/lesson", "/tour", "/discovery", "/glossary", "/scroll", "/minimal", "/docs"];
 
 function collectErrors(page: Page): string[] {
   const errors: string[] = [];
@@ -159,6 +159,73 @@ test("simulate: predict mode holds at a checkpoint and grades the guess", async 
   await expect(checkpoint).toContainText("Right");
   await checkpoint.getByRole("button", { name: "Continue" }).click();
   await expect(page.getByTestId("sim-label")).not.toHaveText("compare a[0]=5 with a[1]=2");
+});
+
+test("/kit: the first frame is in the server HTML", async ({ browser, baseURL }) => {
+  // No JavaScript: whatever shows is what the server rendered from the
+  // precomputed trace, not a client-side run.
+  const context = await browser.newContext({ javaScriptEnabled: false, baseURL });
+  try {
+    const page = await context.newPage();
+    const res = await page.goto("/kit");
+    expect(res?.ok()).toBe(true);
+    const first = page.locator('[data-explainer="a"]');
+    await expect(first.locator("p[aria-live]").first()).toHaveText("start: lo=0, hi=6, the range covers everything");
+    await expect(first.getByRole("img", { name: /^Array 3, 9, 14, 25, 34, 47, 61/ })).toBeVisible();
+  } finally {
+    await context.close();
+  }
+});
+
+test("/kit: two explainers keep separate links and keys", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/kit");
+  const a = page.locator('[data-explainer="a"]');
+  const b = page.locator('[data-explainer="b"]');
+  const narrationA = a.locator("p[aria-live]").first();
+  const narrationB = b.locator("p[aria-live]").first();
+  const sliderB = b.getByRole("slider", { name: "Frames" });
+
+  // Stepping the second writes only its own key into the hash.
+  await b.getByRole("button", { name: "Next step" }).click();
+  await expect(narrationB).toHaveText("compare a[3]=25 with target 61");
+  await expect(page).toHaveURL(/b\.frame=/);
+  expect(page.url()).not.toContain("a.frame=");
+  await expect(narrationA).toHaveText("start: lo=0, hi=6, the range covers everything");
+
+  // A click claims the keyboard: ArrowRight then moves the first, not the second.
+  const bFrame = await sliderB.getAttribute("aria-valuenow");
+  await narrationA.click();
+  await page.keyboard.press("ArrowRight");
+  await expect(narrationA).toHaveText("compare a[3]=25 with target 34");
+  await expect(narrationB).toHaveText("compare a[3]=25 with target 61");
+  await expect(sliderB).toHaveAttribute("aria-valuenow", bFrame!);
+  await expect(page).toHaveURL(/a\.frame=/);
+});
+
+test("/kit: predict loop", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/kit");
+  const b = page.locator('[data-explainer="b"]');
+  const predictSwitch = b.getByRole("switch", { name: /Predict mode/ });
+  // The `predict` prop starts it on; the reader can still turn it off.
+  await expect(predictSwitch).toHaveAttribute("aria-checked", "true");
+  await b.getByRole("button", { name: "Play", exact: true }).click();
+
+  // Target 61 in 3 9 14 25 34 47 61: the first probe is a[3]=25, so the search goes right.
+  const narration = b.locator("p[aria-live]").first();
+  const question = b.getByRole("radiogroup", { name: "Your prediction" });
+  await expect(question).toBeVisible({ timeout: 5000 });
+  await expect(narration).toHaveText("compare a[3]=25 with target 61");
+  await expect(b).toContainText("Will the search go left, right, or stop?");
+  await question.getByRole("radio", { name: "Left" }).click();
+  await b.getByRole("button", { name: "Check" }).click();
+  await expect(b).toContainText("Not quite");
+  await question.getByRole("radio", { name: "Right" }).click();
+  await b.getByRole("button", { name: "Check" }).click();
+  await expect(b).toContainText("Right:");
+  await b.getByRole("button", { name: "Continue" }).click();
+  await expect(narration).not.toHaveText("compare a[3]=25 with target 61");
 });
 
 test("live: follows the edge, a reader who scrubs back stays put, Go live returns", async ({ page }) => {

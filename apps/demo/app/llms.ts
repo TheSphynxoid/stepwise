@@ -25,6 +25,7 @@ export function llmsIndex(): string {
 ## Examples
 
 - [Live simulation](${SITE}/simulate): useSimulation, syncInput links, predict mode
+- [Explainer kit](${SITE}/kit): experimental defineExplainer + createExplainer + precomputed: a definition and a view become one component, its first frame rendered on the server; two on one page with separate links and keys, predict mode
 - [Live edge](${SITE}/live): a growing timeline with follow and Go live
 - [Automaton](${SITE}/automaton): experimental branching walks (useWalk, fromGraph): a DFA run and drawn from one declaration, and a walk that branches on the reader's answers
 - [Composed lesson](${SITE}/lesson): scroll chapters + embedded player + tour + glossary
