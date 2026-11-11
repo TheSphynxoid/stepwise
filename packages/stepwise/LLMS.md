@@ -116,8 +116,9 @@ export function Explorer() {
   On a server, import it from `@sphynxoid/stepwise/core`.
 - `initialTrace` (0.6+) takes a trace computed ahead of time (`precompute`,
   section 9): while the input (by content) and the seed match it, the hook
-  plays it without running the simulation. An input change recomputes as
-  usual.
+  plays it without running the simulation. It matches on input and seed
+  only, not on the simulation's identity or `maxSteps`. An input change
+  recomputes as usual.
 
 ## 3. Shareable links (input + frame in the URL)
 
@@ -242,7 +243,11 @@ const asking = walk.choicePoints.includes(walk.frame);
 ## 9. Authoring kit (experimental)
 
 An explainer from a definition, a view and one tag, usable from TSX and MDX.
-Three files, each on its own side of the server/client line:
+Three small files beside the simulation, each on its own side of the
+server/client line: the definition (`<name>.explainer.ts`), the client view
+(`<name>-player.tsx`) and the wrapper the page imports (`<name>.tsx`). Keep
+`.server.` out of the names: Remix and React Router treat `*.server.*` files
+as server-only modules.
 
 ```ts
 // sorting.explainer.ts: the definition. A plain module (no "use client"),
@@ -289,7 +294,7 @@ export const sorting = defineExplainer({
 ```
 
 ```tsx
-// sorting.tsx: the client binding. The view takes no props.
+// sorting-player.tsx: the client binding. The view takes no props.
 "use client";
 import { createExplainer, useExplainer } from "@sphynxoid/stepwise/kit";
 import { sorting, type Frame, type SortInput } from "./sorting.explainer";
@@ -308,10 +313,10 @@ export const SortingClient = createExplainer({ definition: sorting, view: Bars }
 ```
 
 ```tsx
-// sorting-server.tsx: the server wrapper. No "use client".
+// sorting.tsx: the wrapper the page imports. No "use client".
 import { precomputed } from "@sphynxoid/stepwise/kit/server";
 import { sorting } from "./sorting.explainer";
-import { SortingClient } from "./sorting";
+import { SortingClient } from "./sorting-player";
 
 export const Sorting = precomputed(sorting, SortingClient);
 ```
@@ -319,7 +324,7 @@ export const Sorting = precomputed(sorting, SortingClient);
 Then, in a server component or an MDX file:
 
 ```mdx
-import { Sorting } from "@/components/sorting-server";
+import { Sorting } from "@/components/sorting";
 
 <Sorting id="intro" />
 
@@ -352,21 +357,24 @@ export function useMDXComponents(components: MDXComponents): MDXComponents {
 explainers are not in it: import them in the MDX file or add them to the map.
 In TSX, import the parts from `@sphynxoid/stepwise/kit`.
 
-**What `precomputed` buys, exactly.** In a server-rendering host (Next.js),
-a client component is server-rendered anyway, so the first frame is in the
-HTML with or without `precomputed`. What it adds: the client starts from the
-passed trace and does not re-run the simulation on hydration (it re-runs on
-the first input edit), and a simulation that throws, hits `maxSteps` or
-yields non-JSON data fails the build instead of the page. For a run the
-reader never edits, a recorded-only explainer ships no simulation code to the
-client:
+**What `precomputed` buys, exactly.** In a server-rendering host, a client
+component is server-rendered anyway, so the first frame is in the HTML with
+or without `precomputed`. What it adds everywhere: a simulation that throws,
+hits `maxSteps` or yields non-JSON data fails the build instead of the page.
+Whether hydration skips the run depends on the host. In an RSC host (the
+Next.js App Router) the wrapper runs only on the server: the client starts
+from the passed trace and does not re-run the simulation on hydration (it
+re-runs on the first input edit). In a non-RSC SSR host (Docusaurus, the
+Next.js Pages Router, Remix) the wrapper itself runs again in the browser, so
+the simulation runs once there too. For a run the reader never edits, a
+recorded-only explainer ships no simulation code to the client, in any host:
 
 ```tsx
 // sorting-replay.tsx: no definition, so no simulation in this bundle
 "use client";
 import { createExplainer } from "@sphynxoid/stepwise/kit";
 import type { Frame, SortInput } from "./sorting.explainer";
-import { Bars } from "./bars"; // the view from sorting.tsx, in a file that doesn't import the definition
+import { Bars } from "./bars"; // the view from sorting-player.tsx, in a file that doesn't import the definition
 
 export const SortingReplay = createExplainer<SortInput, Frame>({ view: Bars });
 ```
@@ -420,16 +428,16 @@ Behaviour worth knowing:
   Cyclic values report kind `cycle`. An
   `undefined` object field is fine (JSON drops it).
 - Keyboard: ArrowRight, ArrowLeft and Space go to the explainer the reader
-  last clicked or focused; before any, to the first one mounted. An explainer
-  with `keys={false}` takes no part: clicking it leaves the keys where they
-  were, and it is skipped as "first mounted".
+  last clicked or focused. Until the reader clicks or focuses one, none takes
+  the keys (Space scrolls the page), and the same after the active one
+  unmounts. An explainer with `keys={false}` takes no part: clicking it
+  leaves the keys where they were.
 - Before playback starts, frame 0 is already on screen, so the first Next
   (or ArrowRight) shows frame 1.
 - Predict mode holds **autoplay** only, at frames where `at` is true; manual
   steps and seeks are never blocked. The answer is graded against the frame
-  after the held one (`truth(next, held)`), so a checkpoint on the last frame
-  (where `next` is undefined) can never be answered correctly: make sure `at`
-  doesn't match it. The `hint` is appended to `feedback` after two failed
+  after the held one (`truth(next, held)`), so a checkpoint on a frame with no
+  successor is skipped: playback doesn't hold there. The `hint` is appended to `feedback` after two failed
   attempts (there is no separate hint field). The guess, the verdict and the
   attempts reset at each new held frame, and when the trace changes while
   held.
@@ -438,10 +446,16 @@ Behaviour worth knowing:
   (the note, the question, the switch's label; defaults "End of the run.
   Play to replay.", "What happens next?", "Predict mode").
 - Custom parts read the provider: `useExplainer<Input, Step>()` returns
-  `{ step, input, setInput, editable, sim, predict, id, theme }`. `step` is
-  frame 0 before playback; `sim` is the `useSimulation` result (`sim.player`
-  for your own controls); `setInput` is a no-op with a development warning on
-  a recorded-only explainer.
+  `{ step, input, setInput, editable, error, truncated, sim, predict, id, theme }`.
+  `step` is frame 0 before playback; `sim` is the player with `steps`: the
+  `useSimulation` result for a live explainer, the `useTrace` result plus
+  `steps` for a recorded one (`sim.player` for your own controls either way);
+  `setInput` is a no-op with a development warning on a recorded-only
+  explainer.
+- `error` is what the simulation threw (the trace keeps the steps before it)
+  and `truncated` is true when `maxSteps` cut the run; both are `null` /
+  `false` for a recorded explainer. Development builds also log a throwing
+  simulation once: `[stepwise] sorting: the simulation threw: <message>`.
 - Pass `theme` as a module constant (or memoize it): an object literal
   created per render re-renders every part.
 - The kit's components need styling like the rest (`styles.css` or the

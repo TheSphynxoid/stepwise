@@ -101,23 +101,32 @@ export const GLOSSARY: GlossaryEntry[] = [
 ];
 ```
 
-**5. The explainer: three small files.** MDX can't call functions, so the
-binding happens in `.ts(x)` files and the article only renders a tag.
+**5. The explainer: three small files beside the simulation.** MDX can't
+call functions, so the binding happens in `.ts(x)` files and the article only
+renders a tag. Next to the simulation (`lib/binary-search.ts`, a generator
+that yields keyed steps) go the definition, the client view and the wrapper.
+[`examples/next-mdx`](../examples/next-mdx) is this recipe, complete.
 
 The definition is a plain module (no `"use client"`), so the server can run it
 and the client can re-run it when the reader edits the input. Import from
 `/core` here: the root entry is a client module.
 
 ```ts
-// components/binary-search.explainer.ts
-import { defineExplainer, type Simulation, type StepwiseStep } from "@sphynxoid/stepwise/core";
+// lib/binary-search.ts: the simulation
+import type { Simulation, StepwiseStep } from "@sphynxoid/stepwise/core";
 
 export type SearchInput = { arr: number[]; target: number };
 export type SearchStep = StepwiseStep<{ kind: "start" | "compare" | "left" | "right" | "found" | "missing"; arr: number[]; lo: number; hi: number; mid: number }>;
 
-const search: Simulation<SearchInput, SearchStep> = function* ({ arr, target }) { /* yield keyed steps */ };
+export const search: Simulation<SearchInput, SearchStep> = function* ({ arr, target }) { /* yield keyed steps */ };
+```
 
-export const binarySearch = defineExplainer({
+```ts
+// lib/binary-search.explainer.ts: the definition
+import { defineExplainer } from "@sphynxoid/stepwise/core";
+import { search, type SearchInput, type SearchStep } from "./binary-search";
+
+export const binarySearch = defineExplainer<SearchInput, SearchStep>({
   name: "binary-search",
   simulation: search,
   input: {
@@ -129,9 +138,14 @@ export const binarySearch = defineExplainer({
     },
   },
   predict: {
-    at: (step) => step.kind === "compare",           // never the last frame
-    options: ["left", "right", "found"],             // every possible next frame
+    at: (step) => step.kind === "compare",           // a match with no next frame is skipped
+    options: [                                       // every possible next frame
+      { value: "left", label: "Left" },
+      { value: "right", label: "Right" },
+      { value: "found", label: "Found here" },
+    ],
     truth: (next) => next?.kind,                     // graded against the frame after
+    feedback: (guess, truth) => (guess === truth ? "Right." : `Not quite: it went ${truth}.`),
     hint: "Compare the highlighted probe with the target.",
   },
 });
@@ -141,10 +155,11 @@ The view is a client component that takes no props and reads the frame from
 `useExplainer()`; `createExplainer` binds it to the definition:
 
 ```tsx
-// components/binary-search.tsx
+// components/binary-search-player.tsx: the client view and its binding
 "use client";
 import { createExplainer, useExplainer } from "@sphynxoid/stepwise/kit";
-import { binarySearch, type SearchInput, type SearchStep } from "./binary-search.explainer";
+import type { SearchInput, SearchStep } from "@/lib/binary-search";
+import { binarySearch } from "@/lib/binary-search.explainer";
 
 function SearchView() {
   const { step, input, setInput } = useExplainer<SearchInput, SearchStep>();
@@ -161,30 +176,36 @@ function SearchView() {
 export const BinarySearchClient = createExplainer({ definition: binarySearch, view: SearchView });
 ```
 
-The server wrapper (no `"use client"`) computes the trace where the page
-renders and hands it to the client as JSON:
+The wrapper is a plain module (no `"use client"`): it computes the trace
+where the page renders and hands it to the client as JSON. Keep `.server.`
+out of its name: Remix and React Router treat `*.server.*` files as
+server-only modules.
 
 ```tsx
-// components/binary-search.server.tsx
+// components/binary-search.tsx: the wrapper the article imports
 import { precomputed } from "@sphynxoid/stepwise/kit/server";
-import { binarySearch } from "./binary-search.explainer";
-import { BinarySearchClient } from "./binary-search";
+import { binarySearch } from "@/lib/binary-search.explainer";
+import { BinarySearchClient } from "./binary-search-player";
 
 export const BinarySearch = precomputed(binarySearch, BinarySearchClient);
 ```
 
 What that buys: the page is server-rendered either way, so the first frame
-is in the HTML with or without the wrapper. `precomputed` means the client
-doesn't re-run the search on hydration (it starts from the shipped trace),
-and a definition that throws, never terminates or yields non-JSON data fails
-`next build` instead of the reader's page. Without it, export
-`BinarySearchClient` and use that.
+is in the HTML with or without the wrapper. A definition that throws, never
+terminates or yields non-JSON data fails the build instead of the reader's
+page, and a recorded-only explainer (no definition on the client) ships no
+simulation code. Skipping the run on hydration depends on the host: in an
+RSC host (the Next.js App Router, as here) the wrapper runs only on the
+server, so the client starts from the shipped trace and doesn't re-run the
+search. In a non-RSC SSR host (Docusaurus, the Next.js Pages Router, Remix)
+the wrapper itself runs again in the browser, so the simulation runs once
+there too. Without the wrapper, export `BinarySearchClient` and use that.
 
 **6. Write the article.**
 
 ```mdx
 {/* app/page.mdx */}
-import { BinarySearch } from "@/components/binary-search.server";
+import { BinarySearch } from "@/components/binary-search";
 
 # How binary search finds a number
 
@@ -218,10 +239,13 @@ Now you drive. It pauses at every probe: where does the search go?
   `input`. The kit's `autoPlay` defaults to false.
 - **Children replace the default layout** (`Stage`, `Narration`, `Predict`,
   `StepCode`, `ExplainerBar`, `EndNote`), in any order, with prose in
-  `Predict` and `EndNote`.
+  `Predict` and `EndNote`, and `PredictToggle`'s children as its label.
 - **Keyboard**: ArrowRight, ArrowLeft and Space drive the explainer the
-  reader last clicked or focused. `keys={false}` opts one out entirely:
-  clicking it leaves the keys with the others.
+  reader last clicked or focused. Until the reader clicks or focuses one, no
+  explainer takes the keys, so Space still scrolls the page. `keys={false}`
+  opts one out entirely: clicking it leaves the keys with the others.
+- **Checkpoints**: a guess is graded against the frame after the held one,
+  so a checkpoint on a frame with no successor is skipped.
 
 The next recipe covers the same links without the kit, and the one after it
 the grading that predict mode does for you.

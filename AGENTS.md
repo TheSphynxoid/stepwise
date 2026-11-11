@@ -27,11 +27,11 @@ npm run build -w @sphynxoid/stepwise             # build library → packages/st
 npm run dev                                   # demo app (same as: npm run dev -w @stepwise/demo)
 
 # tests — run from the package directory, NOT the root
-cd packages/stepwise && npx vitest run        # 286 tests (14 useSteps, 32 player, 29 tour, 9 discoveries, 6 chapters, 4 flatten, 4 trace, 11 synced tracks, 9 lesson stream, 3 createTrace, 24 simulation/re-anchoring/checkpoints, 7 evaluators, 11 live edge, 8 syncInput + rebuilt-input warning, 4 barrels (root, core, kit, kit/server), 24 walks/graphs/diffs/experimental barrel, 6 core boundary, 16 explainer definitions/precompute, 6 initialTrace, 23 kit explainer, 15 kit predict, 12 kit keys/registry, 9 kit/server)
+cd packages/stepwise && npx vitest run        # 295 tests (14 useSteps, 32 player, 29 tour, 9 discoveries, 6 chapters, 4 flatten, 4 trace, 11 synced tracks, 9 lesson stream, 3 createTrace, 24 simulation/re-anchoring/checkpoints, 7 evaluators, 11 live edge, 9 syncInput + rebuilt-input warning, 4 barrels (root, core, kit, kit/server), 24 walks/graphs/diffs/experimental barrel, 7 core boundary, 16 explainer definitions/precompute, 7 initialTrace, 26 kit explainer, 17 kit predict, 13 kit keys/registry, 9 kit/server)
 
 # library typecheck, including the type-level tests (src/__tests__/kit-props.typecheck.tsx:
-# @ts-expect-error lines, which vitest does not check)
-cd packages/stepwise && npx tsc --noEmit -p .
+# @ts-expect-error lines, which vitest does not check); also run by prepublishOnly and CI
+cd packages/stepwise && npm run typecheck     # = tsc --noEmit -p .
 
 # demo lint (eslint flat config, no interactive prompt)
 cd apps/demo && npm run lint
@@ -264,7 +264,7 @@ What each page must keep showcasing (the feature matrix):
 | `/lesson`  | **Flagship composition**: `useChapters` + `ChapterNav` scroll lesson, embedded `useTrace` Dijkstra player (chapter → frame seek while paused), `useGuidedTour` intro whose steps target sections, glossary `Term`s + `GlossaryAppendix`, live three-cursor readout |
 | `/simulate`| `useSimulation` live trace (edit input mid-play, playhead keeps its step via `key`), seeded `createRng`, `#in=…&frame=…` exact replay links via `syncInput` (no hand-rolled linking), predict mode: `holdAt` checkpoints + manual `useEvaluator` |
 | `/automaton`| **Experimental** transitions: `fromGraph` divisible-by-3 DFA run over a typed word (`anchor: "index"`) and drawn from `dfa.graph`; "be the automaton" `useWalk` with choice points, wrong-answer detours, re-answer truncation, `syncChoices` links |
-| `/kit`     | **Experimental** authoring kit: one `defineExplainer` (in `binary-search.explainer.ts`, imported from `./core`) + one view via `createExplainer`, wrapped by `precomputed` in the server `page.tsx`; two explainers with ids `a` / `b` (separate `a.frame` / `b.in` links, keyboard goes to the last touched), the second with a custom child layout, a field prop (`target={61}`) and `predict`. Shows both `demo.tsx` and `page.tsx` source |
+| `/kit`     | **Experimental** authoring kit: one `defineExplainer` (in `binary-search.explainer.ts`, imported from `./core`) + one view via `createExplainer`, wrapped by `precomputed` in the server `page.tsx`; two explainers with ids `a` / `b` (separate `a.frame` / `b.in` links, keyboard goes to the last clicked or focused, none before that), the second with a custom child layout, a field prop (`target={61}`) and `predict`. Shows both `demo.tsx` and `page.tsx` source |
 | `/live`    | `useTrace({ follow })` over a growing event stream, `PlayerBar live` badge, scrub back stays put, Go live (L) returns, burst to show catch-up |
 | `/player`  | `useTrace` autoPlay, `PlayerBar`, `useGlobalKeys`, `CodeBlock`, tones, `ended` completion banner |
 | `/compare` | `useSyncedTracks` (bubble vs insertion sort under one player), hold vs align-by-pass toggle, traces built with `createTrace` |
@@ -300,7 +300,8 @@ the library's theming story:
 ## Verification playbook
 
 1. Library: `npm run build -w @sphynxoid/stepwise` → "ESM ⚡ Build success" +
-   "DTS ⚡ Build success". Tests from `packages/stepwise`.
+   "DTS ⚡ Build success". Tests from `packages/stepwise`, then
+   `npm run typecheck` there (exit 0; the type-level tests live in it).
 2. Demo: `cd apps/demo && npm run build` → "21/21 static pages" (14 routes + OG image + `/llms.txt` + `/llms-full.txt`).
    Then `PW_CHANNEL=msedge npx playwright test` (31 smoke tests: every route
    without console errors, the /eviction redirect, tour card placement - the
@@ -325,8 +326,8 @@ the library's theming story:
    fakes "the fix didn't work".
 
 CI (`.github/workflows/ci.yml`) runs the same sequence on every push/PR:
-install → build library → test library → lint demo → build demo →
-Playwright Chromium smoke tests (report uploaded on failure).
+install → build library → test library → typecheck library → lint demo →
+build demo → Playwright Chromium smoke tests (report uploaded on failure).
 
 ## Releasing (npm)
 

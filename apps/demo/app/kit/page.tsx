@@ -39,8 +39,9 @@ export default function Page() {
             <code className="text-primary">createExplainer</code> binds them into a component;{" "}
             <code className="text-primary">precomputed</code> runs the definition on the server and ships the finished
             trace, so the browser starts from it instead of running the search again. Each explainer has its own <code className="text-primary">id</code>,
-            so its frame and input live under their own keys in the URL, and the arrow keys drive whichever one you
-            touched last. Change the target and the search re-runs on the client.
+            so its frame and input live under their own keys in the URL, and the arrow keys and Space drive whichever
+            one you last clicked or focused (until then, none of them takes the keys). Change the target and the
+            search re-runs on the client.
           </p>
 
           <h2 className="text-[15px] font-semibold mb-3">The default layout</h2>

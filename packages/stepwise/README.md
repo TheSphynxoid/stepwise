@@ -195,14 +195,14 @@ export const sorting = defineExplainer({
   predict: { at: (s) => s.kind === "compare", options: ["swap", "keep"], truth: (next) => next?.kind },
 });
 
-// sorting.tsx — "use client": the view reads the frame; createExplainer does the rest
+// sorting-player.tsx — "use client": the view reads the frame; createExplainer does the rest
 function Bars() {
   const { step } = useExplainer<SortInput, Frame>();
   return step ? <BarsFor values={step.arr} /> : null;
 }
 export const SortingClient = createExplainer({ definition: sorting, view: Bars });
 
-// sorting.server.tsx — no "use client": compute the trace where the page renders
+// sorting.tsx — no "use client" (and no `.server.` in the name): the wrapper the page imports
 export const Sorting = precomputed(sorting, SortingClient);
 ```
 
@@ -211,7 +211,7 @@ export const Sorting = precomputed(sorting, SortingClient);
 <Sorting id="quiz" arr={[3, 1, 2]} predict />
 ```
 
-The default layout is the view, the narration, the predict question, the step's code, a `PlayerBar` and an end note; children replace it with any arrangement of the same parts (`Stage`, `Narration`, `Predict`, `PredictToggle`, `StepCode`, `ExplainerBar`, `EndNote`). Spread `stepwiseComponents` (from `/kit/server`) into `mdx-components.tsx` to use them from MDX. Each explainer keeps its frame and input in the URL under its `id`, and the arrow keys drive the one the reader touched last. Field props such as `arr` are typed from the default input; a field named like one of the explainer's own props (`id`, `theme`, ...) is set through `input={...}`. `precomputed` doesn't put the first frame in the HTML (a client component is server-rendered anyway); it saves the re-run on hydration and makes a broken definition fail the build. Walkthrough: [RECIPES.md](https://github.com/TheSphynxoid/stepwise/blob/master/docs/RECIPES.md#an-interactive-article-in-nextjs--mdx); full API: [LLMS.md section 9](https://github.com/TheSphynxoid/stepwise/blob/master/packages/stepwise/LLMS.md) and the [reference](https://stepwise.thesphynx.net/docs#createExplainer).
+The default layout is the view, the narration, the predict question, the step's code, a `PlayerBar` and an end note; children replace it with any arrangement of the same parts (`Stage`, `Narration`, `Predict`, `PredictToggle`, `StepCode`, `ExplainerBar`, `EndNote`). Spread `stepwiseComponents` (from `/kit/server`) into `mdx-components.tsx` to use them from MDX. Each explainer keeps its frame and input in the URL under its `id`, and the arrow keys and Space drive the one the reader last clicked or focused (none until then, so Space still scrolls the page). Field props such as `arr` are typed from the default input; a field named like one of the explainer's own props (`id`, `theme`, ...) is set through `input={...}`. `precomputed` doesn't put the first frame in the HTML (a client component is server-rendered anyway); it makes a broken definition fail the build, and in an RSC host (the Next.js App Router) it saves the re-run on hydration. In a non-RSC SSR host (Docusaurus, the Next.js Pages Router, Remix) the wrapper runs again in the browser, so the simulation runs there once too. `useExplainer()` also reports `error` and `truncated`, and a checkpoint on a frame with no successor is skipped. Walkthrough: [RECIPES.md](https://github.com/TheSphynxoid/stepwise/blob/master/docs/RECIPES.md#an-interactive-article-in-nextjs--mdx); full API: [LLMS.md section 9](https://github.com/TheSphynxoid/stepwise/blob/master/packages/stepwise/LLMS.md) and the [reference](https://stepwise.thesphynx.net/docs#createExplainer).
 
 ## The three scales
 

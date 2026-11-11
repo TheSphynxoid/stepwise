@@ -211,7 +211,7 @@ export const API: ApiGroup[] = [
               { name: "seed", type: "number | string", def: "0", desc: "Seed for ctx.rng. Same simulation + input + seed = same trace." },
               { name: "maxSteps", type: "number", def: "10000", desc: "Stop collecting after this many steps and report truncated." },
               { name: "syncInput", type: "SyncInputOptions<Input>", desc: "Keep the input in the URL next to the frame, so a link replays the exact run (see below). Since 0.4." },
-              { name: "initialTrace", type: "PrecomputedTrace<Input, S>", desc: "A trace computed ahead of time (precompute). While the input (compared by content) and the seed match it, its steps are played without running the simulation; once the input changes the trace is recomputed as usual. Since 0.6." },
+              { name: "initialTrace", type: "PrecomputedTrace<Input, S>", desc: "A trace computed ahead of time (precompute). While the input (compared by content) and the seed match it, its steps are played without running the simulation; once the input changes the trace is recomputed as usual. It matches on input and seed only, not on the simulation's identity or maxSteps. Since 0.6." },
             ],
           },
           {
@@ -936,7 +936,7 @@ export const API: ApiGroup[] = [
           {
             title: "ExplainerPredict<S>",
             rows: [
-              { name: "at", type: "(step: S, frame: number) => boolean", desc: "Hold autoplay here. Don't match the last frame: with no next frame the question can't be answered correctly." },
+              { name: "at", type: "(step: S, frame: number) => boolean", desc: "Hold autoplay here. A checkpoint on a frame with no successor is skipped: the guess is graded against the next frame, so there is nothing to grade." },
               { name: "options", type: "readonly (string | { value, label })[]", desc: "Answer options. A bare string gets a capitalized label (\"left\" shows \"Left\")." },
               { name: "truth", type: "(next: S | undefined, held: S) => string | undefined", desc: "The correct option value, judged from the frame after the held one." },
               { name: "feedback", type: "(guess, truth, held) => string | undefined", desc: "Custom message for a graded guess; the defaults are \"Right.\" and \"Not quite.\"." },
@@ -989,7 +989,7 @@ export const API: ApiGroup[] = [
               { name: "link", type: "boolean", def: "true", desc: "Keep the frame in the URL hash, and the input when the definition has serialize and parse." },
               { name: "autoPlay", type: "boolean", def: "false", desc: "Start playing on mount (reduced motion keeps it paused)." },
               { name: "predict", type: "boolean", def: "false", desc: "Start in predict mode. Read once; the reader owns it after (PredictToggle)." },
-              { name: "keys", type: "boolean", def: "true", desc: "ArrowRight / ArrowLeft / Space, routed to the explainer the reader last clicked or focused (the first mounted before that). With keys={false} the explainer takes no part in routing: touching it leaves the keys with the others." },
+              { name: "keys", type: "boolean", def: "true", desc: "ArrowRight / ArrowLeft / Space, routed to the explainer the reader last clicked or focused. Until the reader clicks or focuses one (and after the active one unmounts), no explainer takes the keys, so Space scrolls the page. With keys={false} the explainer takes no part in routing: touching it leaves the keys with the others." },
               THEME_ROW,
               CLASS_ROW,
               { name: "children", type: "ReactNode", desc: "Replaces the default layout with your own arrangement of parts." },
@@ -1012,7 +1012,9 @@ export const API: ApiGroup[] = [
               { name: "input", type: "Input", desc: "The current input." },
               { name: "setInput", type: "(next: Input | ((prev: Input) => Input)) => void", desc: "Stable. Re-runs the definition; keyed steps keep the playhead in place. A no-op with a development warning on a recorded-only explainer." },
               { name: "editable", type: "boolean", desc: "There is a definition to re-run." },
-              { name: "sim", type: "TracePlayer<S> & { steps }", desc: "The player and the trace (sim.player for your own controls)." },
+              { name: "error", type: "unknown", desc: "What the simulation threw (the trace keeps the steps before it); null when it ran clean, and for a recorded explainer. Development builds log it once: [stepwise] <name>: the simulation threw: <message>." },
+              { name: "truncated", type: "boolean", desc: "maxSteps cut the run short. Always false for a recorded explainer." },
+              { name: "sim", type: "TracePlayer<S> & { steps }", desc: "The player and the trace (sim.player for your own controls): the useSimulation result for a live explainer, the useTrace result plus steps for a recorded one." },
               { name: "predict", type: "PredictApi | null", desc: "Predict mode's state; null without a predict block." },
               { name: "id / theme", type: "string | undefined / StepwiseTheme", desc: "As passed (theme defaults to defaultTheme)." },
             ],
@@ -1047,7 +1049,7 @@ export const API: ApiGroup[] = [
         name: "precomputed",
         signature: "precomputed<Input, S>(definition: ExplainerDefinition<Input, S>, Client: ComponentType<ExplainerInstanceProps<Input, S>>): (props: Omit<ExplainerInstanceProps<Input, S>, \"trace\">) => ReactElement",
         summary:
-          "From @sphynxoid/stepwise/kit/server (no \"use client\"). Wraps a createExplainer component in a hook-free server component: it resolves the input from the props as the client would, runs precompute (cached per definition, up to 8 inputs), and renders Client with every prop plus trace. A client component is server-rendered anyway, so the first frame is in the HTML either way; what this adds is no simulation re-run on hydration, and a build-time failure for a non-JSON input or a simulation that throws, hits the cap or yields non-JSON data. The wrapper's props are the client component's minus trace, field props typed from the input.",
+          "From @sphynxoid/stepwise/kit/server (no \"use client\"). Wraps a createExplainer component in a hook-free server component: it resolves the input from the props as the client would, runs precompute (cached per definition, up to 8 inputs), and renders Client with every prop plus trace. A client component is server-rendered anyway, so the first frame is in the HTML either way. What this adds in every host is a build-time failure for a non-JSON input or a simulation that throws, hits the cap or yields non-JSON data. In an RSC host (the Next.js App Router) the wrapper runs only on the server, so hydration does not re-run the simulation; in a non-RSC SSR host (Docusaurus, the Next.js Pages Router, Remix) the wrapper itself runs again in the browser, so the simulation runs once there too. Name the wrapper file without .server. (Remix and React Router treat *.server.* files as server-only). The wrapper's props are the client component's minus trace, field props typed from the input.",
         demo: "/kit",
         tables: [],
       },

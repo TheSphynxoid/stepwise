@@ -76,7 +76,7 @@ because it explains a rule the code already has to follow.
 | `reanchor.ts` | The pure re-anchoring rule (+ default `stepKey`) | Exported for custom players |
 | `core.ts` | The `./core` entry: re-exports every pure module and the schema | No `"use client"`, no React at runtime. The only way client modules reach pure code (see "The core/client boundary") |
 | `simulation.ts` | `createRng` (seeded mulberry32), `runSimulation` (pure, capped), the `Simulation` type | No React; safe at module scope. On a server, reached through `./core` |
-| `use-simulation.ts` | `useSimulation`: memoized `runSimulation` → `useTrace`; `initialTrace` | Recomputes on `simulation` / `input` / `seed` / `maxSteps` identity. With `initialTrace`, an input equal by content (JSON) and a matching seed return the precomputed steps instead of running |
+| `use-simulation.ts` | `useSimulation`: memoized `runSimulation` → `useTrace`; `initialTrace` | Recomputes on `simulation` / `input` / `seed` / `maxSteps` identity. With `initialTrace`, an input equal by content (JSON) and a matching seed return the precomputed steps instead of running. The match is on input and seed only, not on the simulation's identity or `maxSteps` |
 | `explainer.ts` | **Experimental.** `defineExplainer`, `precompute` (run to a JSON-checked trace), `resolveInput`, `normalizeOptions`, `assertJsonInput` | Pure; part of `./core` |
 | `kit/*` | **Experimental.** `./kit`: `Explainer` / `createExplainer` / `useExplainer`, the parts, predict mode, the keyboard registry. `./kit/server`: `precomputed`, `stepwiseComponents` | See "The authoring kit" below |
 | `use-run-links.ts` | Internal: a run's identity in the URL hash (input, choices) restored before the linked frame; shared by `useSimulation` and `useWalk` | See "linked inputs" below |
@@ -388,11 +388,14 @@ An author writes a **definition** (pure, `defineExplainer`) and a **view**
 - **One provider, flat parts.** `Explainer` runs the definition through
   `useSimulation` (or, without a definition, plays a recorded `trace` through
   `useTrace`) and puts an `ExplainerApi` in context: `step`, `input`,
-  `setInput`, `editable`, `sim`, `predict`, `id`, `theme`. The parts
+  `setInput`, `editable`, `error`, `truncated`, `sim`, `predict`, `id`,
+  `theme`. A throwing simulation is logged once in development (it would
+  otherwise only show as a short trace). The parts
   (`Stage`, `Narration`, `StepCode`, `ExplainerBar`, `EndNote`, `Predict`,
   `PredictToggle`) read it and take only serializable props (`Stage` none;
   the others a `className`; `EndNote`, `Predict` and `PredictToggle` prose
-  children), so they compose the same from TSX and MDX. The view lives in a
+  children, wrapped in a `div` because MDX turns multi-line children into
+  `<p>`), so they compose the same from TSX and MDX. The view lives in a
   second context: it is the author's component, not state, and `Stage`
   renders it. Live and recorded are two components because hooks can't be
   conditional.
@@ -407,15 +410,18 @@ An author writes a **definition** (pure, `defineExplainer`) and a **view**
   nor wipe the reader's edits.
 - **Predict mode lives in the provider**, because its checkpoints are a
   `holdAt` option of the simulation it runs. The truth is the frame after the
-  held one; the guess and the evaluator reset on every new held frame and
+  held one, so `holdAt` skips a checkpoint with no successor (there is
+  nothing to grade, and holding there would park the reader for good); the
+  guess and the evaluator reset on every new held frame and
   when the trace changes while held (an input edit re-anchors onto the same
   index, but the next frame may differ).
 - **The keyboard is shared.** One window-level key map per explainer, gated
   by a module-level registry (`kit/registry.ts`): the explainer the reader
-  last pointed at or focused owns ArrowRight / ArrowLeft / Space, else the
-  first mounted. An explainer with `keys={false}` is in the registry but out
-  of routing: touching it doesn't claim the keys and it is never "first
-  mounted", so it can't silence the others. The same registry notices two
+  last pointed at or focused owns ArrowRight / ArrowLeft / Space. Before any
+  interaction, and after the active one unmounts, none does: an explainer
+  the reader hasn't touched must not swallow Space, which scrolls the page.
+  An explainer with `keys={false}` is in the registry but out of routing:
+  touching it doesn't claim the keys, so it can't silence the others. The same registry notices two
   linked explainers with the same hash namespace (keys or not) and warns
   once.
 - **`precomputed` is a plain function component** (no hooks) in
@@ -423,9 +429,13 @@ An author writes a **definition** (pure, `defineExplainer`) and a **view**
   (cached per definition, 8 inputs, keyed by the input's JSON, which is why
   non-JSON inputs are rejected before the lookup) and forwards every prop
   plus `trace`. On the client, `useSimulation`'s `initialTrace` plays that
-  trace while the input matches by content, so hydration does no
-  simulation work. The first frame is in the server HTML either way, since
-  client components are server-rendered too.
+  trace while the input matches by content. In an RSC host (the Next.js App
+  Router) the wrapper runs only on the server, so hydration does no
+  simulation work. In a non-RSC SSR host (Docusaurus, the Next.js Pages
+  Router, Remix) the wrapper is an ordinary component that runs again in the
+  browser, so the simulation runs once there too; the build-time failure and
+  the recorded-only bundle saving hold in both. The first frame is in the
+  server HTML either way, since client components are server-rendered too.
 
 ## The Tailwind contract
 
