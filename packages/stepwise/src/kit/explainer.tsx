@@ -4,6 +4,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ComponentType,
@@ -11,15 +12,23 @@ import {
   type ReactNode,
 } from "react";
 import { cn } from "../cn";
-import { resolveInput } from "../core";
-import type { ExplainerDefinition, PrecomputedTrace } from "../core";
+import { fail, normalizeOptions, pass, resolveInput } from "../core";
+import type {
+  ExplainerDefinition,
+  ExplainerPredict,
+  PrecomputedTrace,
+  PredictOption,
+  VerdictStatus,
+} from "../core";
 import { defaultTheme, type StepwiseTheme } from "../theme";
+import { useEvaluator } from "../use-evaluator";
 import { useSimulation } from "../use-simulation";
 import type { SyncInputOptions } from "../use-simulation";
 import { useTrace } from "../use-trace";
 import type { TracePlayer } from "../use-trace";
 import type { StepwiseStep } from "../types";
 import { EndNote, ExplainerBar, Narration, Stage, StepCode } from "./parts";
+import { Predict } from "./predict";
 
 // The explainer kit: one provider around useSimulation (or useTrace, for a
 // recorded run) plus flat part components that read it from context. An
@@ -38,7 +47,7 @@ export interface ExplainerProps<Input, S extends StepwiseStep> {
   input?: Input;
   /** Hash namespace: `${id}.frame`, `${id}.in`. Needed for two explainers on one page. */
   id?: string;
-  /** Stop at the definition's checkpoints and ask the reader. */
+  /** Stop at the definition's checkpoints and ask the reader. Read once, at mount: it is predict mode's starting state. */
   predict?: boolean;
   /** Keyboard shortcuts. Default true. */
   keys?: boolean;
@@ -48,14 +57,31 @@ export interface ExplainerProps<Input, S extends StepwiseStep> {
   autoPlay?: boolean;
   theme?: StepwiseTheme;
   className?: string;
-  /** Replaces the default layout (Stage, Narration, StepCode, ExplainerBar, EndNote). */
+  /** Replaces the default layout (Stage, Narration, Predict, StepCode, ExplainerBar, EndNote). */
   children?: ReactNode;
 }
 
-/** Predict mode's state, exposed to custom parts. */
-// Filled in by predict mode; until then `ExplainerApi.predict` is always null.
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
-export interface PredictApi {}
+/** Predict mode's state, exposed to custom parts. Functions are stable. */
+export interface PredictApi {
+  /** Checkpoints hold autoplay only while enabled. */
+  enabled: boolean;
+  setEnabled: (on: boolean) => void;
+  /** Playback is parked on a checkpoint, waiting for a guess. */
+  held: boolean;
+  options: readonly PredictOption[];
+  /** The chosen option's value; cleared at every new checkpoint. */
+  guess: string | null;
+  setGuess: (value: string) => void;
+  /** Grade the guess against the frame after the held one. */
+  check: () => void;
+  /** null until checked (and after the guess changes). */
+  status: VerdictStatus | null;
+  /** The verdict's feedback, with the definition's hint after two failed attempts. */
+  feedback: ReactNode;
+  attempts: number;
+  /** Leave the checkpoint and resume playing. */
+  release: () => void;
+}
 
 export interface ExplainerApi<Input = unknown, S extends StepwiseStep = StepwiseStep> {
   sim: TracePlayer<S> & { steps: readonly S[] };
@@ -144,6 +170,9 @@ function LiveExplainer<Input, S extends StepwiseStep>(
   const { serialize, parse } = definition.input;
   const syncInput: SyncInputOptions<Input> | undefined =
     link && serialize && parse ? { key: hashKey(id, "in"), serialize, parse, onRestore: setInputState } : undefined;
+  // The `predict` prop is the starting state only; the reader owns it after.
+  const [predictOn, setPredictOn] = useState(() => Boolean(props.predict));
+  const predictDef = definition.predict;
   const sim = useSimulation(definition.simulation, input, {
     seed: definition.seed,
     maxSteps: definition.maxSteps,
@@ -151,10 +180,86 @@ function LiveExplainer<Input, S extends StepwiseStep>(
     autoPlay,
     syncHash: link ? hashKey(id, "frame") : undefined,
     syncInput,
+    holdAt: predictDef
+      ? (frame, step) => predictOn && step !== undefined && predictDef.at(step, frame)
+      : undefined,
   });
   // useState's setter is already stable; the wrapper only pins the type.
   const setInput = useCallback((next: Input | ((prev: Input) => Input)) => setInputState(next), []);
-  return <Shell {...props} sim={sim} input={input} setInput={setInput} editable />;
+  const predict = usePredict(predictDef, sim, predictOn, setPredictOn);
+  return <Shell {...props} sim={sim} input={input} setInput={setInput} editable predictApi={predict} />;
+}
+
+/**
+ * Predict mode over a live run: the guess, its verdict and the checkpoint
+ * controls. Always called (hooks can't be conditional); null without a
+ * predict block in the definition.
+ */
+function usePredict<S extends StepwiseStep>(
+  def: ExplainerPredict<S> | undefined,
+  sim: { steps: readonly S[]; player: TracePlayer<S>["player"] },
+  enabled: boolean,
+  setEnabled: (on: boolean) => void
+): PredictApi | null {
+  const { steps, player } = sim;
+  const heldFrame = player.held;
+  const { release } = player;
+  const [guess, setGuessState] = useState<string | null>(null);
+  const options = useMemo(() => (def ? normalizeOptions(def.options) : []), [def]);
+
+  // The truth is the frame after the held one: the trace already knows what
+  // happens next, so grading needs nothing from the author but `truth`.
+  const answer = useEvaluator(
+    (g: string | null) => {
+      if (g === null) return fail("Pick an answer first.");
+      const heldStep = heldFrame === null ? undefined : steps[heldFrame];
+      if (!def || heldStep === undefined) return fail("Not quite.");
+      const truth = def.truth(steps[heldFrame! + 1], heldStep);
+      const custom = truth === undefined ? undefined : def.feedback?.(g, truth, heldStep);
+      return g === truth ? pass(custom ?? "Right.") : fail(custom ?? "Not quite.");
+    },
+    guess,
+    { mode: "manual" }
+  );
+  const { check: checkAnswer, reset: resetAnswer, status: answerStatus, attempts } = answer;
+
+  // Every checkpoint is a fresh question: no carried-over guess or attempts.
+  useEffect(() => {
+    setGuessState(null);
+    resetAnswer();
+  }, [heldFrame, resetAnswer]);
+
+  // Turning predict off while parked on a checkpoint cancels the question.
+  useEffect(() => {
+    if (!enabled && heldFrame !== null) release();
+  }, [enabled, heldFrame, release]);
+
+  const setGuess = useCallback((value: string) => setGuessState(value), []);
+  const check = useCallback(() => void checkAnswer(), [checkAnswer]);
+
+  const status = answerStatus === "idle" ? null : answerStatus;
+  const hint = def?.hint;
+  const showHint = status === "fail" && attempts >= 2 && Boolean(hint);
+  const verdictFeedback = answer.feedback;
+  // Memoized: a fresh fragment per render would churn the api object.
+  const feedback = useMemo<ReactNode>(
+    () =>
+      showHint ? (
+        <>
+          {verdictFeedback} {hint}
+        </>
+      ) : (
+        verdictFeedback
+      ),
+    [showHint, verdictFeedback, hint]
+  );
+  const held = heldFrame !== null;
+
+  const api = useMemo<PredictApi>(
+    () => ({ enabled, setEnabled, held, options, guess, setGuess, check, status, feedback, attempts, release }),
+    [enabled, setEnabled, held, options, guess, setGuess, check, status, feedback, attempts, release]
+  );
+  return def ? api : null;
 }
 
 function RecordedExplainer<Input, S extends StepwiseStep>(
@@ -183,11 +288,13 @@ function Shell<Input, S extends StepwiseStep>({
   view,
   className,
   children,
-}: ExplainerProps<Input, S> & Omit<ExplainerApi<Input, S>, "step" | "predict" | "id" | "theme">) {
+  predictApi = null,
+}: ExplainerProps<Input, S> &
+  Omit<ExplainerApi<Input, S>, "step" | "predict" | "id" | "theme"> & { predictApi?: PredictApi | null }) {
   const step = sim.step;
   const api = useMemo<ExplainerApi<Input, S>>(
-    () => ({ sim, step, input, setInput, editable, predict: null, id, theme }),
-    [sim, step, input, setInput, editable, id, theme]
+    () => ({ sim, step, input, setInput, editable, predict: predictApi, id, theme }),
+    [sim, step, input, setInput, editable, predictApi, id, theme]
   );
   return (
     <ExplainerContext.Provider value={api as unknown as ExplainerApi<unknown, StepwiseStep>}>
@@ -197,6 +304,7 @@ function Shell<Input, S extends StepwiseStep>({
             <>
               <Stage />
               <Narration />
+              <Predict />
               <StepCode />
               <ExplainerBar />
               <EndNote />
