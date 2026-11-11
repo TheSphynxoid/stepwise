@@ -222,14 +222,38 @@ describe("Predict", () => {
   });
 
   it("manual next is never blocked", () => {
-    vi.useFakeTimers();
-    render(<Explainer definition={counting} view={View} link={false} predict />);
-    // Not started, the cursor already sits on frame 0: one step lands on the checkpoint.
-    act(() => api.sim.player.next());
-    expect(screen.getByTestId("i").textContent).toBe("1");
-    expect(api.sim.player.held).toBeNull();
+    renderPredict();
+    tick();
+    expect(api.sim.player.held).toBe(1);
     act(() => api.sim.player.next());
     expect(screen.getByTestId("i").textContent).toBe("2");
+    expect(api.sim.player.held).toBeNull();
+    expect(screen.queryByRole("radiogroup")).toBeNull();
+
+    // Replay to the checkpoint again; stepping back leaves it just as freely.
+    act(() => api.sim.player.start());
+    tick();
+    expect(api.sim.player.held).toBe(1);
+    act(() => api.sim.player.prev());
+    expect(screen.getByTestId("i").textContent).toBe("0");
+    expect(api.sim.player.held).toBeNull();
+    expect(screen.queryByRole("radiogroup")).toBeNull();
+  });
+
+  it("an input edit while held drops the stale verdict", () => {
+    renderPredict();
+    tick();
+    fireEvent.click(radio("Up"));
+    fireEvent.click(button("Check"));
+    expect(api.predict!.status).toBe("pass");
+    // On 2 frames, k1 keeps its index but has no next frame: the truth changed.
+    act(() => api.setInput(2));
+    expect(api.sim.steps).toHaveLength(2);
+    expect(api.sim.player.held).toBe(1);
+    expect(api.predict!.status).toBeNull();
+    expect(api.predict!.attempts).toBe(0);
+    expect(api.predict!.guess).toBeNull();
+    expect(feedback().textContent).toBe("");
   });
 
   it("Predict and PredictToggle render nothing without a predict definition", () => {

@@ -224,10 +224,13 @@ function usePredict<S extends StepwiseStep>(
   const { check: checkAnswer, reset: resetAnswer, status: answerStatus, attempts } = answer;
 
   // Every checkpoint is a fresh question: no carried-over guess or attempts.
+  // A new trace is too: an input edit while held re-anchors onto the same
+  // index (so `heldFrame` doesn't change), but the next frame, and with it
+  // the truth, may differ.
   useEffect(() => {
     setGuessState(null);
     resetAnswer();
-  }, [heldFrame, resetAnswer]);
+  }, [heldFrame, steps, resetAnswer]);
 
   // Turning predict off while parked on a checkpoint cancels the question.
   useEffect(() => {
