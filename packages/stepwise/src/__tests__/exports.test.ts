@@ -81,6 +81,7 @@ describe("./core", () => {
       "precompute",
       "resolveInput",
       "normalizeOptions",
+      "assertJsonInput",
     ];
     expect(expected.filter((name) => !(name in core))).toEqual([]);
   });

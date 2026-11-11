@@ -52,19 +52,30 @@ export function defineExplainer<Input, S extends StepwiseStep>(
   return Object.freeze(def);
 }
 
-/** The first non-JSON value under `value`, as a path and a kind; null when it is all JSON. */
-function findNonJson(value: unknown, path: string): { path: string; kind: string } | null {
+/**
+ * The first non-JSON value under `value`, as a path and a kind; null when it
+ * is all JSON. `ancestors` holds the objects on the current path: a value
+ * that contains itself is a cycle (JSON.stringify would throw), while the same
+ * object reached twice by different paths is fine (it is just copied).
+ */
+function findNonJson(value: unknown, path: string, ancestors = new Set<object>()): { path: string; kind: string } | null {
   if (value === null || typeof value === "boolean" || typeof value === "string") return null;
   if (typeof value === "number") return Number.isFinite(value) ? null : { path, kind: String(value) };
-  if (Array.isArray(value)) {
-    for (let i = 0; i < value.length; i++) {
-      // A hole or undefined inside an array becomes null in JSON, which is a silent change.
-      const bad = value[i] === undefined ? { path: `${path}[${i}]`, kind: "undefined" } : findNonJson(value[i], `${path}[${i}]`);
-      if (bad) return bad;
+  if (typeof value !== "object") return { path, kind: typeof value };
+  if (ancestors.has(value)) return { path, kind: "cycle" };
+  ancestors.add(value);
+  try {
+    if (Array.isArray(value)) {
+      for (let i = 0; i < value.length; i++) {
+        // A hole or undefined inside an array becomes null in JSON, which is a silent change.
+        const bad =
+          value[i] === undefined
+            ? { path: `${path}[${i}]`, kind: "undefined" }
+            : findNonJson(value[i], `${path}[${i}]`, ancestors);
+        if (bad) return bad;
+      }
+      return null;
     }
-    return null;
-  }
-  if (typeof value === "object") {
     const proto = Object.getPrototypeOf(value);
     if (proto !== Object.prototype && proto !== null) {
       const name = (proto as { constructor?: { name?: string } }).constructor?.name;
@@ -74,12 +85,26 @@ function findNonJson(value: unknown, path: string): { path: string; kind: string
       const child = (value as Record<string, unknown>)[key];
       // An undefined field is dropped by JSON.stringify, which round-trips to "absent": allowed.
       if (child === undefined) continue;
-      const bad = findNonJson(child, `${path}.${key}`);
+      const bad = findNonJson(child, `${path}.${key}`, ancestors);
       if (bad) return bad;
     }
     return null;
+  } finally {
+    ancestors.delete(value);
   }
-  return { path, kind: typeof value };
+}
+
+const precomputeLabel = (def: { name?: string }) => `[stepwise] precompute(${JSON.stringify(def.name ?? "explainer")})`;
+
+/**
+ * Throws precompute's labelled error when `input` would not survive JSON. A
+ * precomputed trace is plain JSON, input included, and anything keyed by the
+ * input's JSON (a trace cache, a link) would otherwise conflate inputs that
+ * stringify alike (NaN and null, a Map and {}).
+ */
+export function assertJsonInput(def: { name?: string }, input: unknown): void {
+  const bad = findNonJson(input, "input");
+  if (bad) throw new Error(`${precomputeLabel(def)}: ${bad.path} is not JSON-serializable (${bad.kind})`);
 }
 
 /**
@@ -92,8 +117,9 @@ export function precompute<Input, S extends StepwiseStep>(
   def: ExplainerDefinition<Input, S>,
   input?: Input
 ): PrecomputedTrace<Input, S> {
-  const label = `[stepwise] precompute(${JSON.stringify(def.name ?? "explainer")})`;
+  const label = precomputeLabel(def);
   const used = input === undefined ? def.input.default : input;
+  assertJsonInput(def, used);
   const run = runSimulation(def.simulation, used, { seed: def.seed, maxSteps: def.maxSteps });
   if (run.error !== null && run.error !== undefined) {
     const e = run.error;

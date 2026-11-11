@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from "vitest";
-import { isValidElement, type ReactElement } from "react";
+import { createElement, isValidElement, type ReactElement } from "react";
 import { defineExplainer } from "../core";
 import type { PrecomputedTrace } from "../core";
 import { GlossaryAppendix, Term } from "../index";
@@ -66,6 +66,30 @@ describe("precomputed", () => {
     // Another input is another run.
     renderOnce(<Wrapped n={2} />);
     expect(sim).toHaveBeenCalledTimes(2);
+  });
+
+  it("never serves one trace for inputs that only stringify alike", () => {
+    const { sim, def } = makeCount("alike");
+    const Wrapped = precomputed(def, Client);
+    const asNull = renderOnce(<Wrapped n={null as never} />).props.trace!;
+    expect(asNull.input).toEqual({ n: null, from: 0 });
+    expect(sim).toHaveBeenCalledTimes(1);
+    // NaN would key as null too: it is rejected before any lookup, and never run.
+    expect(() => renderOnce(<Wrapped n={NaN} />)).toThrow(
+      '[stepwise] precompute("alike"): input.n is not JSON-serializable (NaN)'
+    );
+    expect(sim).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not share a trace between definitions that differ only in seed", () => {
+    const { sim, def } = makeCount();
+    const a = defineExplainer({ ...def, seed: 1 });
+    const b = defineExplainer({ ...def, seed: 2 });
+    const ta = renderOnce(createElement(precomputed(a, Client))).props.trace!;
+    const tb = renderOnce(createElement(precomputed(b, Client))).props.trace!;
+    expect(sim).toHaveBeenCalledTimes(2);
+    expect(tb).not.toBe(ta);
+    expect([ta.seed, tb.seed]).toEqual([1, 2]);
   });
 
   it("keeps at most 8 traces per definition", () => {

@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createRng, defineExplainer, fromGraph, normalizeOptions, precompute, resolveInput } from "../core";
 
 type CountStep = { key: string; tone: "neutral"; label: string; i: number; probe?: unknown };
@@ -85,6 +85,37 @@ describe("defineExplainer / precompute", () => {
       input: { default: 0 },
     });
     expect(precompute(ok).steps).toHaveLength(1);
+  });
+
+  it("throws on a non-JSON input, naming the path, before running the simulation", () => {
+    const sim = vi.fn(function* (_input: unknown): Generator<CountStep> {
+      yield { key: "a", tone: "neutral", label: "a", i: 0 };
+    });
+    const takes = defineExplainer({ name: "takes", simulation: sim, input: { default: {} as unknown } });
+    const label = '[stepwise] precompute("takes"): ';
+    expect(() => precompute(takes, { n: NaN })).toThrow(`${label}input.n is not JSON-serializable (NaN)`);
+    expect(() => precompute(takes, new Map())).toThrow(`${label}input is not JSON-serializable (Map)`);
+    expect(() => precompute(takes, new Date(0))).toThrow(`${label}input is not JSON-serializable (Date)`);
+    expect(() => precompute(takes, { big: BigInt(1) })).toThrow(`${label}input.big is not JSON-serializable (bigint)`);
+    const cyclic: Record<string, unknown> = { a: 1 };
+    cyclic.self = cyclic;
+    expect(() => precompute(takes, cyclic)).toThrow(`${label}input.self is not JSON-serializable (cycle)`);
+    expect(sim).not.toHaveBeenCalled();
+    // An undefined field is dropped by JSON, not changed; a shared (acyclic) object is fine.
+    const shared = { x: 1 };
+    expect(precompute(takes, { n: 1, gone: undefined, l: shared, r: shared }).steps).toHaveLength(1);
+  });
+
+  it("throws on a cyclic step with the cycle kind", () => {
+    const loop = defineExplainer({
+      simulation: function* (): Generator<CountStep> {
+        const probe: Record<string, unknown> = {};
+        probe.back = probe;
+        yield { key: "a", tone: "neutral", label: "a", i: 0, probe };
+      },
+      input: { default: 0 },
+    });
+    expect(() => precompute(loop)).toThrow("steps[0].probe.back is not JSON-serializable (cycle)");
   });
 
   it("returns an empty trace for a simulation that yields nothing", () => {

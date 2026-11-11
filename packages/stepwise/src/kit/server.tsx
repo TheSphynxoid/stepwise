@@ -23,7 +23,7 @@ import {
   Stage,
   StepCode,
 } from "@sphynxoid/stepwise/kit";
-import { precompute, resolveInput } from "../core";
+import { assertJsonInput, precompute, resolveInput } from "../core";
 import type { ExplainerDefinition, PrecomputedTrace, StepwiseStep } from "../core";
 
 // A page renders the same explainer with the same props on every request (and
@@ -41,6 +41,9 @@ function traceFor<Input, S extends StepwiseStep>(
     byInput = new Map();
     traces.set(definition, byInput);
   }
+  // The key is the input's JSON, so a non-JSON input (NaN, a Map) could share
+  // another input's entry: reject it before any lookup.
+  assertJsonInput(definition, input);
   const key = JSON.stringify([input, definition.seed]);
   const hit = byInput.get(key);
   if (hit) return hit as PrecomputedTrace<Input, S>;

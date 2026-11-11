@@ -51,7 +51,7 @@ export type { DiffTracesOptions, TraceDiff } from "./diff-traces";
 export { flattenChapters } from "./flatten";
 export type { FlatChapter } from "./flatten";
 export { toVerdict, pass, fail, pending } from "./evaluate";
-export { defineExplainer, precompute, resolveInput, normalizeOptions } from "./explainer";
+export { defineExplainer, precompute, resolveInput, normalizeOptions, assertJsonInput } from "./explainer";
 export type {
   ExplainerDefinition,
   ExplainerInput,
