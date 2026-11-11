@@ -5,9 +5,10 @@ import { cn } from "../cn";
 import { CodeBlock, PlayerBar } from "../components";
 import { useExplainer, useExplainerView } from "./explainer";
 
-// The explainer's parts: each reads the provider and renders one thing. No
-// props beyond a className (and EndNote's prose), so they read the same in
-// TSX and MDX. Every root sets data-stepwise for the precompiled stylesheet.
+// The explainer's parts: each reads the provider and renders one thing.
+// Stage takes no props, the others a className (and EndNote's prose), so
+// they read the same in TSX and MDX. Every root sets data-stepwise for the
+// precompiled stylesheet.
 
 /** Renders the explainer's view. */
 export function Stage(): ReactElement {

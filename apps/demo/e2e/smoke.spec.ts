@@ -162,8 +162,9 @@ test("simulate: predict mode holds at a checkpoint and grades the guess", async 
 });
 
 test("/kit: the first frame is in the server HTML", async ({ browser, baseURL }) => {
-  // No JavaScript: whatever shows is what the server rendered from the
-  // precomputed trace, not a client-side run.
+  // No JavaScript: whatever shows is the server-rendered HTML. (Client
+  // components are server-rendered with or without `precomputed`; this
+  // pins that the page's first frame is there.)
   const context = await browser.newContext({ javaScriptEnabled: false, baseURL });
   try {
     const page = await context.newPage();

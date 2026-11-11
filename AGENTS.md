@@ -27,7 +27,11 @@ npm run build -w @sphynxoid/stepwise             # build library → packages/st
 npm run dev                                   # demo app (same as: npm run dev -w @stepwise/demo)
 
 # tests — run from the package directory, NOT the root
-cd packages/stepwise && npx vitest run        # 280 tests (14 useSteps, 32 player, 29 tour, 9 discoveries, 6 chapters, 4 flatten, 4 trace, 11 synced tracks, 9 lesson stream, 3 createTrace, 24 simulation/re-anchoring/checkpoints, 7 evaluators, 11 live edge, 8 syncInput + rebuilt-input warning, 4 barrels (root, core, kit, kit/server), 24 walks/graphs/diffs/experimental barrel, 6 core boundary, 15 explainer definitions/precompute, 6 initialTrace, 22 kit explainer, 15 kit predict, 9 kit keys/registry, 8 kit/server)
+cd packages/stepwise && npx vitest run        # 286 tests (14 useSteps, 32 player, 29 tour, 9 discoveries, 6 chapters, 4 flatten, 4 trace, 11 synced tracks, 9 lesson stream, 3 createTrace, 24 simulation/re-anchoring/checkpoints, 7 evaluators, 11 live edge, 8 syncInput + rebuilt-input warning, 4 barrels (root, core, kit, kit/server), 24 walks/graphs/diffs/experimental barrel, 6 core boundary, 16 explainer definitions/precompute, 6 initialTrace, 23 kit explainer, 15 kit predict, 12 kit keys/registry, 9 kit/server)
+
+# library typecheck, including the type-level tests (src/__tests__/kit-props.typecheck.tsx:
+# @ts-expect-error lines, which vitest does not check)
+cd packages/stepwise && npx tsc --noEmit -p .
 
 # demo lint (eslint flat config, no interactive prompt)
 cd apps/demo && npm run lint
@@ -109,7 +113,9 @@ reanchor.ts ────── the pure "stay on the same step" rule (keys)
 align-tracks.ts ── alignTracks, the comparison-mode table (pure)
 evaluate.ts ────── Verdict / Evaluator (pass | fail | pending, feedback)
 explainer.ts ───── EXPERIMENTAL: defineExplainer, precompute (JSON-checked
-                   trace, labelled errors), resolveInput, assertJsonInput
+                   trace, labelled errors), resolveInput (skips the
+                   reserved EXPLAINER_PROP_NAMES: one rule for server and
+                   client), assertJsonInput
 
 CORE      use-steps.ts      THE primitive: clamped cursor, stable callbacks,
                             re-clamps when count changes

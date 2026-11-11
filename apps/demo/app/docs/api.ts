@@ -908,6 +908,7 @@ export const API: ApiGroup[] = [
               { name: "toVerdict / pass / fail / pending", type: "function", desc: "Verdict helpers." },
               { name: "defineExplainer / precompute", type: "function", desc: "Explainer definitions, and running one to a JSON trace (below)." },
               { name: "resolveInput / normalizeOptions / assertJsonInput", type: "function", desc: "The kit's input and option rules, for custom shells (below)." },
+              { name: "EXPLAINER_PROP_NAMES", type: "readonly string[]", desc: "The prop names an explainer reserves; never read as input fields (below)." },
               { name: "types", type: "type", desc: "The step / tour / chapter schema, the ports, and the types of everything above (Simulation, ExplainerDefinition, PrecomputedTrace, …)." },
             ],
           },
@@ -924,7 +925,7 @@ export const API: ApiGroup[] = [
           {
             title: "ExplainerDefinition<Input, S>",
             rows: [
-              { name: "name", type: "string", desc: "Used in error messages." },
+              { name: "name", type: "string", desc: "Optional. Used in error messages and the display name; without it the label is \"explainer\"." },
               { name: "simulation", type: "Simulation<Input, S>", desc: "The generator. Required. Give every step a key." },
               { name: "seed", type: "number | string", def: "0", desc: "Seed for ctx.rng." },
               { name: "maxSteps", type: "number", def: "10000", desc: "Step cap; precompute throws when a run hits it." },
@@ -964,18 +965,18 @@ export const API: ApiGroup[] = [
       },
       {
         id: "explainerHelpers",
-        name: "resolveInput / normalizeOptions / assertJsonInput",
-        signature: "resolveInput(def, props?): Input  ·  normalizeOptions(options): PredictOption[]  ·  assertJsonInput(def, input): void",
+        name: "resolveInput / normalizeOptions / assertJsonInput / EXPLAINER_PROP_NAMES",
+        signature: "resolveInput(def, props?): Input  ·  normalizeOptions(options): PredictOption[]  ·  assertJsonInput(def, input): void  ·  EXPLAINER_PROP_NAMES",
         summary:
-          "The kit's rules as pure functions, for a custom shell. resolveInput: props.input wins when defined; otherwise, for a plain-object default, each own key of the default is overridden by a same-named prop that is not undefined. normalizeOptions: bare strings become { value, label } with a capitalized label. assertJsonInput: throws precompute's labelled error for a non-JSON input.",
+          "The kit's rules as pure functions, for a custom shell. resolveInput: props.input wins when defined; otherwise, for a plain-object default, each own key of the default is overridden by a same-named prop that is not undefined, except the reserved names in EXPLAINER_PROP_NAMES (definition, view, trace, input, id, predict, keys, link, autoPlay, theme, className, children), which are the explainer's own props. The server wrapper and the client both resolve through it, so they agree. FieldOverrides<Input> is the matching props type. normalizeOptions: bare strings become { value, label } with a capitalized label. assertJsonInput: throws precompute's labelled error for a non-JSON input.",
         tables: [],
       },
       {
         id: "createExplainer",
         name: "createExplainer / Explainer",
-        signature: "createExplainer<Input, S>(cfg: { definition?: ExplainerDefinition<Input, S>; view: ComponentType }): ComponentType<Omit<ExplainerProps<Input, S>, \"definition\" | \"view\"> & Record<string, unknown>>",
+        signature: "createExplainer<Input, S>(cfg: { definition?: ExplainerDefinition<Input, S>; view: ComponentType }): ComponentType<ExplainerInstanceProps<Input, S>>\ntype ExplainerInstanceProps<Input, S> = Omit<ExplainerProps<Input, S>, \"definition\" | \"view\"> & FieldOverrides<Input>",
         summary:
-          "Bind a definition and a view into one component, so a page or an MDX file renders <Sorting /> with serializable props. Without children it renders the default layout: Stage, Narration, Predict, StepCode, ExplainerBar, EndNote. Without a definition it is a recorded-only explainer that plays its trace prop and ships no simulation code. Explainer is the same shell with definition and view as props. Props not listed below are input fields; because of that index signature a misspelled prop (autoplay) typechecks and is silently ignored.",
+          "Bind a definition and a view into one component, so a page or an MDX file renders <Sorting /> with serializable props. Without children it renders the default layout: Stage, Narration, Predict, StepCode, ExplainerBar, EndNote. Without a definition it is a recorded-only explainer that plays its trace prop and ships no simulation code. Explainer is the same shell with definition and view as props. Besides the props below, the default input's fields are props (FieldOverrides<Input>), so a misspelled prop (autoplay) or an unknown field is a type error.",
         demo: "/kit",
         tables: [
           {
@@ -983,12 +984,12 @@ export const API: ApiGroup[] = [
             rows: [
               { name: "trace", type: "PrecomputedTrace<Input, S>", desc: "A precomputed run: the client starts from it instead of running the simulation (useSimulation's initialTrace). Required without a definition." },
               { name: "input", type: "Input", desc: "Replaces the whole default input. Read once, at mount." },
-              { name: "<field>", type: "unknown", desc: "For a plain-object default, a prop named after one of its own keys overrides that field (<Search target={61} />). Read once, at mount." },
+              { name: "<field>", type: "Input[field]", desc: "For a plain-object default, a prop named after one of its own keys overrides that field (<Search target={61} />), typed from the input. Not for fields named like a reserved prop (id, theme, ...): those props stay the explainer's, so override the field with input. Read once, at mount." },
               { name: "id", type: "string", desc: "Hash namespace: <id>.frame and <id>.in. Two linked explainers on a page without distinct ids share keys (development builds warn once)." },
               { name: "link", type: "boolean", def: "true", desc: "Keep the frame in the URL hash, and the input when the definition has serialize and parse." },
               { name: "autoPlay", type: "boolean", def: "false", desc: "Start playing on mount (reduced motion keeps it paused)." },
               { name: "predict", type: "boolean", def: "false", desc: "Start in predict mode. Read once; the reader owns it after (PredictToggle)." },
-              { name: "keys", type: "boolean", def: "true", desc: "ArrowRight / ArrowLeft / Space, routed to the explainer the reader last clicked or focused (the first mounted before that)." },
+              { name: "keys", type: "boolean", def: "true", desc: "ArrowRight / ArrowLeft / Space, routed to the explainer the reader last clicked or focused (the first mounted before that). With keys={false} the explainer takes no part in routing: touching it leaves the keys with the others." },
               THEME_ROW,
               CLASS_ROW,
               { name: "children", type: "ReactNode", desc: "Replaces the default layout with your own arrangement of parts." },
@@ -1037,16 +1038,16 @@ export const API: ApiGroup[] = [
         name: "Stage / Narration / StepCode / ExplainerBar / EndNote / Predict / PredictToggle",
         signature: "<Stage />  <Narration />  <StepCode />  <ExplainerBar />  <EndNote>…</EndNote>  <Predict>…</Predict>  <PredictToggle />",
         summary:
-          "The parts: each reads the provider and renders one thing, with no props beyond className and prose children, so they read the same in TSX and MDX. Stage renders the view; Narration the step label (aria-live); StepCode the step's code (nothing without); ExplainerBar a PlayerBar for the explainer; EndNote shows once playback ran to the end (default \"End of the run. Play to replay.\"); Predict the question at a held checkpoint (radios, Check, then Continue or Skip; default \"What happens next?\"); PredictToggle switches predict mode. Predict and PredictToggle render nothing without a predict block.",
+          "The parts: each reads the provider and renders one thing, with serializable props only, so they read the same in TSX and MDX. Stage renders the view and takes no props. The others take a className, and three take children as prose: Narration the step label (aria-live); StepCode the step's code (nothing without); ExplainerBar a PlayerBar for the explainer; EndNote shows once playback ran to the end (children are the note, default \"End of the run. Play to replay.\"); Predict the question at a held checkpoint (radios, Check, then Continue or Skip; children are the question, default \"What happens next?\"); PredictToggle switches predict mode (children are its label, default \"Predict mode\"). Predict and PredictToggle render nothing without a predict block.",
         demo: "/kit",
         tables: [],
       },
       {
         id: "precomputed",
         name: "precomputed",
-        signature: "precomputed<Input, S, P>(definition: ExplainerDefinition<Input, S>, Client: ComponentType<P>): (props: Omit<P, \"trace\">) => ReactElement",
+        signature: "precomputed<Input, S>(definition: ExplainerDefinition<Input, S>, Client: ComponentType<ExplainerInstanceProps<Input, S>>): (props: Omit<ExplainerInstanceProps<Input, S>, \"trace\">) => ReactElement",
         summary:
-          "From @sphynxoid/stepwise/kit/server (no \"use client\"). Wraps a createExplainer component in a hook-free server component: it resolves the input from the props as the client would, runs precompute (cached per definition, up to 8 inputs), and renders Client with every prop plus trace. A client component is server-rendered anyway, so the first frame is in the HTML either way; what this adds is no simulation re-run on hydration, and a build-time failure for a non-JSON input or a simulation that throws, hits the cap or yields non-JSON data. Field props are typed unknown on the wrapper.",
+          "From @sphynxoid/stepwise/kit/server (no \"use client\"). Wraps a createExplainer component in a hook-free server component: it resolves the input from the props as the client would, runs precompute (cached per definition, up to 8 inputs), and renders Client with every prop plus trace. A client component is server-rendered anyway, so the first frame is in the HTML either way; what this adds is no simulation re-run on hydration, and a build-time failure for a non-JSON input or a simulation that throws, hits the cap or yields non-JSON data. The wrapper's props are the client component's minus trace, field props typed from the input.",
         demo: "/kit",
         tables: [],
       },

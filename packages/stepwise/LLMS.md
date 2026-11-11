@@ -401,10 +401,14 @@ Explainer props (all optional):
   (`arr={[3, 1, 2]}` above). Input props are read once, at mount; after that
   the reader's edits own the input. `undefined` means "use the default", so
   it can't be passed as a real input.
-- **Typing is loose here.** The props type has an index signature (for the
-  field props), so a misspelled prop such as `autoplay` typechecks and is
-  silently ignored, and on the `precomputed` wrapper field props are typed
-  `unknown`. Check prop names by hand.
+- Field props are typed from the default input (`arr` is `number[]` above,
+  optional), on the `createExplainer` component and on the `precomputed`
+  wrapper alike; an unknown or misspelled prop (`autoplay`) is a type error.
+  A field named like a reserved prop (`id`, `input`, `predict`, `keys`,
+  `link`, `autoPlay`, `theme`, `className`, `children`, `trace`,
+  `definition`, `view`; the list is `EXPLAINER_PROP_NAMES` in `./core`) is
+  never read from a prop: `<X id="a" />` is the hash namespace even when the
+  input has an `id` field. Override such a field with `input={...}`.
 
 Behaviour worth knowing:
 
@@ -416,8 +420,9 @@ Behaviour worth knowing:
   Cyclic values report kind `cycle`. An
   `undefined` object field is fine (JSON drops it).
 - Keyboard: ArrowRight, ArrowLeft and Space go to the explainer the reader
-  last clicked or focused; before any, to the first one mounted. `keys={false}`
-  opts one out.
+  last clicked or focused; before any, to the first one mounted. An explainer
+  with `keys={false}` takes no part: clicking it leaves the keys where they
+  were, and it is skipped as "first mounted".
 - Before playback starts, frame 0 is already on screen, so the first Next
   (or ArrowRight) shows frame 1.
 - Predict mode holds **autoplay** only, at frames where `at` is true; manual
@@ -428,6 +433,10 @@ Behaviour worth knowing:
   attempts (there is no separate hint field). The guess, the verdict and the
   attempts reset at each new held frame, and when the trace changes while
   held.
+- `Stage` takes no props; `Narration`, `StepCode`, `ExplainerBar` take a
+  `className`; `EndNote`, `Predict` and `PredictToggle` also take children
+  (the note, the question, the switch's label; defaults "End of the run.
+  Play to replay.", "What happens next?", "Predict mode").
 - Custom parts read the provider: `useExplainer<Input, Step>()` returns
   `{ step, input, setInput, editable, sim, predict, id, theme }`. `step` is
   frame 0 before playback; `sim` is the `useSimulation` result (`sim.player`
@@ -455,5 +464,5 @@ Behaviour worth knowing:
 12. Browser tests: prefer `data-testid`; emulate reduced motion for linked-URL tests.
 13. A choice point without `await: true` → the walk never pauses for the answer; the `yield` gets `undefined`.
 14. `runSimulation` / `createTrace` / `precompute` imported from the root entry in a server component or build script → import them from `@sphynxoid/stepwise/core`.
-15. A misspelled explainer prop (`autoplay`) → typechecks and is silently ignored; the kit's `autoPlay` defaults to false.
+15. An input field named `id` (or another reserved prop name) passed as a prop → it sets the prop, not the field; use `input={...}`. The kit's `autoPlay` defaults to false.
 16. Two explainers on a page without distinct `id`s → they share `#frame=` / `#in=`; give each an `id`.

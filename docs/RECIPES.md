@@ -113,7 +113,7 @@ and the client can re-run it when the reader edits the input. Import from
 import { defineExplainer, type Simulation, type StepwiseStep } from "@sphynxoid/stepwise/core";
 
 export type SearchInput = { arr: number[]; target: number };
-export type SearchStep = StepwiseStep<{ kind: "start" | "compare" | "left" | "right" | "found" | "missing"; lo: number; hi: number; mid: number }>;
+export type SearchStep = StepwiseStep<{ kind: "start" | "compare" | "left" | "right" | "found" | "missing"; arr: number[]; lo: number; hi: number; mid: number }>;
 
 const search: Simulation<SearchInput, SearchStep> = function* ({ arr, target }) { /* yield keyed steps */ };
 
@@ -123,7 +123,10 @@ export const binarySearch = defineExplainer({
   input: {
     default: { arr: [3, 9, 14, 25, 34, 47, 61], target: 34 },
     serialize: ({ arr, target }) => `${arr.join(".")}~${target}`, // #in=3.9.14.25.34.47.61~34
-    parse: (raw) => { /* validate: links come from strangers; null ignores the link */ },
+    parse: (raw) => {
+      // Validate raw (links come from strangers) and return the parsed input.
+      return null; // null ignores the link
+    },
   },
   predict: {
     at: (step) => step.kind === "compare",           // never the last frame
@@ -146,7 +149,13 @@ import { binarySearch, type SearchInput, type SearchStep } from "./binary-search
 function SearchView() {
   const { step, input, setInput } = useExplainer<SearchInput, SearchStep>();
   if (!step) return null;
-  // draw step.arr, step.lo / hi / mid; an input calls setInput({ ...input, target })
+  // Draw step.arr and step.lo / hi / mid; a control edits the input.
+  return (
+    <div>
+      <p>{step.arr.join(" ")}</p>
+      <button onClick={() => setInput({ ...input, target: input.target + 1 })}>target + 1</button>
+    </div>
+  );
 }
 
 export const BinarySearchClient = createExplainer({ definition: binarySearch, view: SearchView });
@@ -202,14 +211,17 @@ Now you drive. It pauses at every probe: where does the search go?
   without distinct ids share keys, and development builds warn.
 - **Props are data.** `target={61}` overrides one field of the default input
   (the default is a plain object); `input={{ ... }}` replaces it all. Both
-  are read once, at mount. Field props aren't type-checked (`unknown`), and a
-  misspelled prop such as `autoplay` is silently ignored: the kit's
-  `autoPlay` defaults to false.
+  are read once, at mount. Field props are typed from the default input, and
+  an unknown or misspelled prop (`autoplay`) is a type error in TSX (MDX
+  isn't typechecked, so check names there). A field named like one of the
+  explainer's own props (`id`, `theme`, ...) can only be set through
+  `input`. The kit's `autoPlay` defaults to false.
 - **Children replace the default layout** (`Stage`, `Narration`, `Predict`,
   `StepCode`, `ExplainerBar`, `EndNote`), in any order, with prose in
   `Predict` and `EndNote`.
 - **Keyboard**: ArrowRight, ArrowLeft and Space drive the explainer the
-  reader last clicked or focused. `keys={false}` opts one out.
+  reader last clicked or focused. `keys={false}` opts one out entirely:
+  clicking it leaves the keys with the others.
 
 The next recipe covers the same links without the kit, and the one after it
 the grading that predict mode does for you.

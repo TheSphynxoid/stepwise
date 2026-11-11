@@ -390,14 +390,19 @@ An author writes a **definition** (pure, `defineExplainer`) and a **view**
   `useTrace`) and puts an `ExplainerApi` in context: `step`, `input`,
   `setInput`, `editable`, `sim`, `predict`, `id`, `theme`. The parts
   (`Stage`, `Narration`, `StepCode`, `ExplainerBar`, `EndNote`, `Predict`,
-  `PredictToggle`) read it and take no props beyond `className` and prose
-  children, so they compose the same from TSX and MDX. The view lives in a
+  `PredictToggle`) read it and take only serializable props (`Stage` none;
+  the others a `className`; `EndNote`, `Predict` and `PredictToggle` prose
+  children), so they compose the same from TSX and MDX. The view lives in a
   second context: it is the author's component, not state, and `Stage`
   renders it. Live and recorded are two components because hooks can't be
   conditional.
 - **Input from props, once.** `resolveInput` gives `input` precedence, then
-  same-named fields of a plain-object default (anything not in the known
-  prop list is a candidate field). It runs in a `useState` initializer: a
+  same-named fields of a plain-object default, skipping the reserved prop
+  names (`EXPLAINER_PROP_NAMES`). The one rule serves both sides: the
+  server wrapper resolves exactly the input the client will, so the
+  precomputed trace matches. `FieldOverrides<Input>` types the same fields
+  as props (`ExplainerInstanceProps`), so there is no index signature and a
+  misspelled prop is a type error. It runs in a `useState` initializer: a
   page that re-renders with an equal but new literal must neither recompute
   nor wipe the reader's edits.
 - **Predict mode lives in the provider**, because its checkpoints are a
@@ -408,8 +413,11 @@ An author writes a **definition** (pure, `defineExplainer`) and a **view**
 - **The keyboard is shared.** One window-level key map per explainer, gated
   by a module-level registry (`kit/registry.ts`): the explainer the reader
   last pointed at or focused owns ArrowRight / ArrowLeft / Space, else the
-  first mounted. The same registry notices two linked explainers with the
-  same hash namespace and warns once.
+  first mounted. An explainer with `keys={false}` is in the registry but out
+  of routing: touching it doesn't claim the keys and it is never "first
+  mounted", so it can't silence the others. The same registry notices two
+  linked explainers with the same hash namespace (keys or not) and warns
+  once.
 - **`precomputed` is a plain function component** (no hooks) in
   `./kit/server`: it resolves the input like the client, runs `precompute`
   (cached per definition, 8 inputs, keyed by the input's JSON, which is why
