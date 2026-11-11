@@ -16,6 +16,7 @@
 //   diff-traces   — diffTraces, structuralEqual
 //   flatten       — flattenChapters
 //   evaluate      — toVerdict, pass, fail, pending
+//   explainer     — defineExplainer, precompute: a definition run to a JSON trace
 //   types         — the trace / tour / chapter schema and ports
 
 export type {
@@ -50,3 +51,11 @@ export type { DiffTracesOptions, TraceDiff } from "./diff-traces";
 export { flattenChapters } from "./flatten";
 export type { FlatChapter } from "./flatten";
 export { toVerdict, pass, fail, pending } from "./evaluate";
+export { defineExplainer, precompute, resolveInput, normalizeOptions } from "./explainer";
+export type {
+  ExplainerDefinition,
+  ExplainerInput,
+  ExplainerPredict,
+  PrecomputedTrace,
+  PredictOption,
+} from "./explainer";
