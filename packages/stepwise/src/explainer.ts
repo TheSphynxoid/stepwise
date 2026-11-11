@@ -135,13 +135,53 @@ export function precompute<Input, S extends StepwiseStep>(
   return { input: used, seed: run.seed, steps: run.steps };
 }
 
+/**
+ * Every prop name an explainer component takes for itself. None of them is
+ * ever read as an input field, on the server (`precomputed`) or the client,
+ * so both sides resolve the same input: a default with an `id` field keeps
+ * its own `id` when the explainer gets `id="a"`. Override such a field with
+ * `input={...}`.
+ */
+export const EXPLAINER_PROP_NAMES = [
+  "definition",
+  "view",
+  "trace",
+  "input",
+  "id",
+  "predict",
+  "keys",
+  "link",
+  "autoPlay",
+  "theme",
+  "className",
+  "children",
+] as const;
+
+export type ExplainerPropName = (typeof EXPLAINER_PROP_NAMES)[number];
+
+/**
+ * The input fields an explainer component accepts as props: the own keys of
+ * a plain-object input, minus the reserved prop names. Nothing for arrays and
+ * primitives (pass `input` instead).
+ */
+export type FieldOverrides<Input> = Input extends readonly unknown[]
+  ? {}
+  : Input extends object
+    ? Partial<Omit<Input, ExplainerPropName>>
+    : {};
+
+const RESERVED = new Set<string>(EXPLAINER_PROP_NAMES);
+
 const isPlainObject = (v: unknown): v is Record<string, unknown> => {
   if (typeof v !== "object" || v === null || Array.isArray(v)) return false;
   const proto = Object.getPrototypeOf(v);
   return proto === Object.prototype || proto === null;
 };
 
-/** `input` wins; otherwise own keys of a plain-object default are overridden by same-named fields. */
+/**
+ * `input` wins; otherwise own keys of a plain-object default are overridden
+ * by same-named fields, except the reserved prop names (EXPLAINER_PROP_NAMES).
+ */
 export function resolveInput<Input>(
   def: { input: ExplainerInput<Input> },
   props?: { input?: Input } & Record<string, unknown>
@@ -151,7 +191,7 @@ export function resolveInput<Input>(
   if (!props || !isPlainObject(base)) return base;
   const out: Record<string, unknown> = { ...base };
   for (const key of Object.keys(base)) {
-    if (props[key] !== undefined) out[key] = props[key];
+    if (!RESERVED.has(key) && props[key] !== undefined) out[key] = props[key];
   }
   return out as Input;
 }

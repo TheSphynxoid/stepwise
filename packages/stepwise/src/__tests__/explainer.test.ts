@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from "vitest";
-import { createRng, defineExplainer, fromGraph, normalizeOptions, precompute, resolveInput } from "../core";
+import { EXPLAINER_PROP_NAMES, createRng, defineExplainer, fromGraph, normalizeOptions, precompute, resolveInput } from "../core";
 
 type CountStep = { key: string; tone: "neutral"; label: string; i: number; probe?: unknown };
 
@@ -152,6 +152,16 @@ describe("resolveInput", () => {
     expect(resolveInput(def, { input: X, target: 5 })).toBe(X);
     expect(resolveInput(def)).toEqual({ arr: [1], target: 2 });
     expect(resolveInput(def, {})).not.toBe(def.input.default);
+  });
+
+  it("reserved prop names are never fields", () => {
+    const withId = { input: { default: { id: 1, theme: "x", n: 3 } } };
+    expect(resolveInput(withId, { id: "a", theme: {}, n: 4 })).toEqual({ id: 1, theme: "x", n: 4 });
+    // `input` is how such a field is overridden.
+    expect(resolveInput(withId, { input: { id: 2, theme: "y", n: 3 } })).toEqual({ id: 2, theme: "y", n: 3 });
+    expect([...EXPLAINER_PROP_NAMES].sort()).toEqual(
+      ["autoPlay", "children", "className", "definition", "id", "input", "keys", "link", "predict", "theme", "trace", "view"]
+    );
   });
 
   it("non-object default ignores field props", () => {

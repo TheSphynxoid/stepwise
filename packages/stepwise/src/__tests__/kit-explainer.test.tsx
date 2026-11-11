@@ -5,6 +5,8 @@ import type { Simulation } from "../core";
 import * as kit from "../kit";
 import { Explainer, ExplainerBar, Narration, Stage, createExplainer, useExplainer } from "../kit";
 import type { ExplainerApi } from "../kit";
+import type { ReactElement } from "react";
+import { precomputed } from "../kit/server";
 
 afterEach(() => {
   cleanup();
@@ -254,6 +256,30 @@ describe("Explainer", () => {
     });
     render(<Obj id="ns" link={false} />);
     expect(screen.getByText("default", { selector: "[aria-live]" })).toBeTruthy();
+  });
+
+  it("a reserved prop name is not an input field, so server and client resolve the same input", () => {
+    const sim = vi.fn(function* ({ id, n }: { id: number; n: number }) {
+      for (let i = 0; i < n; i++) yield { key: `k${i}`, tone: "neutral" as const, label: `${id}:${i}`, i };
+    });
+    const def = defineExplainer({ name: "reserved", simulation: sim, input: { default: { id: 1, n: 3 } } });
+    const Client = createExplainer({ definition: def, view: View });
+
+    // Client path alone: `id` is the namespace, the input keeps id 1.
+    render(<Client id="a" link={false} />);
+    expect((api as unknown as ExplainerApi<{ id: number; n: number }, CountStep>).input).toEqual({ id: 1, n: 3 });
+    cleanup();
+
+    // Server path: the wrapper precomputes once; the client starts from that
+    // trace and does not run the simulation again.
+    const Wrapped = precomputed(def, Client);
+    sim.mockClear();
+    const out = (Wrapped as (p: object) => ReactElement)({ id: "a", link: false });
+    expect(sim).toHaveBeenCalledTimes(1);
+    render(out);
+    expect(sim).toHaveBeenCalledTimes(1);
+    expect((api as unknown as ExplainerApi<{ id: number; n: number }, CountStep>).input).toEqual({ id: 1, n: 3 });
+    expect(api.sim.steps).toBe((out.props as { trace: { steps: unknown } }).trace.steps);
   });
 
   it("every root carries data-stepwise", () => {

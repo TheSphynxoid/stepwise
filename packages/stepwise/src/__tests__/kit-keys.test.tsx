@@ -99,6 +99,50 @@ describe("explainer keyboard routing", () => {
     expect(frame("solo")).toBe("0");
   });
 
+  it("a keys={false} explainer mounted first does not take the keyboard", () => {
+    render(
+      <>
+        <Explainer definition={count} view={View} id="a" keys={false} />
+        <Explainer definition={count} view={View} id="b" />
+      </>
+    );
+    press("ArrowRight");
+    expect(frame("a")).toBe("0");
+    expect(frame("b")).toBe("1");
+    // Touching the opted-out one does not claim the keys either.
+    fireEvent.pointerDown(document.querySelector('[data-explainer="a"]')!);
+    act(() => (document.querySelector('[data-explainer="a"] button') as HTMLButtonElement).focus());
+    press("ArrowRight");
+    expect(frame("a")).toBe("0");
+    expect(frame("b")).toBe("2");
+  });
+
+  it("touching a keys={false} explainer keeps the previously active one", () => {
+    render(
+      <>
+        <Explainer definition={count} view={View} id="a" />
+        <Explainer definition={count} view={View} id="b" />
+        <Explainer definition={count} view={View} id="c" keys={false} />
+      </>
+    );
+    fireEvent.pointerDown(document.querySelector('[data-explainer="b"]')!);
+    fireEvent.pointerDown(document.querySelector('[data-explainer="c"]')!);
+    press("ArrowRight");
+    expect(frame("a")).toBe("0");
+    expect(frame("b")).toBe("1");
+    expect(frame("c")).toBe("0");
+  });
+
+  it("a keys={false} explainer still counts for the shared-namespace warning", () => {
+    render(
+      <>
+        <Explainer definition={count} view={View} keys={false} />
+        <Explainer definition={count} view={View} />
+      </>
+    );
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+
   it("unmounting the active explainer hands keys to the first remaining one", () => {
     const tree = (ids: string[]) => (
       <>

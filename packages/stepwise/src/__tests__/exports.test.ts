@@ -80,6 +80,7 @@ describe("./core", () => {
       "defineExplainer",
       "precompute",
       "resolveInput",
+      "EXPLAINER_PROP_NAMES",
       "normalizeOptions",
       "assertJsonInput",
     ];

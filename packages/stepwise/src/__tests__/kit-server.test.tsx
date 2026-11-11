@@ -21,7 +21,7 @@ function makeCount(name = "count") {
   return { sim, def };
 }
 
-type ClientProps = { trace?: PrecomputedTrace<CountInput, CountStep>; title?: string; n?: number; from?: number };
+type ClientProps = { trace?: PrecomputedTrace<CountInput, CountStep>; className?: string; n?: number; from?: number };
 function Client(_props: ClientProps): ReactElement | null {
   return null;
 }
@@ -46,10 +46,22 @@ describe("precomputed", () => {
   it("passes a trace for overridden input fields and forwards the props", () => {
     const { def } = makeCount();
     const Wrapped = precomputed(def, Client);
-    const out = renderOnce(<Wrapped n={5} from={10} title="hello" />);
+    const out = renderOnce(<Wrapped n={5} from={10} className="hello" />);
     expect(out.props.trace!.input).toEqual({ n: 5, from: 10 });
     expect(out.props.trace!.steps.map((s) => s.i)).toEqual([10, 11, 12, 13, 14]);
-    expect(out.props).toMatchObject({ n: 5, from: 10, title: "hello" });
+    expect(out.props).toMatchObject({ n: 5, from: 10, className: "hello" });
+  });
+
+  it("never reads a reserved prop name as an input field", () => {
+    const sim = vi.fn(function* ({ id, n }: { id: number; n: number }) {
+      for (let i = 0; i < n; i++) yield { key: `k${i}`, tone: "neutral" as const, label: `${id}:${i}`, i };
+    });
+    const def = defineExplainer({ name: "reserved", simulation: sim, input: { default: { id: 1, n: 3 } } });
+    const Wrapped = precomputed(def, Client as never);
+    const out = renderOnce(<Wrapped id="a" />);
+    // `id` is the hash namespace, forwarded as a prop; the input keeps its own id.
+    expect(out.props.trace!.input).toEqual({ id: 1, n: 3 });
+    expect((out.props as { id?: string }).id).toBe("a");
   });
 
   it("computes once per (definition, input, seed) across renders", () => {

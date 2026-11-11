@@ -23,6 +23,7 @@ import {
   Stage,
   StepCode,
 } from "@sphynxoid/stepwise/kit";
+import type { ExplainerInstanceProps } from "@sphynxoid/stepwise/kit";
 import { assertJsonInput, precompute, resolveInput } from "../core";
 import type { ExplainerDefinition, PrecomputedTrace, StepwiseStep } from "../core";
 
@@ -62,14 +63,16 @@ function traceFor<Input, S extends StepwiseStep>(
  *
  *   export const Sorting = precomputed(sorting, SortingClient);
  */
-export function precomputed<Input, S extends StepwiseStep, P extends { trace?: PrecomputedTrace<Input, S> }>(
+export function precomputed<Input, S extends StepwiseStep>(
   definition: ExplainerDefinition<Input, S>,
-  Client: ComponentType<P>
-): (props: Omit<P, "trace">) => ReactElement {
-  function Precomputed(props: Omit<P, "trace">): ReactElement {
-    const input = resolveInput(definition, props as { input?: Input } & Record<string, unknown>);
+  Client: ComponentType<ExplainerInstanceProps<Input, S>>
+): (props: Omit<ExplainerInstanceProps<Input, S>, "trace">) => ReactElement {
+  function Precomputed(props: Omit<ExplainerInstanceProps<Input, S>, "trace">): ReactElement {
+    // The client's own rule (reserved prop names are never fields), so the
+    // trace handed over is the one the client would compute.
+    const input = resolveInput(definition, props as unknown as { input?: Input } & Record<string, unknown>);
     const trace = traceFor(definition, input);
-    return createElement(Client, { ...props, trace } as P);
+    return createElement(Client, { ...props, trace } as ExplainerInstanceProps<Input, S>);
   }
   Precomputed.displayName = `Precomputed(${Client.displayName || Client.name || "Explainer"})`;
   return Precomputed;

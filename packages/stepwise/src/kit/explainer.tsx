@@ -17,6 +17,7 @@ import { fail, normalizeOptions, pass, resolveInput } from "../core";
 import type {
   ExplainerDefinition,
   ExplainerPredict,
+  FieldOverrides,
   PrecomputedTrace,
   PredictOption,
   VerdictStatus,
@@ -46,7 +47,7 @@ export interface ExplainerProps<Input, S extends StepwiseStep> {
   view: ComponentType;
   /** A precomputed run (see `precompute`): the first render needs no simulation. */
   trace?: PrecomputedTrace<Input, S>;
-  /** Replaces the default input. Same-named fields of an object default can also be passed as props. */
+  /** Replaces the default input. On a component from createExplainer, fields of an object default can also be passed as props. */
   input?: Input;
   /** Hash namespace: `${id}.frame`, `${id}.in`. Needed for two explainers on one page. */
   id?: string;
@@ -63,6 +64,14 @@ export interface ExplainerProps<Input, S extends StepwiseStep> {
   /** Replaces the default layout (Stage, Narration, Predict, StepCode, ExplainerBar, EndNote). */
   children?: ReactNode;
 }
+
+/**
+ * The props of a component made by createExplainer: every ExplainerProps
+ * except the two it binds, plus the default input's fields (typed from the
+ * input; a field named like a reserved prop is overridden through `input`).
+ */
+export type ExplainerInstanceProps<Input, S extends StepwiseStep> = Omit<ExplainerProps<Input, S>, "definition" | "view"> &
+  FieldOverrides<Input>;
 
 /** Predict mode's state, exposed to custom parts. Functions are stable. */
 export interface PredictApi {
@@ -123,24 +132,6 @@ export function useExplainerView(): ComponentType {
   return view;
 }
 
-// Every ExplainerProps name. Anything else a createExplainer component
-// receives is a candidate input field (see resolveInput), so these must never
-// be read as one: an object default with an `id` field keeps its own `id`.
-const KNOWN_PROPS = new Set<string>([
-  "definition",
-  "view",
-  "trace",
-  "input",
-  "id",
-  "predict",
-  "keys",
-  "link",
-  "autoPlay",
-  "theme",
-  "className",
-  "children",
-]);
-
 const hashKey = (id: string | undefined, key: string) => (id ? `${id}.${key}` : key);
 
 /**
@@ -163,13 +154,11 @@ function LiveExplainer<Input, S extends StepwiseStep>(
   const { definition, trace, id, link = true, autoPlay = false } = props;
   // Input props are read once, at mount: a page that re-renders with a new
   // but equal literal must neither recompute nor wipe the reader's edits.
-  const [input, setInputState] = useState<Input>(() => {
-    const fields: Record<string, unknown> = {};
-    for (const key of Object.keys(props)) {
-      if (!KNOWN_PROPS.has(key)) fields[key] = (props as unknown as Record<string, unknown>)[key];
-    }
-    return resolveInput(definition, { ...fields, input: props.input });
-  });
+  // resolveInput never reads a reserved prop name as a field, the same rule
+  // `precomputed` applies on the server, so both sides resolve one input.
+  const [input, setInputState] = useState<Input>(() =>
+    resolveInput(definition, props as unknown as { input?: Input } & Record<string, unknown>)
+  );
   const { serialize, parse } = definition.input;
   const syncInput: SyncInputOptions<Input> | undefined =
     link && serialize && parse ? { key: hashKey(id, "in"), serialize, parse, onRestore: setInputState } : undefined;
@@ -302,7 +291,9 @@ function Shell<Input, S extends StepwiseStep>({
   const step = sim.step;
   // One keyboard, many explainers: the registry says which one owns it.
   const token = useRef<object>({});
-  useEffect(() => register(token.current, link ? (id ?? "") : null), [id, link]);
+  // An explainer without keys takes no part in routing (it never becomes the
+  // active one), but still counts for the shared-namespace warning.
+  useEffect(() => register(token.current, link ? (id ?? "") : null, keys), [id, link, keys]);
   const { next, prev, toggle, start } = sim.player;
   useGlobalKeys(
     {
@@ -345,17 +336,17 @@ function Shell<Input, S extends StepwiseStep>({
 
 /**
  * Bind a definition and a view into one component, so a page (or an MDX
- * file) renders `<Sorting />` and passes only serializable props. Unknown
- * props are input fields: with a default of `{ n: 3 }`, `<Count n={5} />`
- * runs on `{ n: 5 }`.
+ * file) renders `<Sorting />` and passes only serializable props. The
+ * default input's fields are props too: with a default of `{ n: 3 }`,
+ * `<Count n={5} />` runs on `{ n: 5 }`.
  *
  *   export const Sorting = createExplainer({ definition: sorting, view: Bars });
  */
 export function createExplainer<Input, S extends StepwiseStep>(cfg: {
   definition?: ExplainerDefinition<Input, S>;
   view: ComponentType;
-}): ComponentType<Omit<ExplainerProps<Input, S>, "definition" | "view"> & Record<string, unknown>> {
-  function BoundExplainer(props: Omit<ExplainerProps<Input, S>, "definition" | "view"> & Record<string, unknown>) {
+}): ComponentType<ExplainerInstanceProps<Input, S>> {
+  function BoundExplainer(props: ExplainerInstanceProps<Input, S>) {
     return <Explainer<Input, S> {...props} definition={cfg.definition} view={cfg.view} />;
   }
   BoundExplainer.displayName = `Explainer(${cfg.definition?.name ?? cfg.view.displayName ?? cfg.view.name ?? "view"})`;
