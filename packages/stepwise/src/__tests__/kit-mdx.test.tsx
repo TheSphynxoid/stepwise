@@ -5,7 +5,7 @@ import { defineExplainer } from "../core";
 import type { PrecomputedTrace } from "../core";
 import { GlossaryAppendix, Term } from "../index";
 import { EndNote, ExplainerBar, Narration, Predict, PredictToggle, Stage, StepCode } from "../kit";
-import { precomputed, stepwiseComponents } from "../kit/server";
+import { precomputed, stepwiseComponents } from "../kit/mdx";
 
 // Runs under node, not jsdom: `precomputed` is a server component, so it must
 // work as a plain function call with no DOM and no hooks.

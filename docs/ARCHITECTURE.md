@@ -78,7 +78,7 @@ because it explains a rule the code already has to follow.
 | `simulation.ts` | `createRng` (seeded mulberry32), `runSimulation` (pure, capped), the `Simulation` type | No React; safe at module scope. On a server, reached through `./core` |
 | `use-simulation.ts` | `useSimulation`: memoized `runSimulation` → `useTrace`; `initialTrace` | Recomputes on `simulation` / `input` / `seed` / `maxSteps` identity. With `initialTrace`, an input equal by content (JSON) and a matching seed return the precomputed steps instead of running. The match is on input and seed only, not on the simulation's identity or `maxSteps` |
 | `explainer.ts` | **Experimental.** `defineExplainer`, `precompute` (run to a JSON-checked trace), `resolveInput`, `normalizeOptions`, `assertJsonInput` | Pure; part of `./core` |
-| `kit/*` | **Experimental.** `./kit`: `Explainer` / `createExplainer` / `useExplainer`, the parts, predict mode, the keyboard registry. `./kit/server`: `precomputed`, `stepwiseComponents` | See "The authoring kit" below |
+| `kit/*` | **Experimental.** `./kit`: `Explainer` / `createExplainer` / `useExplainer`, the parts, predict mode, the keyboard registry. `./kit/mdx`: `precomputed`, `stepwiseComponents` | See "The authoring kit" below |
 | `use-run-links.ts` | Internal: a run's identity in the URL hash (input, choices) restored before the linked frame; shared by `useSimulation` and `useWalk` | See "linked inputs" below |
 | `walk.ts` / `use-walk.ts` | **Experimental.** `runWalk` (pure replay of input + choices), `useWalk` (`choose`, `anchor`, `lastChange`, `syncChoices`) | See "branching walks" below |
 | `graph.ts` | **Experimental.** `fromGraph`: a declared automaton, run over a word and drawable | Steps keyed by position |
@@ -346,7 +346,7 @@ would double the bytes. The mechanism is a **hinge**:
 
 ```
 src/core.ts ─── plain tsup config (no banner) ───► dist/core.js ─┐
-src/kit/server.tsx ── same config ──► dist/kit/server.js ─────────┼─► dist/chunk-*.js
+src/kit/mdx.tsx ── same config ──► dist/kit/mdx.js ─────────┼─► dist/chunk-*.js
                                                                   │   (the pure code, once)
 src/index.ts, experimental.ts, kit/index.ts                       │
   ── client config ("use client" banner + coreHinge plugin) ──►   │
@@ -364,7 +364,7 @@ src/index.ts, experimental.ts, kit/index.ts                       │
   the right relative path for all of them. The adapters emit to
   `dist/adapters/` and would get a wrong path, but they only `import type`,
   so they never reach core at runtime.
-- `./kit/server` is built by the plain config next to core, so esbuild's
+- `./kit/mdx` is built by the plain config next to core, so esbuild's
   splitting puts the pure code in one chunk both import. It imports the
   client components by the package's own name (`@sphynxoid/stepwise`,
   `@sphynxoid/stepwise/kit`), which that config keeps external: resolved, it
@@ -425,7 +425,7 @@ An author writes a **definition** (pure, `defineExplainer`) and a **view**
   linked explainers with the same hash namespace (keys or not) and warns
   once.
 - **`precomputed` is a plain function component** (no hooks) in
-  `./kit/server`: it resolves the input like the client, runs `precompute`
+  `./kit/mdx`: it resolves the input like the client, runs `precompute`
   (cached per definition, 8 inputs, keyed by the input's JSON, which is why
   non-JSON inputs are rejected before the lookup) and forwards every prop
   plus `trace`. On the client, `useSimulation`'s `initialTrace` plays that
@@ -447,7 +447,7 @@ symptom (page works, library elements naked) does not point at the cause.
 ## SSR notes
 
 - Every client module is `"use client"`; hooks no-op or defer `window`
-  access behind effects/mounted flags. `./core` and `./kit/server` are the
+  access behind effects/mounted flags. `./core` and `./kit/mdx` are the
   exceptions, by design (see "The core/client boundary").
 - `useLessonStream` seeds its window around the entry lesson, so SSR renders
   that window; its layout effects use an isomorphic wrapper (no server

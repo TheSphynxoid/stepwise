@@ -6,7 +6,7 @@ import * as kit from "../kit";
 import { Explainer, ExplainerBar, Narration, Stage, createExplainer, useExplainer } from "../kit";
 import type { ExplainerApi } from "../kit";
 import type { ReactElement } from "react";
-import { precomputed } from "../kit/server";
+import { precomputed } from "../kit/mdx";
 
 afterEach(() => {
   cleanup();

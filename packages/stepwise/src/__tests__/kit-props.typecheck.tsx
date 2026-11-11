@@ -9,7 +9,7 @@ import type { Simulation } from "../core";
 import { createExplainer } from "../kit";
 import type { ExplainerApi } from "../kit";
 import type { PrecomputedTrace } from "../index";
-import { precomputed } from "../kit/server";
+import { precomputed } from "../kit/mdx";
 
 type Step = { key: string; tone: "neutral"; label: string; n: number };
 type Input = { arr: number[]; target: number; id: number };

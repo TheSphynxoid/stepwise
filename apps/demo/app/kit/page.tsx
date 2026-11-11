@@ -10,7 +10,7 @@ import {
   Stage,
   StepCode,
 } from "@sphynxoid/stepwise/kit";
-import { precomputed } from "@sphynxoid/stepwise/kit/server";
+import { precomputed } from "@sphynxoid/stepwise/kit/mdx";
 import { ViewSource } from "../view-source";
 import { binarySearch } from "./binary-search.explainer";
 import { BinarySearchClient } from "./demo";

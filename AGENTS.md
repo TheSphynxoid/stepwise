@@ -27,7 +27,7 @@ npm run build -w @sphynxoid/stepwise             # build library → packages/st
 npm run dev                                   # demo app (same as: npm run dev -w @stepwise/demo)
 
 # tests — run from the package directory, NOT the root
-cd packages/stepwise && npx vitest run        # 295 tests (14 useSteps, 32 player, 29 tour, 9 discoveries, 6 chapters, 4 flatten, 4 trace, 11 synced tracks, 9 lesson stream, 3 createTrace, 24 simulation/re-anchoring/checkpoints, 7 evaluators, 11 live edge, 9 syncInput + rebuilt-input warning, 4 barrels (root, core, kit, kit/server), 24 walks/graphs/diffs/experimental barrel, 7 core boundary, 16 explainer definitions/precompute, 7 initialTrace, 26 kit explainer, 17 kit predict, 13 kit keys/registry, 9 kit/server)
+cd packages/stepwise && npx vitest run        # 295 tests (14 useSteps, 32 player, 29 tour, 9 discoveries, 6 chapters, 4 flatten, 4 trace, 11 synced tracks, 9 lesson stream, 3 createTrace, 24 simulation/re-anchoring/checkpoints, 7 evaluators, 11 live edge, 9 syncInput + rebuilt-input warning, 4 barrels (root, core, kit, kit/mdx), 24 walks/graphs/diffs/experimental barrel, 7 core boundary, 16 explainer definitions/precompute, 7 initialTrace, 26 kit explainer, 17 kit predict, 13 kit keys/registry, 9 kit/mdx)
 
 # library typecheck, including the type-level tests (src/__tests__/kit-props.typecheck.tsx:
 # @ts-expect-error lines, which vitest does not check); also run by prepublishOnly and CI
@@ -163,7 +163,7 @@ KIT       kit/explainer.tsx EXPERIMENTAL (./kit): Explainer / createExplainer
           kit/predict.tsx   Predict, PredictToggle
           kit/registry.ts   which explainer owns the keyboard; duplicate hash
                             namespace warning (module state, SSR-safe)
-          kit/server.tsx    EXPERIMENTAL (./kit/server, no "use client"):
+          kit/mdx.tsx    EXPERIMENTAL (./kit/mdx, no "use client"):
                             precomputed (hook-free server wrapper, trace
                             cache), stepwiseComponents (MDX map); imports the
                             client entries by package name (kept external)
@@ -236,7 +236,7 @@ Each of these encodes a bug we already fixed once:
    bundles a second copy into the client chunk. `src/core.ts` and everything
    it imports carry no directive, no runtime `react` import (`import type` is
    fine), and no `class` or `unique symbol` (the client `.d.ts` copies of
-   core's types must stay structurally compatible). `kit/server.tsx` imports
+   core's types must stay structurally compatible). `kit/mdx.tsx` imports
    client code by package name only. `core-boundary.test.ts` enforces all of
    it, including "one file in dist contains `function runSimulation(`".
 
@@ -303,11 +303,11 @@ the library's theming story:
    "DTS ⚡ Build success". Tests from `packages/stepwise`, then
    `npm run typecheck` there (exit 0; the type-level tests live in it).
 2. Demo: `cd apps/demo && npm run build` → "21/21 static pages" (14 routes + OG image + `/llms.txt` + `/llms-full.txt`).
-   Then `PW_CHANNEL=msedge npx playwright test` (31 smoke tests: every route
+   Then `PW_CHANNEL=msedge npx playwright test` (32 smoke tests: every route
    without console errors, the /eviction redirect, tour card placement - the
    Tailwind `@source` regression guard - player, tour, keyboard glossary
    tooltip, lesson composition, /compare alignment, /simulate exact linked frame +
-   re-anchoring after edits, /simulate predict loop, /live follow + Go live, /llms.txt + /llms-full.txt, hero bar edit keeps the step, /automaton run + choices with link restore, /kit first frame in the no-JS HTML + two explainers with separate links and keys + predict loop). Set `PW_PORT` if 3123 is taken.
+   re-anchoring after edits, /simulate predict loop, /live follow + Go live, /llms.txt + /llms-full.txt, hero bar edit keeps the step, /automaton run + choices with link restore, /kit first frame in the no-JS HTML + two explainers with separate links and keys + target edit applies at once + predict loop). Set `PW_PORT` if 3123 is taken.
    At the default worker count this 16-thread box saturates (Edge launches take
    ~6 s, the server's HTML ~20 s) and route-load tests time out on
    `networkidle`; pass `--workers=2` locally. CI's small runners are fine.
@@ -398,4 +398,4 @@ signature changes are major while we're pre-1.0.
 - "What can I import?" → `packages/stepwise/src/index.ts` (the barrel is the
   public API; its header comment is the design rationale)
 - "What can a server component or build script call?" → `packages/stepwise/src/core.ts`
-  (`./core`); the kit's entries are `src/kit/index.ts` and `src/kit/server.tsx`
+  (`./core`); the kit's entries are `src/kit/index.ts` and `src/kit/mdx.tsx`

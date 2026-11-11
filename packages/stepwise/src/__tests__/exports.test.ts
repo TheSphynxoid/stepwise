@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import * as stepwise from "../index";
 import * as core from "../core";
 import * as kit from "../kit/index";
-import * as kitServer from "../kit/server";
+import * as kitMdx from "../kit/mdx";
 
 // The barrel is the public API. Hook tests import modules directly, so a
 // missing re-export would otherwise only surface in a consumer's build.
@@ -106,10 +106,10 @@ describe("./kit", () => {
   });
 });
 
-describe("./kit/server", () => {
+describe("./kit/mdx", () => {
   it("exports every runtime entry point", () => {
     const expected = ["precomputed", "stepwiseComponents"];
-    expect(expected.filter((name) => !(name in kitServer))).toEqual([]);
+    expect(expected.filter((name) => !(name in kitMdx))).toEqual([]);
   });
 });
 

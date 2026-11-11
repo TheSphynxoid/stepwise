@@ -20,7 +20,7 @@ with an editable player, predict mode and a glossary. The `/kit` page of the
 demo site is the same explainer, with its source.
 
 The explainer comes from the authoring kit (`@sphynxoid/stepwise/core`,
-`/kit` and `/kit/server`, experimental: they may change in a minor release).
+`/kit` and `/kit/mdx`, experimental: they may change in a minor release).
 An author writes a definition and a view; the player, the links, the keyboard,
 predict mode and the layout come from the kit.
 
@@ -54,7 +54,7 @@ article can use the explainer parts and the glossary without importing them:
 
 ```tsx
 import type { MDXComponents } from "mdx/types";
-import { stepwiseComponents } from "@sphynxoid/stepwise/kit/server";
+import { stepwiseComponents } from "@sphynxoid/stepwise/kit/mdx";
 
 export function useMDXComponents(components: MDXComponents): MDXComponents {
   return { ...stepwiseComponents, ...components };
@@ -63,7 +63,7 @@ export function useMDXComponents(components: MDXComponents): MDXComponents {
 
 `stepwiseComponents` is `Term`, `GlossaryAppendix`, `Stage`, `Narration`,
 `StepCode`, `Predict`, `PredictToggle`, `ExplainerBar` and `EndNote`. It comes
-from `/kit/server` because a server file can't spread an object exported by a
+from `/kit/mdx` because a server file can't spread an object exported by a
 client module (it only gets references).
 
 **4. `app/layout.tsx`**: the stylesheet (skip it if you use Tailwind, see
@@ -183,7 +183,7 @@ server-only modules.
 
 ```tsx
 // components/binary-search.tsx: the wrapper the article imports
-import { precomputed } from "@sphynxoid/stepwise/kit/server";
+import { precomputed } from "@sphynxoid/stepwise/kit/mdx";
 import { binarySearch } from "@/lib/binary-search.explainer";
 import { BinarySearchClient } from "./binary-search-player";
 

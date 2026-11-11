@@ -53,9 +53,9 @@
       "types": "./dist/kit.d.ts",
       "import": "./dist/kit.js"
     },
-    "./kit/server": {
-      "types": "./dist/kit/server.d.ts",
-      "import": "./dist/kit/server.js"
+    "./kit/mdx": {
+      "types": "./dist/kit/mdx.d.ts",
+      "import": "./dist/kit/mdx.js"
     },
     "./adapters/gsap": {
       "types": "./dist/adapters/gsap.d.ts",

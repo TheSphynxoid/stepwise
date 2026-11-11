@@ -103,13 +103,13 @@ describe("core boundary", () => {
     }
   });
 
-  // kit/server is plain too, but it hands out client components: it must
+  // kit/mdx is plain too, but it hands out client components: it must
   // reach them by the package's name (an external runtime import), never by a
   // relative path, which would bundle client code into a file with no
   // "use client". importGraph follows only relative imports, so a package-name
   // import correctly ends the walk.
-  it("kit/server reaches client code only by the package's name", () => {
-    const server = join(SRC, "kit", "server.tsx");
+  it("kit/mdx reaches client code only by the package's name", () => {
+    const server = join(SRC, "kit", "mdx.tsx");
     const source = readFileSync(server, "utf8");
     expect(USE_CLIENT.test(source)).toBe(false);
     expect(source).toMatch(/from ["']@sphynxoid\/stepwise\/kit["']/);
@@ -118,8 +118,8 @@ describe("core boundary", () => {
     }
   });
 
-  it.skipIf(!existsSync(join(DIST, "kit", "server.js")))("dist/kit/server.js imports the client entries", () => {
-    const built = readFileSync(join(DIST, "kit", "server.js"), "utf8");
+  it.skipIf(!existsSync(join(DIST, "kit", "mdx.js")))("dist/kit/mdx.js imports the client entries", () => {
+    const built = readFileSync(join(DIST, "kit", "mdx.js"), "utf8");
     expect(USE_CLIENT.test(built)).toBe(false);
     expect(built).toMatch(/from ["']@sphynxoid\/stepwise\/kit["']/);
     expect(built).toMatch(/from ["']@sphynxoid\/stepwise["']/);

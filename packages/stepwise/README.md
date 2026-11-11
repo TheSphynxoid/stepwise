@@ -184,7 +184,7 @@ Things worth knowing before you build one:
 
 ## Authoring kit (experimental)
 
-For articles with several explainers, the kit turns one into a definition, a view and a tag. Three entries, all experimental (they may change in a minor release): `@sphynxoid/stepwise/core` (pure, no `"use client"`), `@sphynxoid/stepwise/kit` (client) and `@sphynxoid/stepwise/kit/server`.
+For articles with several explainers, the kit turns one into a definition, a view and a tag. Three entries, all experimental (they may change in a minor release): `@sphynxoid/stepwise/core` (pure, no `"use client"`), `@sphynxoid/stepwise/kit` (client) and `@sphynxoid/stepwise/kit/mdx`.
 
 ```tsx
 // sorting.explainer.ts — plain module: what to simulate, the default input, where to ask
@@ -211,7 +211,7 @@ export const Sorting = precomputed(sorting, SortingClient);
 <Sorting id="quiz" arr={[3, 1, 2]} predict />
 ```
 
-The default layout is the view, the narration, the predict question, the step's code, a `PlayerBar` and an end note; children replace it with any arrangement of the same parts (`Stage`, `Narration`, `Predict`, `PredictToggle`, `StepCode`, `ExplainerBar`, `EndNote`). Spread `stepwiseComponents` (from `/kit/server`) into `mdx-components.tsx` to use them from MDX. Each explainer keeps its frame and input in the URL under its `id`, and the arrow keys and Space drive the one the reader last clicked or focused (none until then, so Space still scrolls the page). Field props such as `arr` are typed from the default input; a field named like one of the explainer's own props (`id`, `theme`, ...) is set through `input={...}`. `precomputed` doesn't put the first frame in the HTML (a client component is server-rendered anyway); it makes a broken definition fail the build, and in an RSC host (the Next.js App Router) it saves the re-run on hydration. In a non-RSC SSR host (Docusaurus, the Next.js Pages Router, Remix) the wrapper runs again in the browser, so the simulation runs there once too. `useExplainer()` also reports `error` and `truncated`, and a checkpoint on a frame with no successor is skipped. Walkthrough: [RECIPES.md](https://github.com/TheSphynxoid/stepwise/blob/master/docs/RECIPES.md#an-interactive-article-in-nextjs--mdx); full API: [LLMS.md section 9](https://github.com/TheSphynxoid/stepwise/blob/master/packages/stepwise/LLMS.md) and the [reference](https://stepwise.thesphynx.net/docs#createExplainer).
+The default layout is the view, the narration, the predict question, the step's code, a `PlayerBar` and an end note; children replace it with any arrangement of the same parts (`Stage`, `Narration`, `Predict`, `PredictToggle`, `StepCode`, `ExplainerBar`, `EndNote`). Spread `stepwiseComponents` (from `/kit/mdx`) into `mdx-components.tsx` to use them from MDX. Each explainer keeps its frame and input in the URL under its `id`, and the arrow keys and Space drive the one the reader last clicked or focused (none until then, so Space still scrolls the page). Field props such as `arr` are typed from the default input; a field named like one of the explainer's own props (`id`, `theme`, ...) is set through `input={...}`. `precomputed` doesn't put the first frame in the HTML (a client component is server-rendered anyway); it makes a broken definition fail the build, and in an RSC host (the Next.js App Router) it saves the re-run on hydration. In a non-RSC SSR host (Docusaurus, the Next.js Pages Router, Remix) the wrapper runs again in the browser, so the simulation runs there once too. `useExplainer()` also reports `error` and `truncated`, and a checkpoint on a frame with no successor is skipped. Walkthrough: [RECIPES.md](https://github.com/TheSphynxoid/stepwise/blob/master/docs/RECIPES.md#an-interactive-article-in-nextjs--mdx); full API: [LLMS.md section 9](https://github.com/TheSphynxoid/stepwise/blob/master/packages/stepwise/LLMS.md) and the [reference](https://stepwise.thesphynx.net/docs#createExplainer).
 
 ## The three scales
 
@@ -283,7 +283,7 @@ An adapter plugs into a tiny port (`PlayerEngine` / `TourDriver`), so you can wr
 
 ## React
 
-Supports React 18 and 19. All hooks are SSR-safe (`"use client"` modules, no window access at module evaluation) and every public hook returns referentially stable callbacks. `@sphynxoid/stepwise/core` and `@sphynxoid/stepwise/kit/server` are the two entries without `"use client"`.
+Supports React 18 and 19. All hooks are SSR-safe (`"use client"` modules, no window access at module evaluation) and every public hook returns referentially stable callbacks. `@sphynxoid/stepwise/core` and `@sphynxoid/stepwise/kit/mdx` are the two entries without `"use client"`.
 
 ## License
 

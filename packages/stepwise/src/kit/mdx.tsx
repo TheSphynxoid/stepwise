@@ -1,5 +1,6 @@
-// @sphynxoid/stepwise/kit/server — the kit's server half, for hosts that
-// render MDX (or any page) on the server.
+// @sphynxoid/stepwise/kit/mdx — what an MDX host imports from a file that is
+// not a client module: mdx-components.tsx, a server page, a layout. It runs
+// anywhere (a server, a build script, the browser), hence the neutral name.
 //
 //   precomputed        — wraps a createExplainer component so the trace is
 //                        computed where the page renders and shipped as JSON

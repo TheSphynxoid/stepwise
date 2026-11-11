@@ -886,7 +886,7 @@ export const API: ApiGroup[] = [
   },
   {
     title: "Experimental: authoring kit",
-    blurb: "From @sphynxoid/stepwise/core, @sphynxoid/stepwise/kit and @sphynxoid/stepwise/kit/server: may change in a minor release. An explainer is a definition (pure data, ./core), a view bound to it by createExplainer (client, ./kit) and, on a server, a precomputed wrapper (./kit/server). The parts are flat PascalCase components with serializable props, so they compose from MDX.",
+    blurb: "From @sphynxoid/stepwise/core, @sphynxoid/stepwise/kit and @sphynxoid/stepwise/kit/mdx: may change in a minor release. An explainer is a definition (pure data, ./core), a view bound to it by createExplainer (client, ./kit) and, on a server, a precomputed wrapper (./kit/mdx). The parts are flat PascalCase components with serializable props, so they compose from MDX.",
     entries: [
       {
         id: "core",
@@ -1049,7 +1049,7 @@ export const API: ApiGroup[] = [
         name: "precomputed",
         signature: "precomputed<Input, S>(definition: ExplainerDefinition<Input, S>, Client: ComponentType<ExplainerInstanceProps<Input, S>>): (props: Omit<ExplainerInstanceProps<Input, S>, \"trace\">) => ReactElement",
         summary:
-          "From @sphynxoid/stepwise/kit/server (no \"use client\"). Wraps a createExplainer component in a hook-free server component: it resolves the input from the props as the client would, runs precompute (cached per definition, up to 8 inputs), and renders Client with every prop plus trace. A client component is server-rendered anyway, so the first frame is in the HTML either way. What this adds in every host is a build-time failure for a non-JSON input or a simulation that throws, hits the cap or yields non-JSON data. In an RSC host (the Next.js App Router) the wrapper runs only on the server, so hydration does not re-run the simulation; in a non-RSC SSR host (Docusaurus, the Next.js Pages Router, Remix) the wrapper itself runs again in the browser, so the simulation runs once there too. Name the wrapper file without .server. (Remix and React Router treat *.server.* files as server-only). The wrapper's props are the client component's minus trace, field props typed from the input.",
+          "From @sphynxoid/stepwise/kit/mdx (no \"use client\"). Wraps a createExplainer component in a hook-free server component: it resolves the input from the props as the client would, runs precompute (cached per definition, up to 8 inputs), and renders Client with every prop plus trace. A client component is server-rendered anyway, so the first frame is in the HTML either way. What this adds in every host is a build-time failure for a non-JSON input or a simulation that throws, hits the cap or yields non-JSON data. In an RSC host (the Next.js App Router) the wrapper runs only on the server, so hydration does not re-run the simulation; in a non-RSC SSR host (Docusaurus, the Next.js Pages Router, Remix) the wrapper itself runs again in the browser, so the simulation runs once there too. Name the wrapper file without .server. (Remix and React Router treat *.server.* files as server-only). The wrapper's props are the client component's minus trace, field props typed from the input.",
         demo: "/kit",
         tables: [],
       },
@@ -1058,7 +1058,7 @@ export const API: ApiGroup[] = [
         name: "stepwiseComponents",
         signature: "export function useMDXComponents(c: MDXComponents) { return { ...stepwiseComponents, ...c }; }",
         summary:
-          "From @sphynxoid/stepwise/kit/server: Term, GlossaryAppendix, Stage, Narration, StepCode, Predict, PredictToggle, ExplainerBar and EndNote as one map, to spread into mdx-components.tsx or an MDX provider's components. Your own explainers are not in it: import them in the MDX file or add them to the map.",
+          "From @sphynxoid/stepwise/kit/mdx: Term, GlossaryAppendix, Stage, Narration, StepCode, Predict, PredictToggle, ExplainerBar and EndNote as one map, to spread into mdx-components.tsx or an MDX provider's components. Your own explainers are not in it: import them in the MDX file or add them to the map.",
         tables: [],
       },
     ],

@@ -35,7 +35,7 @@ Recipes: https://github.com/TheSphynxoid/stepwise/blob/master/docs/RECIPES.md
 - Experimental APIs come from their own entries and may change in a minor
   release: branching walks (section 8) from `@sphynxoid/stepwise/experimental`,
   the authoring kit (section 9) from `@sphynxoid/stepwise/core`,
-  `@sphynxoid/stepwise/kit` and `@sphynxoid/stepwise/kit/server`.
+  `@sphynxoid/stepwise/kit` and `@sphynxoid/stepwise/kit/mdx`.
 
 ## The model
 
@@ -314,7 +314,7 @@ export const SortingClient = createExplainer({ definition: sorting, view: Bars }
 
 ```tsx
 // sorting.tsx: the wrapper the page imports. No "use client".
-import { precomputed } from "@sphynxoid/stepwise/kit/server";
+import { precomputed } from "@sphynxoid/stepwise/kit/mdx";
 import { sorting } from "./sorting.explainer";
 import { SortingClient } from "./sorting-player";
 
@@ -345,7 +345,7 @@ MDX can't call functions, so `createExplainer` and `precomputed` live in the
 
 ```tsx
 import type { MDXComponents } from "mdx/types";
-import { stepwiseComponents } from "@sphynxoid/stepwise/kit/server";
+import { stepwiseComponents } from "@sphynxoid/stepwise/kit/mdx";
 
 export function useMDXComponents(components: MDXComponents): MDXComponents {
   return { ...stepwiseComponents, ...components };

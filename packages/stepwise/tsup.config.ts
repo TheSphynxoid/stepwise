@@ -57,10 +57,10 @@ export default defineConfig([
   },
   {
     ...shared,
-    // kit/server shares the pure code with core: esm splitting puts it in
+    // kit/mdx shares the pure code with core: esm splitting puts it in
     // one chunk both import, so it still exists once in dist.
-    entry: { core: "src/core.ts", "kit/server": "src/kit/server.tsx" },
-    // kit/server imports the client entries by the package's name. Kept
+    entry: { core: "src/core.ts", "kit/mdx": "src/kit/mdx.tsx" },
+    // kit/mdx imports the client entries by the package's name. Kept
     // external, that is a runtime import of the client bundles; resolved
     // (tsconfig paths would send it to src), it would bundle client code
     // into a file with no "use client".
