@@ -5,7 +5,7 @@ import { expect, test, type Page } from "@playwright/test";
 // for the library's classes (wrong @source path), which leaves every
 // library-rendered element unstyled while the host page looks fine.
 
-const ROUTES = ["/", "/simulate", "/kit", "/live", "/automaton", "/player", "/compare", "/lesson", "/tour", "/discovery", "/glossary", "/scroll", "/minimal", "/docs"];
+const ROUTES = ["/", "/simulate", "/kit", "/llm", "/live", "/automaton", "/player", "/compare", "/lesson", "/tour", "/discovery", "/glossary", "/scroll", "/minimal", "/docs"];
 
 function collectErrors(page: Page): string[] {
   const errors: string[] = [];
@@ -318,4 +318,59 @@ test("automaton: a wrong pick takes a detour, a new answer cuts it off, links re
   await expect(page.getByTestId("quiz-score")).toHaveText("1 answered · 0 detours");
   await expect(page.getByTestId("quiz-label")).toHaveText("'1' read: now in r1");
   await expect(page).toHaveURL(/p=1/);
+});
+
+// ── /llm: the kit at lesson scale ─────────────────────────────────────────
+
+/** Turn predict mode off (if the explainer has it) and jump to the last frame. */
+async function toEnd(page: Page, id: string) {
+  const root = page.locator(`[data-explainer="${id}"]`);
+  const toggle = root.getByRole("switch", { name: "Predict before each reveal" });
+  if ((await toggle.count()) > 0 && (await toggle.getAttribute("aria-checked")) === "true") await toggle.click();
+  const slider = root.getByRole("slider", { name: "Frames" });
+  await slider.focus();
+  await page.keyboard.press("End");
+  return root;
+}
+
+test("/llm: the first tokenizer frame is in the server HTML", async ({ browser, baseURL }) => {
+  const context = await browser.newContext({ javaScriptEnabled: false, baseURL });
+  try {
+    const page = await context.newPage();
+    const res = await page.goto("/llm");
+    expect(res?.ok()).toBe(true);
+    await expect(page.locator('[data-explainer="tok"] p[aria-live]').first()).toHaveText('Split "the cats jumped" into tokens, reading left to right.');
+  } finally {
+    await context.close();
+  }
+});
+
+test("/llm: typing re-tokenizes", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/llm");
+  const tok = page.locator('[data-explainer="tok"]');
+  await tok.getByLabel("Text to tokenize").fill("dogs ran");
+  await toEnd(page, "tok");
+  await expect(tok.locator("p[aria-live]").first()).toContainText("3 tokens");
+  await expect(tok.getByRole("img")).toHaveAttribute("aria-label", /: dog, s, ran$/);
+  await expect(page).toHaveURL(/tok\.in=dogs_ran/);
+});
+
+test("/llm: closed-book and retrieval answers differ", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/llm");
+  const closed = await toEnd(page, "closed");
+  await expect(closed.getByTestId("rag-answer")).toContainText("seven");
+  const rag = await toEnd(page, "rag");
+  await expect(rag.getByTestId("rag-answer")).toContainText("five");
+});
+
+test("/llm: nprobe 1 misses the tie question, 3 finds it", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/llm");
+  const idx = await toEnd(page, "idx");
+  await expect(idx.getByTestId("index-verdict")).toHaveText("missed the true best");
+  await idx.getByRole("group", { name: "nprobe" }).getByRole("button", { name: "3" }).click();
+  await toEnd(page, "idx");
+  await expect(idx.getByTestId("index-verdict")).toHaveText("found the true best");
 });

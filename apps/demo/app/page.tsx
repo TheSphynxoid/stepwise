@@ -3,6 +3,7 @@ import { VERSION } from "./version";
 import {
   ArrowRight,
   Blocks,
+  BrainCircuit,
   BookMarked,
   BookOpen,
   Columns2,
@@ -54,6 +55,13 @@ const DEMOS: {
     title: "Explainer kit (experimental)",
     desc: "A definition and a view become one component. The server renders the first frame; two on one page keep their own links and keys; predict mode asks your question.",
     tag: "defineExplainer + createExplainer + precomputed",
+  },
+  {
+    href: "/llm",
+    icon: BrainCircuit,
+    title: "How LLMs work",
+    desc: "A seven-chapter lesson built with the kit: tokens, vectors, attention and sampling, then why models make things up, how retrieval fixes it, and the vector index behind retrieval. Toy numbers you can check by hand.",
+    tag: "kit + useChapters + glossary",
   },
   {
     href: "/live",

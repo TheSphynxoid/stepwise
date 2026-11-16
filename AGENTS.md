@@ -250,8 +250,9 @@ path of the player demo) permanently redirects to `/player` via
 
 Page structure: each route's `page.tsx` is a tiny **server** component that
 renders the client `demo.tsx` plus `<ViewSource file="app/<route>/demo.tsx" />`
-(`/kit` is the exception: its server page holds the `precomputed` call and
-the layout, so it shows a second panel for `page.tsx`),
+(`/kit` and `/llm` are the exceptions: their server pages hold the
+`precomputed` calls and the layout/prose, so they show a panel for
+`page.tsx` too; `/llm` also shows `views.tsx`),
 which reads that file with `fs` at build time and shows it in a collapsible
 `CodeBlock` (with GitHub / StackBlitz links). So the source panel can't drift
 from the running code - keep the demo itself in `demo.tsx`.
@@ -265,6 +266,7 @@ What each page must keep showcasing (the feature matrix):
 | `/simulate`| `useSimulation` live trace (edit input mid-play, playhead keeps its step via `key`), seeded `createRng`, `#in=…&frame=…` exact replay links via `syncInput` (no hand-rolled linking), predict mode: `holdAt` checkpoints + manual `useEvaluator` |
 | `/automaton`| **Experimental** transitions: `fromGraph` divisible-by-3 DFA run over a typed word (`anchor: "index"`) and drawn from `dfa.graph`; "be the automaton" `useWalk` with choice points, wrong-answer detours, re-answer truncation, `syncChoices` links |
 | `/kit`     | **Experimental** authoring kit: one `defineExplainer` (in `binary-search.explainer.ts`, imported from `./core`) + one view via `createExplainer`, wrapped by `precomputed` in the server `page.tsx`; two explainers with ids `a` / `b` (separate `a.frame` / `b.in` links, keyboard goes to the last clicked or focused, none before that), the second with a custom child layout, a field prop (`target={61}`) and `predict`. Shows both `demo.tsx` and `page.tsx` source |
+| `/llm`     | **Teaching lesson on the kit**: seven chapters (tokens, vectors, attention, sampling, hallucination, RAG, vector index), one small explainer each (`*.explainer.ts` over the pure `toy-model.ts`: hand-made 2-D vectors, ~50-token vocabulary, invented "Tidepool" rulebook), `precomputed` in the server `page.tsx`, views in `views.tsx`; `useChapters` + `ChapterNav` + glossary `Term`s/appendix in the client shell; one definition used twice via a field prop (`<Rag retrieve={false}>`); predict on five (all but the embedding map and the closed-book run). `apps/demo/scripts/check-llm-model.ts` (`npx jiti`) pins the behaviors the prose relies on (k=1 misleads, nprobe=1 misses) |
 | `/live`    | `useTrace({ follow })` over a growing event stream, `PlayerBar live` badge, scrub back stays put, Go live (L) returns, burst to show catch-up |
 | `/player`  | `useTrace` autoPlay, `PlayerBar`, `useGlobalKeys`, `CodeBlock`, tones, `ended` completion banner |
 | `/compare` | `useSyncedTracks` (bubble vs insertion sort under one player), hold vs align-by-pass toggle, traces built with `createTrace` |
@@ -302,12 +304,12 @@ the library's theming story:
 1. Library: `npm run build -w @sphynxoid/stepwise` → "ESM ⚡ Build success" +
    "DTS ⚡ Build success". Tests from `packages/stepwise`, then
    `npm run typecheck` there (exit 0; the type-level tests live in it).
-2. Demo: `cd apps/demo && npm run build` → "21/21 static pages" (14 routes + OG image + `/llms.txt` + `/llms-full.txt`).
-   Then `PW_CHANNEL=msedge npx playwright test` (32 smoke tests: every route
+2. Demo: `cd apps/demo && npm run build` → "22/22 static pages" (15 routes + OG image + `/llms.txt` + `/llms-full.txt`).
+   Then `PW_CHANNEL=msedge npx playwright test` (37 smoke tests: every route
    without console errors, the /eviction redirect, tour card placement - the
    Tailwind `@source` regression guard - player, tour, keyboard glossary
    tooltip, lesson composition, /compare alignment, /simulate exact linked frame +
-   re-anchoring after edits, /simulate predict loop, /live follow + Go live, /llms.txt + /llms-full.txt, hero bar edit keeps the step, /automaton run + choices with link restore, /kit first frame in the no-JS HTML + two explainers with separate links and keys + target edit applies at once + predict loop). Set `PW_PORT` if 3123 is taken.
+   re-anchoring after edits, /simulate predict loop, /live follow + Go live, /llms.txt + /llms-full.txt, hero bar edit keeps the step, /automaton run + choices with link restore, /kit first frame in the no-JS HTML + two explainers with separate links and keys + target edit applies at once + predict loop, /llm first frame in the no-JS HTML + re-tokenizing + closed-book vs RAG answers + nprobe miss/hit). Set `PW_PORT` if 3123 is taken.
    At the default worker count this 16-thread box saturates (Edge launches take
    ~6 s, the server's HTML ~20 s) and route-load tests time out on
    `networkidle`; pass `--workers=2` locally. CI's small runners are fine.
