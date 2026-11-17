@@ -2,7 +2,8 @@
 // Tickets"): every "this technique catches the bug / misses it" story the
 // lesson tells is pinned here. Run: npx jiti apps/demo/scripts/check-qa-model.ts
 import assert from "node:assert/strict";
-import { precompute } from "@sphynxoid/stepwise/core";
+import { precompute, runWalk } from "@sphynxoid/stepwise/core";
+import { lifecycleWalk } from "../app/qa/lifecycle.walk";
 import { decisions } from "../app/qa/decisions.explainer";
 import { mutation } from "../app/qa/mutation.explainer";
 import {
@@ -139,5 +140,14 @@ assert.equal(weak.branchCoverage, 100, "weak suite: 100% branch coverage too, an
 assert.ok(weak.mutants.filter((m) => m.status === "survived").length >= 3, "weak suite: survivors");
 const strong = last(precompute(mutation, { suite: "strong" }).steps);
 assert.equal(strong.mutants.filter((m) => m.status === "survived").length, 0, "strong suite kills all");
+
+// §05 the tester's walk: refusals stay put, hold → refund is the bug.
+const w1 = runWalk(lifecycleWalk, null, { choices: ["pay", "hold", "refund"] });
+assert.equal(w1.steps[w1.steps.length - 1].key.startsWith("found"), true, "hold → refund finds the bug");
+assert.equal(w1.awaiting, false, "the walk ends on the bug");
+assert.ok(w1.steps.some((s) => s.result === "refused"), "pay from draft is refused");
+const w2 = runWalk(lifecycleWalk, null, { choices: ["hold", "pay", "issue", "refund"] });
+assert.ok(!w2.steps.some((s) => s.key.startsWith("found")), "the legal path finds nothing");
+assert.equal(w2.steps[w2.steps.length - 1].state, "refunded");
 
 console.log("qa model: ok");

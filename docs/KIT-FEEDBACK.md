@@ -40,3 +40,33 @@ button) and `fixed` resolves against the header: the card renders above
 the top of the viewport. The glossary tooltip and shortcuts dialog already
 portal; the tour parts don't.
 **Fix:** portal both to `document.body` after mount, like the tooltip.
+
+## 5. The kit can't host a walk
+
+**Where:** `defineExplainer` / `createExplainer` vs `useWalk`.
+**What:** §05 (be the tester) is a walk: each step waits on the reader's
+choice. The kit only wraps `useSimulation`, so this chapter loses
+`Narration`, `ExplainerBar`, `EndNote`, keyboard ownership, the duplicate-id
+warning and `precomputed`, and re-implements the narration and "why" box by
+hand. A walk's path is fully determined by `(input, choices)`, so it is just
+as precomputable as a simulation.
+**Fix:** `defineExplainer({ walk })` (or `defineWalk`) with `choices` in
+the link, and a `Choices` part that renders the options at a choice point.
+
+## 6. Kit parts only work inside an explainer
+
+**Where:** `Narration`, `ExplainerBar` (`kit/parts.tsx`).
+**What:** they read the explainer context, so they can't be reused around a
+plain `useTrace`/`useWalk`/`useSyncedTracks` player. Every non-kit chapter
+in `/qa` re-creates the narration line by hand, and the look drifts.
+**Fix:** let the parts take an explicit `{ step, player }` (or export a
+small `ExplainerProvider` that adapts any player).
+
+## 7. `fromGraph` forgets node ids
+
+**Where:** `fromGraph` (`graph.ts`).
+**What:** symbols are typed (`Sym`), node ids aren't: `delta()` returns
+`string | null` and `graph.edges[i].from` is `string`, so a typed state
+union needs a cast at every use (`as LifeState | null`).
+**Fix:** a second type parameter inferred from `nodes`' keys:
+`fromGraph<Sym, Node extends string>`.

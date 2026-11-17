@@ -71,6 +71,8 @@ const GLOSSARY: GlossaryEntry[] = [
   { id: "line-coverage", term: "Line (statement) coverage", definition: <>The share of lines the tests executed. Says nothing about whether the results were checked.</> },
   { id: "branch-coverage", term: "Branch coverage", definition: <>The share of decision outcomes (each <code>if</code> going true and false) the tests executed. Stricter than <Term id="line-coverage">line coverage</Term>, same blind spot.</> },
   { id: "mutation", term: "Mutation testing", definition: <>Making small deliberate bugs (mutants) in the code and running the suite against each. A mutant the suite doesn&apos;t notice &quot;survives&quot; and points to a missing test. Tools: Stryker, PIT, mutmut.</> },
+  { id: "state-transition", term: "State transition testing", definition: <>Testing a system as states and the events that move between them: every valid transition, every invalid one (it must be refused), and sequences.</> },
+  { id: "negative-test", term: "Negative test", definition: <>A test that something is <em>refused</em>: bad input rejected, a forbidden action blocked. Happy-path tests can&apos;t find a feature that does too much.</> },
   { id: "risk-based", term: "Risk-based testing", definition: <>Spending test effort where failure is most likely or most costly. The honest answer to &quot;you can&apos;t test everything, so what do you test?&quot;</> },
 ];
 

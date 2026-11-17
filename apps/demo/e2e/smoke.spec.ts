@@ -433,3 +433,25 @@ test("/qa: the weak suite lets mutants survive at 100% coverage, the strong suit
   await toEnd(page, "mut");
   await expect(mut.getByTestId("mut-score")).toHaveText("7/7 killed");
 });
+
+test("/qa: playing the tester, hold then refund finds the illegal transition; the path is linkable", async ({ page }) => {
+  await gotoQa(page);
+  const life = page.getByTestId("qa-life");
+  const act = (name: string) => life.getByRole("group", { name: "Next action" }).getByRole("button", { name, exact: true }).click();
+  await act("pay");
+  await expect(life.getByTestId("qa-life-log")).toContainText("refused");
+  await act("hold");
+  await act("refund");
+  await expect(life.getByTestId("qa-life-found")).toBeVisible();
+  await expect(page).toHaveURL(/life\.path=/);
+  const url = page.url();
+  // A different answer at an earlier choice cuts off the future.
+  await life.getByRole("slider", { name: "Frames" }).focus();
+  await page.keyboard.press("Home");
+  await act("cancel");
+  await expect(life.getByTestId("qa-life-found")).toHaveCount(0);
+
+  await page.goto("about:blank");
+  await gotoQa(page, url.slice(url.indexOf("#")));
+  await expect(page.getByTestId("qa-life").getByTestId("qa-life-found")).toBeVisible();
+});

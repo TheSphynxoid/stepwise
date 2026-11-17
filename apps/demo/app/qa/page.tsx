@@ -12,6 +12,7 @@ import { decisions } from "./decisions.explainer";
 import { mutation } from "./mutation.explainer";
 import { BoundariesClient, DecisionsClient, Explain, MutationClient, QaLesson, ThinkClient } from "./demo";
 import { Answer, C, Chapter, FollowUp, Prose, TryThis } from "./ui";
+import { Lifecycle } from "./lifecycle";
 import { PRICES, SPEC } from "./tidepool";
 
 export const metadata: Metadata = {
@@ -33,6 +34,7 @@ const CHAPTERS: ChapterSpec[] = [
   { id: "boundaries", label: "Boundaries" },
   { id: "decisions", label: "Decision tables" },
   { id: "mutation", label: "Coverage" },
+  { id: "states", label: "States" },
   { id: "glossary", label: "Glossary", numbered: false },
 ];
 
@@ -254,6 +256,45 @@ export default function Page() {
           </FollowUp>
         </Chapter>
 
+        <Chapter
+          id="states"
+          n={5}
+          slug="test design"
+          title="State transitions: test what must not happen"
+          ask={<>&quot;A booking goes draft, held, paid, issued, and can be cancelled or refunded. How do you test the status logic?&quot;</>}
+        >
+          <Prose>
+            <p>
+              Draw the <Term id="state-transition">state transition</Term> diagram from the spec, then test two things. Every
+              arrow on it should work (that&apos;s the happy-path coverage). And every arrow that <em>isn&apos;t</em> on it
+              should be refused: those are <Term id="negative-test">negative tests</Term>, and they find the bugs.
+            </p>
+            <p>
+              This one you do by hand. You&apos;re the tester: from each state, pick an action to try. The diagram shows the
+              spec, so you know what should happen. Somewhere, the shipped build allows a transition it shouldn&apos;t. Pick
+              a wrong answer early? Scrub back to any earlier choice and pick again: the old path is cut off and replayed
+              from there.
+            </p>
+          </Prose>
+          <Lifecycle />
+          <TryThis>
+            Systematic beats lucky: in each state, try all five actions before moving on. That&apos;s 6 states × 5 actions =
+            30 cases, and the bug is one of them.
+          </TryThis>
+          <Answer>
+            <p>
+              &quot;I&apos;d draw the state diagram from the spec and build a state table: every state against every event.
+              Test each valid transition, then each invalid one to make sure it&apos;s rejected, like refunding an unpaid
+              booking or paying a cancelled one. Then sequences: the same action twice, and two users acting on one
+              booking at the same time.&quot;
+            </p>
+          </Answer>
+          <FollowUp q="What's 0-switch vs 1-switch coverage?">
+            0-switch coverage tests every single transition once. 1-switch (Chow&apos;s) coverage tests every pair of
+            consecutive transitions, catching bugs that depend on how you arrived in a state. It&apos;s the state-machine
+            version of going from single conditions to pairs.
+          </FollowUp>
+        </Chapter>
         <section id="glossary" className="scroll-mt-32">
           <GlossaryAppendix title="Glossary" intro={<>Every term the lesson defines. Interviewers use these words; now you can too.</>} className="mt-0" />
         </section>
