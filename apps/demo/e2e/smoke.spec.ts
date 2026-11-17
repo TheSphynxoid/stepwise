@@ -455,3 +455,21 @@ test("/qa: playing the tester, hold then refund finds the illegal transition; th
   await gotoQa(page, url.slice(url.indexOf("#")));
   await expect(page.getByTestId("qa-life").getByTestId("qa-life-found")).toBeVisible();
 });
+
+test("/qa: one player drives the pyramid's three levels; each catches the bug at its own cost", async ({ page }) => {
+  await gotoQa(page);
+  const pyr = page.getByTestId("qa-pyramid");
+  await pyr.getByRole("slider", { name: "Frames" }).focus();
+  await page.keyboard.press("End");
+  for (const level of ["unit", "api", "ui"]) await expect(pyr.getByTestId(`pyr-${level}`)).toContainText("FAIL");
+  await expect(pyr.getByTestId("pyr-ui")).toContainText("2410 ms");
+});
+
+test("/qa: the shipped API fails three checks, the spec API none", async ({ page }) => {
+  await gotoQa(page);
+  const api = await toEnd(page, "api");
+  await expect(api.getByTestId("api-summary")).toHaveText("3/6 pass");
+  await api.getByRole("group", { name: "API" }).getByRole("button", { name: "spec" }).click();
+  await toEnd(page, "api");
+  await expect(api.getByTestId("api-summary")).toHaveText("6/6 pass");
+});

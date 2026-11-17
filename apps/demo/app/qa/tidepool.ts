@@ -170,14 +170,14 @@ const STORED = { id: 1, tier: "adult", total: 40, status: "held" };
 
 /**
  * Spec: POST valid → 201 with the booking; invalid → 422 with the error;
- * no body → 400; GET a known id → 200; unknown → 404. Shipped: invalid
- * input comes back 200 (with the error in the body), and GET drops `total`.
- * The API validates with the correct rules either way.
+ * no body → 400; GET a known id → 200; unknown → 404. Shipped: validates
+ * with the shipped rules (so 9 tickets get through), returns 200 for the
+ * input it does reject (error in the body), and GET drops `total`.
  */
 export function handle(req: Req, impl: "spec" | "shipped"): Res {
   if (req.method === "POST" && req.path === "/bookings") {
     if (!req.body) return { status: 400, body: { error: "body required" } };
-    const out = book(req.body, SPEC);
+    const out = book(req.body, impl === "shipped" ? SHIPPED : SPEC);
     if (!out.ok) return { status: impl === "shipped" ? 200 : 422, body: { error: out.error } };
     return { status: 201, body: { id: 2, tier: out.tier, total: out.total, status: "held" } };
   }

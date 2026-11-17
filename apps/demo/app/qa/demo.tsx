@@ -23,6 +23,8 @@ import { decisions } from "./decisions.explainer";
 import { mutation } from "./mutation.explainer";
 import { BoundaryView, ThinkView } from "./views";
 import { DecisionView, MutationView } from "./design-views";
+import { api } from "./api.explainer";
+import { ApiView } from "./automation-views";
 
 // The lesson's client half: explainers (a definition from a *.explainer.ts
 // file plus a view, bound by createExplainer), and the shell around the
@@ -32,6 +34,7 @@ const Think = createExplainer({ definition: think, view: ThinkView });
 const Boundaries = createExplainer({ definition: boundaries, view: BoundaryView });
 const Decisions = createExplainer({ definition: decisions, view: DecisionView });
 const Mutation = createExplainer({ definition: mutation, view: MutationView });
+const Api = createExplainer({ definition: api, view: ApiView });
 
 // The server page passes plain data (precomputed traces, ids); the theme
 // follows the site's light/dark toggle from here.
@@ -47,6 +50,10 @@ export function DecisionsClient(props: ComponentProps<typeof Decisions>) {
 }
 export function MutationClient(props: ComponentProps<typeof Mutation>) {
   return <Mutation {...props} theme={useSiteTheme().theme} />;
+}
+
+export function ApiClient(props: ComponentProps<typeof Api>) {
+  return <Api {...props} theme={useSiteTheme().theme} />;
 }
 
 /** The current step's "why": what this moment teaches. */
@@ -73,6 +80,10 @@ const GLOSSARY: GlossaryEntry[] = [
   { id: "mutation", term: "Mutation testing", definition: <>Making small deliberate bugs (mutants) in the code and running the suite against each. A mutant the suite doesn&apos;t notice &quot;survives&quot; and points to a missing test. Tools: Stryker, PIT, mutmut.</> },
   { id: "state-transition", term: "State transition testing", definition: <>Testing a system as states and the events that move between them: every valid transition, every invalid one (it must be refused), and sequences.</> },
   { id: "negative-test", term: "Negative test", definition: <>A test that something is <em>refused</em>: bad input rejected, a forbidden action blocked. Happy-path tests can&apos;t find a feature that does too much.</> },
+  { id: "pyramid", term: "Test pyramid", definition: <>Many fast unit tests, fewer API/integration tests, a few slow <Term id="e2e">end-to-end</Term> tests. Test each thing at the lowest level that can catch it.</> },
+  { id: "e2e", term: "End-to-end (E2E) test", definition: <>A test that drives the whole system the way a user would, usually through a browser (Playwright, Cypress, Selenium). Most realistic, slowest, most <Term id="flaky">flaky</Term>.</> },
+  { id: "contract-test", term: "Contract test", definition: <>Checks that an API&apos;s responses keep the shape its consumers rely on: every field, every type. A schema check, or consumer-driven with a tool like Pact.</> },
+  { id: "flaky", term: "Flaky test", definition: <>A test that passes and fails on the same code. Usually timing (a fixed sleep racing the app), shared state, or order dependence. It teaches the team to ignore red, which is worse than no test.</> },
   { id: "risk-based", term: "Risk-based testing", definition: <>Spending test effort where failure is most likely or most costly. The honest answer to &quot;you can&apos;t test everything, so what do you test?&quot;</> },
 ];
 

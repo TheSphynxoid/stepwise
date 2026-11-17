@@ -10,9 +10,11 @@ import { think } from "./think.explainer";
 import { boundaries } from "./boundaries.explainer";
 import { decisions } from "./decisions.explainer";
 import { mutation } from "./mutation.explainer";
-import { BoundariesClient, DecisionsClient, Explain, MutationClient, QaLesson, ThinkClient } from "./demo";
+import { ApiClient, BoundariesClient, DecisionsClient, Explain, MutationClient, QaLesson, ThinkClient } from "./demo";
 import { Answer, C, Chapter, FollowUp, Prose, TryThis } from "./ui";
 import { Lifecycle } from "./lifecycle";
+import { Pyramid } from "./automation-views";
+import { api } from "./api.explainer";
 import { PRICES, SPEC } from "./tidepool";
 
 export const metadata: Metadata = {
@@ -28,6 +30,7 @@ const Think = precomputed(think, ThinkClient);
 const Boundaries = precomputed(boundaries, BoundariesClient);
 const Decisions = precomputed(decisions, DecisionsClient);
 const Mutation = precomputed(mutation, MutationClient);
+const Api = precomputed(api, ApiClient);
 
 const CHAPTERS: ChapterSpec[] = [
   { id: "approach", label: "How to test" },
@@ -35,6 +38,8 @@ const CHAPTERS: ChapterSpec[] = [
   { id: "decisions", label: "Decision tables" },
   { id: "mutation", label: "Coverage" },
   { id: "states", label: "States" },
+  { id: "pyramid", label: "Pyramid" },
+  { id: "api", label: "API" },
   { id: "glossary", label: "Glossary", numbered: false },
 ];
 
@@ -293,6 +298,77 @@ export default function Page() {
             0-switch coverage tests every single transition once. 1-switch (Chow&apos;s) coverage tests every pair of
             consecutive transitions, catching bugs that depend on how you arrived in a state. It&apos;s the state-machine
             version of going from single conditions to pairs.
+          </FollowUp>
+        </Chapter>
+        <Chapter
+          id="pyramid"
+          n={6}
+          slug="automation"
+          title="The test pyramid: catch it at the cheapest level"
+          ask={<>&quot;Should this check be a unit test, an API test, or a UI test?&quot;</>}
+        >
+          <Prose>
+            <p>
+              The quantity bug can be caught three ways. A unit test calls the validator directly. An API test sends a
+              request. A UI test drives a real browser. All three fail, as they should. Play them under one clock and
+              compare what each one costs.
+            </p>
+            <p>
+              That&apos;s the <Term id="pyramid">test pyramid</Term>: many fast unit tests at the bottom, fewer API tests, a
+              handful of slow <Term id="e2e">end-to-end</Term> tests on top. UI tests catch what only a browser can (layout,
+              wiring, real clicks), but every one costs seconds and can be <Term id="flaky">flaky</Term>. When the logic can
+              be tested lower down, test it lower down.
+            </p>
+          </Prose>
+          <Pyramid />
+          <Answer>
+            <p>
+              &quot;As low as it can go. Pricing and validation rules are unit tests: milliseconds, no flakiness, exact
+              failures. Service contracts and status codes are API tests. I keep UI tests for critical user journeys, like
+              booking and paying end to end, because they&apos;re slow and brittle. The goal is a pyramid, not an ice-cream
+              cone with most of the tests in the UI.&quot;
+            </p>
+          </Answer>
+          <FollowUp q="What's the 'testing trophy'?">
+            Kent C. Dodds&apos; variant: integration tests are the widest band, because they give the most confidence per
+            test in typical web apps. Same idea, different weights. The shared rule: few slow end-to-end tests.
+          </FollowUp>
+        </Chapter>
+
+        <Chapter
+          id="api"
+          n={7}
+          slug="automation"
+          title="API testing: status codes and contracts"
+          ask={<>&quot;How would you test a REST endpoint?&quot;</>}
+        >
+          <Prose>
+            <p>
+              Send real requests and assert on three things: the <strong>status code</strong>, the <strong>body</strong>, and
+              the <strong>contract</strong>, meaning every field the API promised, with the right type. Then the negative
+              cases: invalid data (422), a malformed request (400), something that doesn&apos;t exist (404).
+            </p>
+            <p>
+              The shipped API has three problems, and only one of them is the validator bug you already know. Predict each
+              status code before it comes back. The refusal that comes back as <C>200</C>, and the response quietly missing
+              a field, are the kinds of bug a <Term id="contract-test">contract test</Term> exists for.
+            </p>
+          </Prose>
+          <Api id="api" predict>
+            <Parts ask="Which status code will the shipped API return?" end="Switch to the spec API and replay." />
+          </Api>
+          <Answer>
+            <p>
+              &quot;For each endpoint: the happy path with full response validation, status code, body and schema; then
+              negative cases, so invalid input gets 4xx with a clear error, plus missing auth, unknown ids and malformed
+              JSON; then idempotency, pagination and limits where they apply. I&apos;d automate it in the pipeline with
+              something like REST Assured, Postman/Newman, or plain Playwright API requests, plus contract tests if other
+              teams consume it.&quot;
+            </p>
+          </Answer>
+          <FollowUp q="400 vs 422? 401 vs 403?">
+            400: the request is malformed (bad JSON, wrong types). 422: well-formed, but the values break a rule. 401: we
+            don&apos;t know who you are. 403: we know, and you&apos;re not allowed.
           </FollowUp>
         </Chapter>
         <section id="glossary" className="scroll-mt-32">

@@ -4,6 +4,8 @@
 import assert from "node:assert/strict";
 import { precompute, runWalk } from "@sphynxoid/stepwise/core";
 import { lifecycleWalk } from "../app/qa/lifecycle.walk";
+import { api } from "../app/qa/api.explainer";
+import { PYRAMID } from "../app/qa/pyramid.traces";
 import { decisions } from "../app/qa/decisions.explainer";
 import { mutation } from "../app/qa/mutation.explainer";
 import {
@@ -87,7 +89,10 @@ assert.deepEqual(extra, ["held-refund-refunded"]);
 // API: wrong status on invalid input, a missing field in the contract.
 const bad = { method: "POST", path: "/bookings", body: b(30, 9) } as const;
 assert.equal(handle(bad, "spec").status, 422);
-assert.equal(handle(bad, "shipped").status, 200);
+assert.equal(handle(bad, "shipped").status, 201, "shipped API lets 9 tickets through");
+const badAge = { method: "POST", path: "/bookings", body: b(-1) } as const;
+assert.equal(handle(badAge, "spec").status, 422);
+assert.equal(handle(badAge, "shipped").status, 200, "shipped API refuses with a 200");
 const ok = handle({ method: "POST", path: "/bookings", body: b(30, 2) }, "spec");
 assert.equal(ok.status, 201);
 for (const f of CONTRACT) assert.ok(f in ok.body, `POST body has ${f}`);
@@ -149,5 +154,21 @@ assert.ok(w1.steps.some((s) => s.result === "refused"), "pay from draft is refus
 const w2 = runWalk(lifecycleWalk, null, { choices: ["hold", "pay", "issue", "refund"] });
 assert.ok(!w2.steps.some((s) => s.key.startsWith("found")), "the legal path finds nothing");
 assert.equal(w2.steps[w2.steps.length - 1].state, "refunded");
+
+// §07 API: the shipped API fails the status check on bad input and the contract on GET.
+const apiShipped = precompute(api, { impl: "shipped" }).steps.filter((s) => s.kind === "response");
+const apiSpec = precompute(api, { impl: "spec" }).steps.filter((s) => s.kind === "response");
+assert.ok(apiSpec.every((s) => s.checks.every((c) => c.pass)), "spec API: every check passes");
+const failedChecks = apiShipped.flatMap((s) => s.checks.filter((c) => !c.pass).map((c) => `${s.call.id}:${c.kind}`));
+assert.deepEqual(failedChecks, ["invalid-qty:status", "invalid-age:status", "get:contract"]);
+
+// §06 pyramid: every level catches the qty bug; cost grows by orders of magnitude.
+for (const level of ["unit", "api", "ui"] as const) {
+  const t = PYRAMID[level];
+  assert.equal(t[t.length - 1].tone, "bad", `${level} catches the bug`);
+  assert.equal(JSON.stringify(t), JSON.stringify(JSON.parse(JSON.stringify(t))), `${level} trace is JSON`);
+}
+const ms = (l: keyof typeof PYRAMID) => PYRAMID[l][PYRAMID[l].length - 1].elapsed;
+assert.ok(ms("unit") * 10 < ms("api") && ms("api") * 10 < ms("ui"), "each level is 10x+ slower");
 
 console.log("qa model: ok");
