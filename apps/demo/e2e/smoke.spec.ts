@@ -423,3 +423,13 @@ test("/qa: one probe per partition misses the bug, boundary probes catch it, lin
   await gotoQa(page, "#bnd.in=11_12&bnd.frame=4");
   await expect(page.locator('[data-explainer="bnd"] p[aria-live]').first()).toContainText("Age 12: spec says adult");
 });
+
+test("/qa: the weak suite lets mutants survive at 100% coverage, the strong suite kills them", async ({ page }) => {
+  await gotoQa(page);
+  const mut = await toEnd(page, "mut");
+  await expect(mut.getByTestId("mut-coverage")).toContainText("100% lines");
+  await expect(mut.getByTestId("mut-score")).toHaveText("1/7 killed");
+  await mut.getByRole("group", { name: "Suite" }).getByRole("button", { name: "strong" }).click();
+  await toEnd(page, "mut");
+  await expect(mut.getByTestId("mut-score")).toHaveText("7/7 killed");
+});

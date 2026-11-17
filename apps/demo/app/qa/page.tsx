@@ -8,7 +8,9 @@ import { precomputed } from "@sphynxoid/stepwise/kit/mdx";
 import { ViewSource } from "../view-source";
 import { think } from "./think.explainer";
 import { boundaries } from "./boundaries.explainer";
-import { BoundariesClient, Explain, QaLesson, ThinkClient } from "./demo";
+import { decisions } from "./decisions.explainer";
+import { mutation } from "./mutation.explainer";
+import { BoundariesClient, DecisionsClient, Explain, MutationClient, QaLesson, ThinkClient } from "./demo";
 import { Answer, C, Chapter, FollowUp, Prose, TryThis } from "./ui";
 import { PRICES, SPEC } from "./tidepool";
 
@@ -23,10 +25,14 @@ export const metadata: Metadata = {
 
 const Think = precomputed(think, ThinkClient);
 const Boundaries = precomputed(boundaries, BoundariesClient);
+const Decisions = precomputed(decisions, DecisionsClient);
+const Mutation = precomputed(mutation, MutationClient);
 
 const CHAPTERS: ChapterSpec[] = [
   { id: "approach", label: "How to test" },
   { id: "boundaries", label: "Boundaries" },
+  { id: "decisions", label: "Decision tables" },
+  { id: "mutation", label: "Coverage" },
   { id: "glossary", label: "Glossary", numbered: false },
 ];
 
@@ -168,6 +174,83 @@ export default function Page() {
             An off-by-one moves an edge one step either way. Testing 12 alone catches <C>age &lt; 13</C> (12 becomes a
             child) but not <C>age &lt; 11</C>, which only 11 shows (11 becomes an adult). The last value inside and the first
             value outside pin the edge from both directions.
+          </FollowUp>
+        </Chapter>
+
+        <Chapter
+          id="decisions"
+          n={3}
+          slug="test design"
+          title="Decision tables, and when pairwise isn't enough"
+          ask={<>&quot;Members get 15% off, promo codes 10%, they don&apos;t stack, and weekdays add 5%. How do you test the pricing?&quot;</>}
+        >
+          <Prose>
+            <p>
+              When the result depends on several conditions together, list every combination in a{" "}
+              <Term id="decision-table">decision table</Term> and write the expected result next to each. Three yes/no
+              conditions make 8 rows. Each row is a test case.
+            </p>
+            <p>
+              Eight is fine. Ten conditions make 1,024, so real teams reach for <Term id="pairwise">pairwise</Term> testing:
+              a smaller set where every <em>pair</em> of conditions still meets in every combination. Most bugs come from
+              two things interacting, so pairwise usually works. This one doesn&apos;t: the planted bug needs member, promo{" "}
+              <em>and</em> weekday together. Run pairwise first, then the full table.
+            </p>
+          </Prose>
+          <Decisions id="dt" predict>
+            <Parts ask="Will the shipped price match the spec for this rule?" end="Switch between pairwise and all 8 rows." />
+          </Decisions>
+          <Answer>
+            <p>
+              &quot;I&apos;d build a decision table: each combination of member, promo and weekday, with the expected discount
+              from the spec. That&apos;s 8 rows, cheap enough to test all of them. If it grew, I&apos;d use pairwise to cut it
+              down, but keep the full table for the money-critical combinations, because pairwise misses 3-way
+              interactions.&quot;
+            </p>
+          </Answer>
+          <FollowUp q="What's a tool for generating pairwise sets?">
+            PICT (Microsoft, free), AllPairs, or the pairwise options in most test-management tools. Knowing one by name is
+            enough in an interview.
+          </FollowUp>
+        </Chapter>
+
+        <Chapter
+          id="mutation"
+          n={4}
+          slug="test quality"
+          title="Coverage tells you what ran. Mutation tells you what was checked."
+          ask={<>&quot;Our suite has 100% coverage. Is it a good suite?&quot;</>}
+        >
+          <Prose>
+            <p>
+              A trap question. <Term id="line-coverage">Line coverage</Term> and{" "}
+              <Term id="branch-coverage">branch coverage</Term> count what the tests <em>executed</em>. A test that runs a
+              line and checks the wrong thing, or checks nothing, still counts. Watch the weak suite reach 100% on both,
+              pass every test, and miss both planted bugs.
+            </p>
+            <p>
+              <Term id="mutation">Mutation testing</Term> asks the real question. Make small bugs on purpose (flip a{" "}
+              <C>&lt;</C>, move a limit by one), run the suite against each, and count how many it notices. Every mutant
+              that survives is a test you haven&apos;t written.
+            </p>
+          </Prose>
+          <Mutation id="mut" predict>
+            <Parts ask="Will this suite notice the mutant?" end="Switch to the strong suite and compare the score." />
+          </Mutation>
+          <TryThis>
+            Compare the two suites&apos; final frames. Both show 100% coverage. Only the score at the top right tells them
+            apart.
+          </TryThis>
+          <Answer>
+            <p>
+              &quot;Not necessarily. Coverage shows what code ran, not whether the assertions are any good: 100% is a floor
+              for spotting untested code, not a measure of quality. I&apos;d look at the assertions and the boundary cases,
+              and run mutation testing: the mutation score shows how many injected bugs the suite actually catches.&quot;
+            </p>
+          </Answer>
+          <FollowUp q="Why doesn't everyone run mutation testing?">
+            It&apos;s slow: the whole suite runs once per mutant, and real code has thousands. Teams run it on critical modules,
+            on changed files only, or nightly instead of on every commit.
           </FollowUp>
         </Chapter>
 

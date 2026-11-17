@@ -19,7 +19,10 @@ import { createExplainer, useExplainer } from "@sphynxoid/stepwise/kit";
 import { useSiteTheme } from "../theme-provider";
 import { think } from "./think.explainer";
 import { boundaries } from "./boundaries.explainer";
+import { decisions } from "./decisions.explainer";
+import { mutation } from "./mutation.explainer";
 import { BoundaryView, ThinkView } from "./views";
+import { DecisionView, MutationView } from "./design-views";
 
 // The lesson's client half: explainers (a definition from a *.explainer.ts
 // file plus a view, bound by createExplainer), and the shell around the
@@ -27,6 +30,8 @@ import { BoundaryView, ThinkView } from "./views";
 
 const Think = createExplainer({ definition: think, view: ThinkView });
 const Boundaries = createExplainer({ definition: boundaries, view: BoundaryView });
+const Decisions = createExplainer({ definition: decisions, view: DecisionView });
+const Mutation = createExplainer({ definition: mutation, view: MutationView });
 
 // The server page passes plain data (precomputed traces, ids); the theme
 // follows the site's light/dark toggle from here.
@@ -35,6 +40,13 @@ export function ThinkClient(props: ComponentProps<typeof Think>) {
 }
 export function BoundariesClient(props: ComponentProps<typeof Boundaries>) {
   return <Boundaries {...props} theme={useSiteTheme().theme} />;
+}
+
+export function DecisionsClient(props: ComponentProps<typeof Decisions>) {
+  return <Decisions {...props} theme={useSiteTheme().theme} />;
+}
+export function MutationClient(props: ComponentProps<typeof Mutation>) {
+  return <Mutation {...props} theme={useSiteTheme().theme} />;
 }
 
 /** The current step's "why": what this moment teaches. */
@@ -54,6 +66,11 @@ const GLOSSARY: GlossaryEntry[] = [
   { id: "oracle", term: "Test oracle", definition: <>How a test knows the right answer: a spec, a second implementation, a rule like &quot;never negative&quot;. Without an oracle a test can run but can&apos;t judge.</> },
   { id: "partition", term: "Equivalence partition", definition: <>A group of inputs the system should treat the same way (all child ages, say). One value per partition checks the rule; it can&apos;t check where the partition ends. See <Term id="boundary">boundary value</Term>.</> },
   { id: "boundary", term: "Boundary value analysis", definition: <>Testing the values on each side of every edge of a <Term id="partition">partition</Term>: min-1, min, max, max+1. Off-by-one bugs live here.</> },
+  { id: "decision-table", term: "Decision table", definition: <>A table with one row per combination of conditions and the expected result for each. Complete, but n yes/no conditions make 2<sup>n</sup> rows. See <Term id="pairwise">pairwise</Term>.</> },
+  { id: "pairwise", term: "Pairwise (all-pairs) testing", definition: <>Choosing fewer rows of a <Term id="decision-table">decision table</Term> so every pair of conditions still meets in every combination. Catches 2-way interactions; can miss 3-way ones.</> },
+  { id: "line-coverage", term: "Line (statement) coverage", definition: <>The share of lines the tests executed. Says nothing about whether the results were checked.</> },
+  { id: "branch-coverage", term: "Branch coverage", definition: <>The share of decision outcomes (each <code>if</code> going true and false) the tests executed. Stricter than <Term id="line-coverage">line coverage</Term>, same blind spot.</> },
+  { id: "mutation", term: "Mutation testing", definition: <>Making small deliberate bugs (mutants) in the code and running the suite against each. A mutant the suite doesn&apos;t notice &quot;survives&quot; and points to a missing test. Tools: Stryker, PIT, mutmut.</> },
   { id: "risk-based", term: "Risk-based testing", definition: <>Spending test effort where failure is most likely or most costly. The honest answer to &quot;you can&apos;t test everything, so what do you test?&quot;</> },
 ];
 

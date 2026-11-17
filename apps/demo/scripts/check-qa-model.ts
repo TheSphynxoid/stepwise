@@ -2,6 +2,9 @@
 // Tickets"): every "this technique catches the bug / misses it" story the
 // lesson tells is pinned here. Run: npx jiti apps/demo/scripts/check-qa-model.ts
 import assert from "node:assert/strict";
+import { precompute } from "@sphynxoid/stepwise/core";
+import { decisions } from "../app/qa/decisions.explainer";
+import { mutation } from "../app/qa/mutation.explainer";
 import {
   BAD_COMMIT,
   BUG_CARDS,
@@ -119,5 +122,22 @@ assert.ok(BUG_CARDS.some((c) => c.severity === "low" && c.priority === "high"));
 // Everything shipped to the page is JSON.
 for (const [name, v] of Object.entries({ SPEC, SHIPPED, PRICES, LINES, WEAK_SUITE, STRONG_SUITE, MUTANTS, LIFECYCLE_SPEC, LIFECYCLE_SHIPPED, CONTRACT, COMMITS, FAILING_PAYLOAD, DEFAULT_PAYLOAD, BUG_CARDS }))
   assert.deepEqual(JSON.parse(JSON.stringify(v)), v, `${name} is JSON`);
+
+// §03 decision table: pairwise misses the 3-way bug, the full table finds it.
+const last = <T,>(a: T[]) => a[a.length - 1];
+const pair = precompute(decisions, { rows: "pairwise" }).steps;
+const full = precompute(decisions, { rows: "all" }).steps;
+assert.equal(last(pair).tone, "good", "pairwise: no difference found");
+assert.equal(last(full).tone, "bad", "all rows: the difference is found");
+assert.equal(full.filter((s) => s.kind === "row").length, 8);
+assert.equal(pair.filter((s) => s.kind === "row").length, 4);
+
+// §04 coverage vs mutation.
+const weak = last(precompute(mutation, { suite: "weak" }).steps);
+assert.equal(weak.lineCoverage, 100, "weak suite: 100% line coverage");
+assert.equal(weak.branchCoverage, 100, "weak suite: 100% branch coverage too, and the bugs still survive");
+assert.ok(weak.mutants.filter((m) => m.status === "survived").length >= 3, "weak suite: survivors");
+const strong = last(precompute(mutation, { suite: "strong" }).steps);
+assert.equal(strong.mutants.filter((m) => m.status === "survived").length, 0, "strong suite kills all");
 
 console.log("qa model: ok");
