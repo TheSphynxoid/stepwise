@@ -5,7 +5,7 @@ import { expect, test, type Page } from "@playwright/test";
 // for the library's classes (wrong @source path), which leaves every
 // library-rendered element unstyled while the host page looks fine.
 
-const ROUTES = ["/", "/simulate", "/kit", "/llm", "/live", "/automaton", "/player", "/compare", "/lesson", "/tour", "/discovery", "/glossary", "/scroll", "/minimal", "/docs"];
+const ROUTES = ["/", "/simulate", "/kit", "/llm", "/qa", "/live", "/automaton", "/player", "/compare", "/lesson", "/tour", "/discovery", "/glossary", "/scroll", "/minimal", "/docs"];
 
 function collectErrors(page: Page): string[] {
   const errors: string[] = [];
@@ -373,4 +373,53 @@ test("/llm: nprobe 1 misses the tie question, 3 finds it", async ({ page }) => {
   await idx.getByRole("group", { name: "nprobe" }).getByRole("button", { name: "3" }).click();
   await toEnd(page, "idx");
   await expect(idx.getByTestId("index-verdict")).toHaveText("found the true best");
+});
+
+// ── /qa: the QA engineer interview lesson ─────────────────────────────────
+
+/** The intro tour starts on a first visit; tests that aren't about it start as returning readers. */
+async function gotoQa(page: Page, hash = "") {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.addInitScript(() => localStorage.setItem("stepwise-qa", JSON.stringify(["qa-intro"])));
+  await page.goto(`/qa${hash}`);
+}
+
+test("/qa: the intro tour shows once, and never over a deep link", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/qa#bnd.frame=2");
+  await page.waitForLoadState("networkidle");
+  await expect(page.getByRole("dialog", { name: /Guided tour/ })).toHaveCount(0);
+  await page.goto("/qa");
+  await expect(page.getByRole("dialog", { name: /Guided tour/ })).toBeVisible();
+  await page.getByRole("button", { name: "End tour" }).click();
+  await page.reload();
+  await page.waitForLoadState("networkidle");
+  await expect(page.getByRole("dialog", { name: /Guided tour/ })).toHaveCount(0);
+});
+
+test("/qa: the first frame is in the server HTML", async ({ browser, baseURL }) => {
+  const context = await browser.newContext({ javaScriptEnabled: false, baseURL });
+  try {
+    const page = await context.newPage();
+    const res = await page.goto("/qa");
+    expect(res?.ok()).toBe(true);
+    await expect(page.locator('[data-explainer="think"] p[aria-live]').first()).toHaveText('"How would you test the booking form?"');
+  } finally {
+    await context.close();
+  }
+});
+
+test("/qa: one probe per partition misses the bug, boundary probes catch it, links replay", async ({ page }) => {
+  await gotoQa(page);
+  const bnd = await toEnd(page, "bnd");
+  await expect(bnd.getByTestId("bnd-verdict")).toContainText("not found");
+  await bnd.getByRole("button", { name: "boundaries" }).click();
+  await toEnd(page, "bnd");
+  await expect(bnd.getByTestId("bnd-verdict")).toContainText("caught");
+  await expect(page).toHaveURL(/bnd\.in=-1_0_11_12/);
+
+  // A fresh load: a same-tab hash change re-reads the frame but not the input (see docs/KIT-FEEDBACK.md).
+  await page.goto("about:blank");
+  await gotoQa(page, "#bnd.in=11_12&bnd.frame=4");
+  await expect(page.locator('[data-explainer="bnd"] p[aria-live]').first()).toContainText("Age 12: spec says adult");
 });

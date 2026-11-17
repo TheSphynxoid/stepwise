@@ -185,8 +185,7 @@ export function handle(req: Req, impl: "spec" | "shipped"): Res {
   if (req.method === "GET" && m) {
     if (Number(m[1]) !== 1) return { status: 404, body: { error: "not found" } };
     if (impl === "shipped") {
-      const { total: _total, ...rest } = STORED;
-      return { status: 200, body: rest };
+      return { status: 200, body: { id: STORED.id, tier: STORED.tier, status: STORED.status } };
     }
     return { status: 200, body: { ...STORED } };
   }
