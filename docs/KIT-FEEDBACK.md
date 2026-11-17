@@ -81,3 +81,16 @@ the whole page dies. `useSimulation` has a development warning for exactly
 this ("input rebuilt every render"); `useTrace` has none.
 **Fix:** compare steps by key/length before re-anchoring (an equal trace
 is not a change), or at least the same dev warning `useSimulation` has.
+
+## 9. No clean way to declare an explainer without input
+
+**Where:** `defineExplainer({ input })`, field-prop typing in
+`createExplainer` / `precomputed`.
+**What:** a recorded walkthrough (`/qa` §10's shrink and triage) has no
+input, but `input.default` is required and must be an object. The obvious
+`Record<string, never>` turns the field-prop index signature into
+`undefined` for every key, so passing `theme` (a reserved prop) fails to
+typecheck: "Property 'theme' is incompatible with index signature". The
+workaround is a fake one-field input (`{ report: "checkout" }`).
+**Fix:** make `input` optional on `defineExplainer` (default `{}` typed as
+`{}` with no field props), or exclude reserved names before mapping.

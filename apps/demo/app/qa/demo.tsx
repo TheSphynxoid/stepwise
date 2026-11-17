@@ -28,6 +28,9 @@ import { ApiView } from "./automation-views";
 import { flaky } from "./flaky.explainer";
 import { bisect } from "./bisect.explainer";
 import { BisectView, FlakyView } from "./ci-views";
+import { shrink } from "./shrink.explainer";
+import { triage } from "./triage.explainer";
+import { ShrinkView, TriageView } from "./repro-views";
 
 // The lesson's client half: explainers (a definition from a *.explainer.ts
 // file plus a view, bound by createExplainer), and the shell around the
@@ -40,6 +43,8 @@ const Mutation = createExplainer({ definition: mutation, view: MutationView });
 const Api = createExplainer({ definition: api, view: ApiView });
 const Flaky = createExplainer({ definition: flaky, view: FlakyView });
 const Bisect = createExplainer({ definition: bisect, view: BisectView });
+const Shrink = createExplainer({ definition: shrink, view: ShrinkView });
+const Triage = createExplainer({ definition: triage, view: TriageView });
 
 // The server page passes plain data (precomputed traces, ids); the theme
 // follows the site's light/dark toggle from here.
@@ -66,6 +71,13 @@ export function FlakyClient(props: ComponentProps<typeof Flaky>) {
 }
 export function BisectClient(props: ComponentProps<typeof Bisect>) {
   return <Bisect {...props} theme={useSiteTheme().theme} />;
+}
+
+export function ShrinkClient(props: ComponentProps<typeof Shrink>) {
+  return <Shrink {...props} theme={useSiteTheme().theme} />;
+}
+export function TriageClient(props: ComponentProps<typeof Triage>) {
+  return <Triage {...props} theme={useSiteTheme().theme} />;
 }
 
 /** The current step's "why": what this moment teaches. */
@@ -101,12 +113,16 @@ const GLOSSARY: GlossaryEntry[] = [
   { id: "ci", term: "Continuous integration (CI)", definition: <>Building and testing every change automatically as it lands, so a break is found within minutes and tied to one change. Pipelines run cheap stages first.</> },
   { id: "regression", term: "Regression", definition: <>Something that used to work and broke. Regression testing re-runs existing tests to catch these; a regression test is one added to pin a fixed bug.</> },
   { id: "bisect", term: "git bisect", definition: <>Binary search over history for the commit that introduced a change: test the middle, keep the half that changed. log2(n) steps; <code>git bisect run</code> automates it.</> },
+  { id: "minimal-repro", term: "Minimal reproduction", definition: <>The smallest input and fewest steps that still trigger a bug. Found by removing things and re-running; automated as delta debugging, or shrinking in property-based testing.</> },
+  { id: "severity", term: "Severity", definition: <>How much damage a bug does when it happens: data loss and crashes on the money path are critical, cosmetic glitches are minor. Usually set by the tester. Compare <Term id="priority">priority</Term>.</> },
+  { id: "priority", term: "Priority", definition: <>How soon a bug should be fixed, given everything else. Set with the product owner. Usually tracks <Term id="severity">severity</Term>, but not always.</> },
   { id: "risk-based", term: "Risk-based testing", definition: <>Spending test effort where failure is most likely or most costly. The honest answer to &quot;you can&apos;t test everything, so what do you test?&quot;</> },
 ];
 
 const TOUR: TourStepInput[] = [
   { id: "sut", title: "The system under test", body: "One small, invented product with bugs planted in it. Every chapter tests it a different way.", target: "qa-sut" },
   { id: "player", title: "Step through each technique", body: "→ steps, Play runs it. Where you see Predict, it stops and asks you first: that's the interview practice.", target: "qa-think" },
+  { id: "drill", title: "Then drill", body: "The last chapter is a deck of interview questions. Answer out loud, reveal, and mark what you know. It remembers.", target: "qa-drill-deck" },
   { id: "nav", title: "Jump around", body: "Chapters follow the order interviews usually go: test design first, then automation, then process.", target: "qa-nav" },
 ];
 

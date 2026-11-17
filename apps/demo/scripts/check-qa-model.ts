@@ -9,6 +9,8 @@ import { PYRAMID } from "../app/qa/pyramid.traces";
 import { flaky } from "../app/qa/flaky.explainer";
 import { bisect } from "../app/qa/bisect.explainer";
 import { BUILDS } from "../app/qa/ci.builds";
+import { shrink } from "../app/qa/shrink.explainer";
+import { triage } from "../app/qa/triage.explainer";
 import { decisions } from "../app/qa/decisions.explainer";
 import { mutation } from "../app/qa/mutation.explainer";
 import {
@@ -195,5 +197,15 @@ assert.equal(last(bis).found, BAD_COMMIT);
 // §09 CI feed: red from the bad commit until the fix.
 assert.ok(BUILDS.filter((b) => b.status === "failed").every((b) => b.commit >= BAD_COMMIT));
 assert.equal(last(BUILDS).status, "passed", "the feed ends green after the fix");
+
+// §10 shrinking: the failing payload reduces to exactly qty + code.
+const sh = last(precompute(shrink).steps);
+assert.deepEqual([...sh.kept].sort(), ["code", "qty"]);
+assert.equal(sh.tone, "bad", "the minimal payload still fails");
+assert.ok(payloadFails(sh.payload) && Object.keys(sh.payload).length === 8);
+
+// §10 triage: every card is placed, in the quadrant its severity and priority name.
+const tri = last(precompute(triage).steps);
+assert.equal(tri.placed.length, BUG_CARDS.length);
 
 console.log("qa model: ok");

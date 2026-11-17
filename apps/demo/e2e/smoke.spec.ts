@@ -496,3 +496,23 @@ test("/qa: the CI feed streams builds live; bisect finds the bad commit", async 
   const bis = await toEnd(page, "bisect");
   await expect(bis.locator("p[aria-live]").first()).toContainText("simplify age checks");
 });
+
+test("/qa: shrinking the crash payload leaves qty and code", async ({ page }) => {
+  await gotoQa(page);
+  const sh = await toEnd(page, "shrink");
+  await expect(sh.getByTestId("shrink-kept")).toHaveText("qty, code");
+});
+
+test("/qa: the drill reveals answers and remembers what you know across reloads", async ({ page }) => {
+  await gotoQa(page);
+  const drill = page.getByTestId("qa-drill");
+  await expect(drill.getByTestId("drill-progress")).toHaveText(/^0\//);
+  await drill.getByRole("button", { name: "Show answer" }).click();
+  await expect(drill.getByTestId("drill-answer")).toBeVisible();
+  await drill.getByRole("button", { name: "I knew it" }).click();
+  await expect(drill.getByTestId("drill-progress")).toHaveText(/^1\//);
+  await page.reload();
+  await expect(page.getByTestId("qa-drill").getByTestId("drill-progress")).toHaveText(/^1\//);
+  await page.getByTestId("qa-drill").getByRole("button", { name: "Start over" }).click();
+  await expect(page.getByTestId("qa-drill").getByTestId("drill-progress")).toHaveText(/^0\//);
+});

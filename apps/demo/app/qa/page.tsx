@@ -10,7 +10,7 @@ import { think } from "./think.explainer";
 import { boundaries } from "./boundaries.explainer";
 import { decisions } from "./decisions.explainer";
 import { mutation } from "./mutation.explainer";
-import { ApiClient, BisectClient, FlakyClient, BoundariesClient, DecisionsClient, Explain, MutationClient, QaLesson, ThinkClient } from "./demo";
+import { ApiClient, BisectClient, FlakyClient, ShrinkClient, TriageClient, BoundariesClient, DecisionsClient, Explain, MutationClient, QaLesson, ThinkClient } from "./demo";
 import { Answer, C, Chapter, FollowUp, Prose, TryThis } from "./ui";
 import { Lifecycle } from "./lifecycle";
 import { Pyramid } from "./automation-views";
@@ -18,6 +18,9 @@ import { api } from "./api.explainer";
 import { flaky } from "./flaky.explainer";
 import { bisect } from "./bisect.explainer";
 import { CiFeed } from "./ci-views";
+import { shrink } from "./shrink.explainer";
+import { triage } from "./triage.explainer";
+import { Drill } from "./drill";
 import { PRICES, SPEC } from "./tidepool";
 
 export const metadata: Metadata = {
@@ -36,6 +39,8 @@ const Mutation = precomputed(mutation, MutationClient);
 const Api = precomputed(api, ApiClient);
 const Flaky = precomputed(flaky, FlakyClient);
 const Bisect = precomputed(bisect, BisectClient);
+const Shrink = precomputed(shrink, ShrinkClient);
+const Triage = precomputed(triage, TriageClient);
 
 const CHAPTERS: ChapterSpec[] = [
   { id: "approach", label: "How to test" },
@@ -47,6 +52,8 @@ const CHAPTERS: ChapterSpec[] = [
   { id: "api", label: "API" },
   { id: "flaky", label: "Flaky" },
   { id: "ci", label: "CI" },
+  { id: "repro", label: "Bug reports" },
+  { id: "drill", label: "Drill" },
   { id: "glossary", label: "Glossary", numbered: false },
 ];
 
@@ -458,6 +465,59 @@ export default function Page() {
             Smoke: a quick check that the build works at all (it starts, logs in, the main page loads) before deeper testing.
             Sanity: a narrow check that one specific fix works. Regression: re-running existing tests to make sure nothing
             that used to work broke.
+          </FollowUp>
+        </Chapter>
+        <Chapter
+          id="repro"
+          n={10}
+          slug="process"
+          title="Bug reports: shrink it, then triage it"
+          ask={<>&quot;You found a crash. Walk me through your bug report.&quot;</>}
+        >
+          <Prose>
+            <p>
+              A good report is short enough that a developer can reproduce it in a minute: a specific title, the{" "}
+              <Term id="minimal-repro">minimal steps</Term> to reproduce, expected vs actual, the environment, and evidence.
+              &quot;Minimal&quot; is the part people skip. Here, a customer&apos;s checkout crashed with an 8-field payload.
+              Reset one field at a time and re-run: whatever doesn&apos;t change the outcome is noise.
+            </p>
+          </Prose>
+          <Shrink id="shrink" predict>
+            <Parts ask="Reset this field: will checkout still crash?" end="Two fields out of eight. That's the report." />
+          </Shrink>
+          <Prose>
+            <p>
+              Then triage. <Term id="severity">Severity</Term> is how bad it is when it happens.{" "}
+              <Term id="priority">Priority</Term> is how soon it gets fixed. They usually agree, and the interview question is
+              always about when they don&apos;t.
+            </p>
+          </Prose>
+          <Triage id="triage" predict>
+            <Parts ask="Where does this bug go?" end="Severity is impact; priority is urgency." />
+          </Triage>
+          <Answer>
+            <p>
+              &quot;Title that says what and where: &apos;Checkout returns 500 for 9 tickets with SURF10&apos;. Minimal repro
+              steps, expected vs actual, build and environment, logs or the failing request attached. Severity from the
+              impact (a crash on the money path is critical); priority agreed with the product owner. And if I can, a failing
+              automated test to go with it.&quot;
+            </p>
+          </Answer>
+        </Chapter>
+
+        <Chapter id="drill" n={11} slug="practice" title="The drill" ask={<>&quot;Any questions for us?&quot; (Always yes. But first, these.)</>}>
+          <Prose>
+            <p>
+              The questions this lesson prepares you for, one card at a time. Answer out loud before you reveal, because
+              the interview is spoken. Mark the ones you nailed; they&apos;re remembered on this device, so come back until
+              the bar is full.
+            </p>
+          </Prose>
+          <Drill />
+          <FollowUp q="And the questions you ask them?">
+            &quot;What does a release look like here, and who decides it&apos;s ready?&quot; &quot;What&apos;s the split between
+            manual and automated testing, and where do you want it to go?&quot; &quot;What happened the last time a serious bug
+            reached production?&quot; Each one tells you how the team really treats quality.
           </FollowUp>
         </Chapter>
         <section id="glossary" className="scroll-mt-32">
