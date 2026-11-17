@@ -25,6 +25,9 @@ import { BoundaryView, ThinkView } from "./views";
 import { DecisionView, MutationView } from "./design-views";
 import { api } from "./api.explainer";
 import { ApiView } from "./automation-views";
+import { flaky } from "./flaky.explainer";
+import { bisect } from "./bisect.explainer";
+import { BisectView, FlakyView } from "./ci-views";
 
 // The lesson's client half: explainers (a definition from a *.explainer.ts
 // file plus a view, bound by createExplainer), and the shell around the
@@ -35,6 +38,8 @@ const Boundaries = createExplainer({ definition: boundaries, view: BoundaryView 
 const Decisions = createExplainer({ definition: decisions, view: DecisionView });
 const Mutation = createExplainer({ definition: mutation, view: MutationView });
 const Api = createExplainer({ definition: api, view: ApiView });
+const Flaky = createExplainer({ definition: flaky, view: FlakyView });
+const Bisect = createExplainer({ definition: bisect, view: BisectView });
 
 // The server page passes plain data (precomputed traces, ids); the theme
 // follows the site's light/dark toggle from here.
@@ -54,6 +59,13 @@ export function MutationClient(props: ComponentProps<typeof Mutation>) {
 
 export function ApiClient(props: ComponentProps<typeof Api>) {
   return <Api {...props} theme={useSiteTheme().theme} />;
+}
+
+export function FlakyClient(props: ComponentProps<typeof Flaky>) {
+  return <Flaky {...props} theme={useSiteTheme().theme} />;
+}
+export function BisectClient(props: ComponentProps<typeof Bisect>) {
+  return <Bisect {...props} theme={useSiteTheme().theme} />;
 }
 
 /** The current step's "why": what this moment teaches. */
@@ -84,6 +96,11 @@ const GLOSSARY: GlossaryEntry[] = [
   { id: "e2e", term: "End-to-end (E2E) test", definition: <>A test that drives the whole system the way a user would, usually through a browser (Playwright, Cypress, Selenium). Most realistic, slowest, most <Term id="flaky">flaky</Term>.</> },
   { id: "contract-test", term: "Contract test", definition: <>Checks that an API&apos;s responses keep the shape its consumers rely on: every field, every type. A schema check, or consumer-driven with a tool like Pact.</> },
   { id: "flaky", term: "Flaky test", definition: <>A test that passes and fails on the same code. Usually timing (a fixed sleep racing the app), shared state, or order dependence. It teaches the team to ignore red, which is worse than no test.</> },
+  { id: "explicit-wait", term: "Explicit wait", definition: <>Waiting for a specific condition (an element visible, a request finished) instead of a fixed time. The cure for most <Term id="flaky">flaky</Term> UI tests.</> },
+  { id: "selector", term: "Selector (locator)", definition: <>How a UI test finds an element. Stable: role, label, test id. Fragile: position (<code>nth-child</code>), long CSS paths, generated class names.</> },
+  { id: "ci", term: "Continuous integration (CI)", definition: <>Building and testing every change automatically as it lands, so a break is found within minutes and tied to one change. Pipelines run cheap stages first.</> },
+  { id: "regression", term: "Regression", definition: <>Something that used to work and broke. Regression testing re-runs existing tests to catch these; a regression test is one added to pin a fixed bug.</> },
+  { id: "bisect", term: "git bisect", definition: <>Binary search over history for the commit that introduced a change: test the middle, keep the half that changed. log2(n) steps; <code>git bisect run</code> automates it.</> },
   { id: "risk-based", term: "Risk-based testing", definition: <>Spending test effort where failure is most likely or most costly. The honest answer to &quot;you can&apos;t test everything, so what do you test?&quot;</> },
 ];
 

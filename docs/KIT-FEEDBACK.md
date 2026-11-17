@@ -70,3 +70,14 @@ small `ExplainerProvider` that adapts any player).
 union needs a cast at every use (`as LifeState | null`).
 **Fix:** a second type parameter inferred from `nodes`' keys:
 `fromGraph<Sym, Node extends string>`.
+
+## 8. `useTrace` loops on an array rebuilt every render
+
+**Where:** `useTrace` (`use-trace.ts`), with `follow`.
+**What:** `useTrace(BUILDS.slice(0, count))` creates a new array every
+render; `useTrace` re-anchors on every new array and forces a commit (rule
+10a), which renders again: "Maximum update depth exceeded" (React #185),
+the whole page dies. `useSimulation` has a development warning for exactly
+this ("input rebuilt every render"); `useTrace` has none.
+**Fix:** compare steps by key/length before re-anchoring (an equal trace
+is not a change), or at least the same dev warning `useSimulation` has.

@@ -10,11 +10,14 @@ import { think } from "./think.explainer";
 import { boundaries } from "./boundaries.explainer";
 import { decisions } from "./decisions.explainer";
 import { mutation } from "./mutation.explainer";
-import { ApiClient, BoundariesClient, DecisionsClient, Explain, MutationClient, QaLesson, ThinkClient } from "./demo";
+import { ApiClient, BisectClient, FlakyClient, BoundariesClient, DecisionsClient, Explain, MutationClient, QaLesson, ThinkClient } from "./demo";
 import { Answer, C, Chapter, FollowUp, Prose, TryThis } from "./ui";
 import { Lifecycle } from "./lifecycle";
 import { Pyramid } from "./automation-views";
 import { api } from "./api.explainer";
+import { flaky } from "./flaky.explainer";
+import { bisect } from "./bisect.explainer";
+import { CiFeed } from "./ci-views";
 import { PRICES, SPEC } from "./tidepool";
 
 export const metadata: Metadata = {
@@ -31,6 +34,8 @@ const Boundaries = precomputed(boundaries, BoundariesClient);
 const Decisions = precomputed(decisions, DecisionsClient);
 const Mutation = precomputed(mutation, MutationClient);
 const Api = precomputed(api, ApiClient);
+const Flaky = precomputed(flaky, FlakyClient);
+const Bisect = precomputed(bisect, BisectClient);
 
 const CHAPTERS: ChapterSpec[] = [
   { id: "approach", label: "How to test" },
@@ -40,6 +45,8 @@ const CHAPTERS: ChapterSpec[] = [
   { id: "states", label: "States" },
   { id: "pyramid", label: "Pyramid" },
   { id: "api", label: "API" },
+  { id: "flaky", label: "Flaky" },
+  { id: "ci", label: "CI" },
   { id: "glossary", label: "Glossary", numbered: false },
 ];
 
@@ -369,6 +376,88 @@ export default function Page() {
           <FollowUp q="400 vs 422? 401 vs 403?">
             400: the request is malformed (bad JSON, wrong types). 422: well-formed, but the values break a rule. 401: we
             don&apos;t know who you are. 403: we know, and you&apos;re not allowed.
+          </FollowUp>
+        </Chapter>
+        <Chapter
+          id="flaky"
+          n={8}
+          slug="automation"
+          title="Flaky tests: waits, not sleeps"
+          ask={<>&quot;A UI test fails one run in five and passes when you rerun it. What do you do?&quot;</>}
+        >
+          <Prose>
+            <p>
+              First, don&apos;t just rerun it. A <Term id="flaky">flaky</Term> test that&apos;s retried until green teaches the
+              team to ignore red. Reproduce it: run it many times, fix the random seed, and look at what the failures have in
+              common.
+            </p>
+            <p>
+              Here the Book button renders after a network call that takes 80 to 520 ms. The test sleeps a fixed 300 ms and
+              clicks. Every run where the page was slower than the guess fails. The fix is an{" "}
+              <Term id="explicit-wait">explicit wait</Term>: wait for the button itself. Then there&apos;s a second, rarer
+              failure. Sometimes a promo banner shifts the form, and a positional <Term id="selector">selector</Term> clicks
+              the wrong element.
+            </p>
+          </Prose>
+          <Flaky id="flaky" predict>
+            <Parts ask="The button rendered at the time shown. Will this run pass?" end="Fix the wait, then the selector, then try other seeds." />
+          </Flaky>
+          <TryThis>
+            With <C>sleep</C>, every run under 300 ms passes and every run over fails: a timing bug, plain as day once you plot
+            it. Then switch to <C>wait</C> and <C>stable</C> and press the seed button a few times. It stays green.
+          </TryThis>
+          <Answer>
+            <p>
+              &quot;Don&apos;t retry it into green. Reproduce it: run it in a loop, capture traces and screenshots, and pin the
+              random seed or data. Common causes: fixed sleeps racing async rendering, brittle selectors, shared test data,
+              order dependence between tests. Here I&apos;d replace the sleep with an explicit wait on the element, and select
+              by test id or role instead of position. Quarantine it meanwhile, with a ticket, so it doesn&apos;t block the
+              pipeline.&quot;
+            </p>
+          </Answer>
+          <FollowUp q="Implicit vs explicit wait?">
+            An implicit wait is a global timeout applied to every element lookup (Selenium). An explicit wait waits for one
+            specific condition, like visible, enabled or text present. Prefer explicit waits. Modern tools such as Playwright
+            auto-wait for actionability on every action.
+          </FollowUp>
+        </Chapter>
+
+        <Chapter
+          id="ci"
+          n={9}
+          slug="process"
+          title="CI, regressions, and git bisect"
+          ask={<>&quot;The build went red sometime this week, and twenty commits landed. How do you find the cause?&quot;</>}
+        >
+          <Prose>
+            <p>
+              <Term id="ci">Continuous integration</Term> runs the suite on every commit, cheapest stages first, so a failure
+              stops the pipeline early. Below is the build feed as it streams in. Watch it go red at one build and stay red:
+              that&apos;s a <Term id="regression">regression</Term>. Click an older build to inspect it; the feed waits for you,
+              and <em>Go live</em> catches back up.
+            </p>
+            <p>
+              Which commit did it? Not &quot;the one that went red&quot;: builds get batched, skipped or retried. Use{" "}
+              <Term id="bisect">bisect</Term>. Mark the last good and first bad commit, test the middle, and keep the half that
+              changed. Twenty commits take at most five test runs.
+            </p>
+          </Prose>
+          <CiFeed />
+          <div className="h-6" />
+          <Bisect id="bisect" predict>
+            <Parts ask="Will the tests pass at this commit?" end="Five runs instead of eighteen." />
+          </Bisect>
+          <Answer>
+            <p>
+              &quot;Find the last green build and the first red one, then <C>git bisect</C> between them, ideally with{" "}
+              <C>git bisect run</C> and the failing test as the script, so it runs unattended in log2(n) steps. Then write a
+              regression test that pins the bug before it&apos;s fixed, so it can&apos;t come back.&quot;
+            </p>
+          </Answer>
+          <FollowUp q="Smoke vs sanity vs regression testing?">
+            Smoke: a quick check that the build works at all (it starts, logs in, the main page loads) before deeper testing.
+            Sanity: a narrow check that one specific fix works. Regression: re-running existing tests to make sure nothing
+            that used to work broke.
           </FollowUp>
         </Chapter>
         <section id="glossary" className="scroll-mt-32">

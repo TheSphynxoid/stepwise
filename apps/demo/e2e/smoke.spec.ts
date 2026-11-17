@@ -473,3 +473,26 @@ test("/qa: the shipped API fails three checks, the spec API none", async ({ page
   await toEnd(page, "api");
   await expect(api.getByTestId("api-summary")).toHaveText("6/6 pass");
 });
+
+test("/qa: a fixed sleep is flaky, an explicit wait with a stable selector is not", async ({ page }) => {
+  await gotoQa(page);
+  const fl = await toEnd(page, "flaky");
+  await expect(fl.getByTestId("flaky-rate")).not.toHaveText("100% pass");
+  await fl.getByRole("group", { name: "Wait" }).getByRole("button", { name: "wait" }).click();
+  await fl.getByRole("group", { name: "Selector" }).getByRole("button", { name: "stable" }).click();
+  await toEnd(page, "flaky");
+  await expect(fl.getByTestId("flaky-rate")).toHaveText("100% pass");
+  await expect(page).toHaveURL(/flaky\.in=wait_stable_12_7/);
+});
+
+test("/qa: the CI feed streams builds live; bisect finds the bad commit", async ({ page }) => {
+  // Motion on: following the live edge is autoplay, which reduced motion pauses.
+  await page.addInitScript(() => localStorage.setItem("stepwise-qa", JSON.stringify(["qa-intro"])));
+  await page.goto("/qa");
+  const ci = page.getByTestId("qa-ci");
+  await expect(ci.getByRole("status")).toHaveText("Live");
+  const first = await ci.getByTestId("ci-count").textContent();
+  await expect(ci.getByTestId("ci-count")).not.toHaveText(first!, { timeout: 5000 });
+  const bis = await toEnd(page, "bisect");
+  await expect(bis.locator("p[aria-live]").first()).toContainText("simplify age checks");
+});

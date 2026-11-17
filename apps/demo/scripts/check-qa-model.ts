@@ -6,6 +6,9 @@ import { precompute, runWalk } from "@sphynxoid/stepwise/core";
 import { lifecycleWalk } from "../app/qa/lifecycle.walk";
 import { api } from "../app/qa/api.explainer";
 import { PYRAMID } from "../app/qa/pyramid.traces";
+import { flaky } from "../app/qa/flaky.explainer";
+import { bisect } from "../app/qa/bisect.explainer";
+import { BUILDS } from "../app/qa/ci.builds";
 import { decisions } from "../app/qa/decisions.explainer";
 import { mutation } from "../app/qa/mutation.explainer";
 import {
@@ -170,5 +173,27 @@ for (const level of ["unit", "api", "ui"] as const) {
 }
 const ms = (l: keyof typeof PYRAMID) => PYRAMID[l][PYRAMID[l].length - 1].elapsed;
 assert.ok(ms("unit") * 10 < ms("api") && ms("api") * 10 < ms("ui"), "each level is 10x+ slower");
+
+// §08 flaky: a fixed sleep fails some runs; a real wait none; the positional selector trips on the banner.
+const rate = (strategy: "sleep" | "wait", selector: "fragile" | "stable") => {
+  const t = precompute(flaky, { strategy, selector, runs: 12, seed: 7 }).steps;
+  return last(t).passRate;
+};
+const sleepRate = rate("sleep", "stable");
+assert.ok(sleepRate > 0 && sleepRate < 1, `sleep: flaky, not dead (${sleepRate})`);
+assert.equal(rate("wait", "stable"), 1, "wait + stable selector: always green");
+assert.ok(rate("wait", "fragile") < 1, "wait + fragile selector: the banner breaks it");
+const seeded = (seed: number) => JSON.stringify(precompute(flaky, { strategy: "sleep", selector: "stable", runs: 12, seed }).steps);
+assert.equal(seeded(7), seeded(7), "same seed, same runs");
+assert.notEqual(seeded(7), seeded(8), "different seed, different runs");
+
+// §09 bisect: finds the bad commit in <= 5 probes.
+const bis = precompute(bisect).steps;
+assert.ok(bis.filter((s) => s.kind === "probe").length <= 5);
+assert.equal(last(bis).found, BAD_COMMIT);
+
+// §09 CI feed: red from the bad commit until the fix.
+assert.ok(BUILDS.filter((b) => b.status === "failed").every((b) => b.commit >= BAD_COMMIT));
+assert.equal(last(BUILDS).status, "passed", "the feed ends green after the fix");
 
 console.log("qa model: ok");
