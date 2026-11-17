@@ -1,5 +1,5 @@
 import { defineExplainer, type Simulation, type StepwiseStep } from "@sphynxoid/stepwise/core";
-import { COMMITS, testsPassAt } from "./tidepool";
+import { COMMITS, testsPassAt } from "./driftwood";
 
 // Chapter 9: git bisect. The last release (commit 0) was good; HEAD (19) is
 // red. Binary search over the history: test the middle commit, keep the

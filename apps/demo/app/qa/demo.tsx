@@ -93,7 +93,7 @@ export function Explain() {
 }
 
 const GLOSSARY: GlossaryEntry[] = [
-  { id: "sut", term: "System under test (SUT)", definition: <>Whatever the tests are pointed at: a function, a service, a whole app. Here, Tidepool Tickets.</> },
+  { id: "sut", term: "System under test (SUT)", definition: <>Whatever the tests are pointed at: a function, a service, a whole app. Here, Driftwood Tickets.</> },
   { id: "oracle", term: "Test oracle", definition: <>How a test knows the right answer: a spec, a second implementation, a rule like &quot;never negative&quot;. Without an oracle a test can run but can&apos;t judge.</> },
   { id: "partition", term: "Equivalence partition", definition: <>A group of inputs the system should treat the same way (all child ages, say). One value per partition checks the rule; it can&apos;t check where the partition ends. See <Term id="boundary">boundary value</Term>.</> },
   { id: "boundary", term: "Boundary value analysis", definition: <>Testing the values on each side of every edge of a <Term id="partition">partition</Term>: min-1, min, max, max+1. Off-by-one bugs live here.</> },

@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import type { StepTone } from "@sphynxoid/stepwise";
 import { useExplainer } from "@sphynxoid/stepwise/kit";
-import type { Outcome } from "./tidepool";
+import type { Outcome } from "./driftwood";
 import { CATEGORIES, FEATURES, FEATURE_LABEL, type ThinkInput, type ThinkStep } from "./think.explainer";
 import {
   AGE_MAX,

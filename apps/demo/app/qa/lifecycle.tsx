@@ -3,7 +3,7 @@
 import { PlayerBar, type StepTone } from "@sphynxoid/stepwise";
 import { useWalk } from "@sphynxoid/stepwise/experimental";
 import { useSiteTheme } from "../theme-provider";
-import { LIFE_ACTIONS, LIFECYCLE_SHIPPED, LIFECYCLE_SPEC, type LifeAction, type LifeState } from "./tidepool";
+import { LIFE_ACTIONS, LIFECYCLE_SHIPPED, LIFECYCLE_SPEC, type LifeAction, type LifeState } from "./driftwood";
 import { MAX_ACTIONS, lifecycleWalk, specGraph } from "./lifecycle.walk";
 import { Frame } from "./views";
 

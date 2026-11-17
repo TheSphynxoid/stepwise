@@ -1,4 +1,4 @@
-// Invariant check for the /qa lesson's system under test ("Tidepool
+// Invariant check for the /qa lesson's system under test ("Driftwood
 // Tickets"): every "this technique catches the bug / misses it" story the
 // lesson tells is pinned here. Run: npx jiti apps/demo/scripts/check-qa-model.ts
 import assert from "node:assert/strict";
@@ -40,7 +40,7 @@ import {
   uiAttempt,
   type Booking,
   type Rules,
-} from "../app/qa/tidepool";
+} from "../app/qa/driftwood";
 
 const b = (age: number, qty = 1, code = ""): Booking => ({ age, qty, code });
 

@@ -1,5 +1,5 @@
 import { defineExplainer, type Simulation, type StepwiseStep } from "@sphynxoid/stepwise/core";
-import { BUG_CARDS, type BugCard } from "./tidepool";
+import { BUG_CARDS, type BugCard } from "./driftwood";
 
 // Chapter 10b: severity vs priority. Severity is how bad the bug is when it
 // happens (the tester's call). Priority is how soon it gets fixed (the

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { PlayerBar, useTrace } from "@sphynxoid/stepwise";
 import { useExplainer } from "@sphynxoid/stepwise/kit";
 import { useSiteTheme } from "../theme-provider";
-import { COMMITS, SLEEP_MS } from "./tidepool";
+import { COMMITS, SLEEP_MS } from "./driftwood";
 import { LATENCY, SELECTORS, SELECTOR_CODE, STRATEGIES, STRATEGY_CODE, type FlakyInput, type FlakyStep } from "./flaky.explainer";
 import type { BisectInput, BisectStep } from "./bisect.explainer";
 import { BUILDS, BUILD_EVERY_MS, INITIAL_BUILDS, type Build } from "./ci.builds";

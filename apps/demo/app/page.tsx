@@ -4,6 +4,7 @@ import {
   ArrowRight,
   Blocks,
   BrainCircuit,
+  Bug,
   BookMarked,
   BookOpen,
   Columns2,
@@ -62,6 +63,13 @@ const DEMOS: {
     title: "How LLMs work",
     desc: "A seven-chapter lesson built with the kit: tokens, vectors, attention and sampling, then why models make things up, how retrieval fixes it, and the vector index behind retrieval. Toy numbers you can check by hand.",
     tag: "kit + useChapters + glossary",
+  },
+  {
+    href: "/qa",
+    icon: Bug,
+    title: "The QA Engineer interview",
+    desc: "A lesson for passing it: boundaries, decision tables, state transitions, coverage vs mutation, the pyramid, API checks, flaky tests, CI and bisect, bug reports, then a drill. One product with planted bugs; you find them.",
+    tag: "kit + useWalk + useSyncedTracks + follow",
   },
   {
     href: "/live",

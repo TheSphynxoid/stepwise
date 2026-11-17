@@ -1,5 +1,5 @@
 import type { StepwiseStep } from "@sphynxoid/stepwise/core";
-import { BAD_COMMIT, COMMITS } from "./tidepool";
+import { BAD_COMMIT, COMMITS } from "./driftwood";
 
 // The CI feed for §09: one build per commit, as a timeline that grows while
 // the reader watches. Builds from the bad commit on fail at the unit stage

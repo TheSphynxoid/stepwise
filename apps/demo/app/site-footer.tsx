@@ -57,6 +57,7 @@ export function SiteFooter() {
                 ["/simulate", "Live simulation"],
                 ["/kit", "Explainer kit"],
                 ["/llm", "How LLMs work"],
+                ["/qa", "QA interview"],
                 ["/live", "Live edge"],
                 ["/automaton", "Automaton"],
                 ["/player", "Player"],

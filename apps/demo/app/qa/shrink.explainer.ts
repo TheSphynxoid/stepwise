@@ -1,5 +1,5 @@
 import { defineExplainer, type Simulation, type StepwiseStep } from "@sphynxoid/stepwise/core";
-import { DEFAULT_PAYLOAD, FAILING_PAYLOAD, PAYLOAD_FIELDS, payloadFails, type Payload } from "./tidepool";
+import { DEFAULT_PAYLOAD, FAILING_PAYLOAD, PAYLOAD_FIELDS, payloadFails, type Payload } from "./driftwood";
 
 // Chapter 10a: the minimal repro. A customer's checkout crashed; this is
 // what they sent. Reset one field at a time to a plain value and re-run:

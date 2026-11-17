@@ -1,4 +1,4 @@
-// "Tidepool Tickets": the invented system under test for the /qa lesson.
+// "Driftwood Tickets": the invented system under test for the /qa lesson.
 // Pure data and functions (no React, no "use client"), so the server can
 // precompute every chapter's trace and the client can re-run them on edits.
 //
@@ -298,7 +298,7 @@ export const BUG_CARDS: readonly BugCard[] = [
   },
   {
     id: "logo-typo",
-    title: "Home page says \"Tidpool\"",
+    title: "Home page says \"Driftwod\"",
     severity: "low",
     priority: "high",
     why: "Nothing breaks, but every visitor sees it and launch is tomorrow. Cheap and visible: fix first.",

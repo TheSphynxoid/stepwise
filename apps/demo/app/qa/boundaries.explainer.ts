@@ -1,5 +1,5 @@
 import { defineExplainer, type Simulation, type StepwiseStep } from "@sphynxoid/stepwise/core";
-import { SHIPPED, SPEC, book, sameOutcome, type Outcome } from "./tidepool";
+import { SHIPPED, SPEC, book, sameOutcome, type Outcome } from "./driftwood";
 
 // Chapter 2: equivalence partitions and boundary values. The reader picks
 // ages to probe; each one runs through the spec and the shipped validator.

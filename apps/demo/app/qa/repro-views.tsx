@@ -1,7 +1,7 @@
 "use client";
 
 import { useExplainer } from "@sphynxoid/stepwise/kit";
-import { FAILING_PAYLOAD, PAYLOAD_FIELDS } from "./tidepool";
+import { FAILING_PAYLOAD, PAYLOAD_FIELDS } from "./driftwood";
 import type { ShrinkInput, ShrinkStep } from "./shrink.explainer";
 import { QUADRANTS, quadrantOf, type TriageInput, type TriageStep } from "./triage.explainer";
 import { Frame } from "./views";

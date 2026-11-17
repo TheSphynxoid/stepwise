@@ -1,7 +1,7 @@
 "use client";
 
 import { useExplainer } from "@sphynxoid/stepwise/kit";
-import { LINES, discount } from "./tidepool";
+import { LINES, discount } from "./driftwood";
 import { ROW_SETS, ROW_SET_NAMES, ruleName, type DecisionInput, type DecisionStep } from "./decisions.explainer";
 import { DECISIONS, SUITE_NAMES, type MutationInput, type MutationStep } from "./mutation.explainer";
 import { Frame, Mark, Segmented } from "./views";
@@ -105,12 +105,13 @@ export function MutationView() {
       <div className="grid gap-4 md:grid-cols-[1.3fr_1fr]">
         <div className="min-w-0">
           <div className="overflow-x-auto rounded-lg border border-border bg-background/60 py-2 font-mono text-[11px] leading-[1.7]">
+            <div className="min-w-max">
             {LINES.map((l) => {
               const hit = step.lines.includes(l.id);
               const hot = step.hot.includes(l.id);
               const isDecision = (DECISIONS as readonly string[]).includes(l.id);
               return (
-                <div key={l.id} className={`flex min-w-max gap-2 px-2 ${hot ? "bg-primary/10" : ""}`}>
+                <div key={l.id} className={`flex gap-2 px-2 ${hot ? "bg-primary/10" : ""}`}>
                   <span className={`w-1 shrink-0 rounded-sm ${hit ? "bg-accent" : "bg-destructive/40"}`} aria-hidden />
                   <span className="w-4 shrink-0 text-muted-foreground">{l.id.slice(1)}</span>
                   <span className={`whitespace-pre ${hit ? "text-foreground/85" : "text-foreground/40"}`}>{l.text}</span>
@@ -123,6 +124,7 @@ export function MutationView() {
                 </div>
               );
             })}
+            </div>
           </div>
           <div className="mt-3 space-y-1.5" data-testid="mut-coverage">
             <Meter label="lines" value={step.lineCoverage} />

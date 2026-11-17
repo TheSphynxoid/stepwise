@@ -1,5 +1,5 @@
 import { defineExplainer, type Simulation, type StepwiseStep } from "@sphynxoid/stepwise/core";
-import { LINES, MUTANTS, SHIPPED, STRONG_SUITE, WEAK_SUITE, bookTraced, runSuite, sameOutcome, type TestCase } from "./tidepool";
+import { LINES, MUTANTS, SHIPPED, STRONG_SUITE, WEAK_SUITE, bookTraced, runSuite, sameOutcome, type TestCase } from "./driftwood";
 
 // Chapter 4: coverage vs mutation. Phase 1 runs a suite against the shipped
 // validator and counts the lines and branches it executed. Phase 2 runs the

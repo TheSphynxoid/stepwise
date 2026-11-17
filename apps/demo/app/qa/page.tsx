@@ -21,7 +21,7 @@ import { CiFeed } from "./ci-views";
 import { shrink } from "./shrink.explainer";
 import { triage } from "./triage.explainer";
 import { Drill } from "./drill";
-import { PRICES, SPEC } from "./tidepool";
+import { PRICES, SPEC } from "./driftwood";
 
 export const metadata: Metadata = {
   title: "The QA Engineer interview",
@@ -76,7 +76,7 @@ function SystemUnderTest() {
   return (
     <div id="qa-sut" className="mb-16 max-w-2xl overflow-hidden rounded-xl border border-border bg-card">
       <div className="flex items-center justify-between border-b border-border bg-secondary/40 px-4 py-1.5 font-mono text-[10.5px] text-muted-foreground">
-        <span>SPEC.md · Tidepool Tickets</span>
+        <span>SPEC.md · Driftwood Tickets</span>
         <span className="text-destructive">bugs planted: several</span>
       </div>
       <ul className="grid gap-x-6 gap-y-1.5 px-4 py-3 font-mono text-[12px] text-foreground/80 sm:grid-cols-2">

@@ -1,5 +1,5 @@
 import { createRng, defineExplainer, type Simulation, type StepwiseStep } from "@sphynxoid/stepwise/core";
-import { SLEEP_MS, uiAttempt } from "./tidepool";
+import { SLEEP_MS, uiAttempt } from "./driftwood";
 
 // Chapter 8: flaky UI tests. The same test, "click Book", runs N times
 // against a page whose button renders after a random network delay, with

@@ -267,6 +267,7 @@ What each page must keep showcasing (the feature matrix):
 | `/automaton`| **Experimental** transitions: `fromGraph` divisible-by-3 DFA run over a typed word (`anchor: "index"`) and drawn from `dfa.graph`; "be the automaton" `useWalk` with choice points, wrong-answer detours, re-answer truncation, `syncChoices` links |
 | `/kit`     | **Experimental** authoring kit: one `defineExplainer` (in `binary-search.explainer.ts`, imported from `./core`) + one view via `createExplainer`, wrapped by `precomputed` in the server `page.tsx`; two explainers with ids `a` / `b` (separate `a.frame` / `b.in` links, keyboard goes to the last clicked or focused, none before that), the second with a custom child layout, a field prop (`target={61}`) and `predict`. Shows both `demo.tsx` and `page.tsx` source |
 | `/llm`     | **Teaching lesson on the kit**: seven chapters (tokens, vectors, attention, sampling, hallucination, RAG, vector index), one small explainer each (`*.explainer.ts` over the pure `toy-model.ts`: hand-made 2-D vectors, ~50-token vocabulary, invented "Tidepool" rulebook), `precomputed` in the server `page.tsx`, views in `views.tsx`; `useChapters` + `ChapterNav` + glossary `Term`s/appendix in the client shell; one definition used twice via a field prop (`<Rag retrieve={false}>`); predict on five (all but the embedding map and the closed-book run). `apps/demo/scripts/check-llm-model.ts` (`npx jiti`) pins the behaviors the prose relies on (k=1 misleads, nprobe=1 misses) |
+| `/qa`      | **QA Engineer interview lesson**, the widest composition: eleven chapters over one invented system under test (`driftwood.ts`: SPEC vs SHIPPED with planted bugs). Kit explainers (`*.explainer.ts`, `precomputed` in the server `page.tsx`, predict on most) plus the primitives the kit can't host: `useWalk` + `fromGraph` (be the tester, `lifecycle.walk.ts`), `useSyncedTracks` (the pyramid), `useTrace({ follow })` + `PlayerBar live` (CI feed), `useSteps` + `useDiscoveries` (drill), first-visit `useGuidedTour` (skipped on deep links). Views split by chapter group (`views.tsx` holds the shared `Frame`). `apps/demo/scripts/check-qa-model.ts` (`npx jiti`) pins every caught/missed story. Gripes found while building it: `docs/KIT-FEEDBACK.md` |
 | `/live`    | `useTrace({ follow })` over a growing event stream, `PlayerBar live` badge, scrub back stays put, Go live (L) returns, burst to show catch-up |
 | `/player`  | `useTrace` autoPlay, `PlayerBar`, `useGlobalKeys`, `CodeBlock`, tones, `ended` completion banner |
 | `/compare` | `useSyncedTracks` (bubble vs insertion sort under one player), hold vs align-by-pass toggle, traces built with `createTrace` |
@@ -304,12 +305,12 @@ the library's theming story:
 1. Library: `npm run build -w @sphynxoid/stepwise` → "ESM ⚡ Build success" +
    "DTS ⚡ Build success". Tests from `packages/stepwise`, then
    `npm run typecheck` there (exit 0; the type-level tests live in it).
-2. Demo: `cd apps/demo && npm run build` → "22/22 static pages" (15 routes + OG image + `/llms.txt` + `/llms-full.txt`).
-   Then `PW_CHANNEL=msedge npx playwright test` (37 smoke tests: every route
+2. Demo: `cd apps/demo && npm run build` → "23/23 static pages" (16 routes + OG image + `/llms.txt` + `/llms-full.txt`).
+   Then `PW_CHANNEL=msedge npx playwright test` (49 smoke tests: every route
    without console errors, the /eviction redirect, tour card placement - the
    Tailwind `@source` regression guard - player, tour, keyboard glossary
    tooltip, lesson composition, /compare alignment, /simulate exact linked frame +
-   re-anchoring after edits, /simulate predict loop, /live follow + Go live, /llms.txt + /llms-full.txt, hero bar edit keeps the step, /automaton run + choices with link restore, /kit first frame in the no-JS HTML + two explainers with separate links and keys + target edit applies at once + predict loop, /llm first frame in the no-JS HTML + re-tokenizing + closed-book vs RAG answers + nprobe miss/hit). Set `PW_PORT` if 3123 is taken.
+   re-anchoring after edits, /simulate predict loop, /live follow + Go live, /llms.txt + /llms-full.txt, hero bar edit keeps the step, /automaton run + choices with link restore, /kit first frame in the no-JS HTML + two explainers with separate links and keys + target edit applies at once + predict loop, /llm first frame in the no-JS HTML + re-tokenizing + closed-book vs RAG answers + nprobe miss/hit, /qa first frame in the no-JS HTML + tour once and never over a deep link + boundary probes + mutation score + tester walk with link restore + pyramid + API checks + flaky fix + live CI feed and bisect + shrink + drill persistence). Set `PW_PORT` if 3123 is taken.
    At the default worker count this 16-thread box saturates (Edge launches take
    ~6 s, the server's HTML ~20 s) and route-load tests time out on
    `networkidle`; pass `--workers=2` locally. CI's small runners are fine.
@@ -395,6 +396,7 @@ signature changes are major while we're pre-1.0.
 - "How do I do X with several APIs?" → `docs/RECIPES.md`
 - "What does an AI assistant get told?" → `packages/stepwise/LLMS.md`
 
+- "What hurt when building on the kit?" → `docs/KIT-FEEDBACK.md` (found building `/qa`)
 - "Why is it unstyled?" → `docs/TAILWIND-SETUP.md`
 - "How does X work / why is it built this way?" → `docs/ARCHITECTURE.md`
 - "What can I import?" → `packages/stepwise/src/index.ts` (the barrel is the

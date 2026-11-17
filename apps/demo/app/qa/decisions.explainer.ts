@@ -1,5 +1,5 @@
 import { defineExplainer, type Simulation, type StepwiseStep } from "@sphynxoid/stepwise/core";
-import { discount, type Rules } from "./tidepool";
+import { discount, type Rules } from "./driftwood";
 
 // Chapter 3: decision tables. Three yes/no conditions make 8 rules; each
 // row runs through the spec and the shipped pricing. The bug lives in the

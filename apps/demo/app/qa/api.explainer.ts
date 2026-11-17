@@ -1,5 +1,5 @@
 import { defineExplainer, type Simulation, type StepwiseStep } from "@sphynxoid/stepwise/core";
-import { CONTRACT, handle, type Booking, type Res } from "./tidepool";
+import { CONTRACT, handle, type Booking, type Res } from "./driftwood";
 
 // Chapter 7: API testing. A small request suite runs against the bookings
 // API; each response is checked for the status code and, where a booking

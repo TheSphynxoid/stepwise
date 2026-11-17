@@ -1,5 +1,5 @@
 import { fromGraph, type WalkSimulation, type WalkStep } from "@sphynxoid/stepwise/core";
-import { LIFECYCLE_SHIPPED, LIFECYCLE_SPEC, LIFE_STATES, type LifeAction, type LifeState } from "./tidepool";
+import { LIFECYCLE_SHIPPED, LIFECYCLE_SPEC, LIFE_STATES, type LifeAction, type LifeState } from "./driftwood";
 
 // Chapter 5: state transitions. The booking lifecycle is declared twice as
 // a graph (spec and shipped); `fromGraph` gives each a transition function
