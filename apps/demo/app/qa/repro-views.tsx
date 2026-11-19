@@ -2,14 +2,14 @@
 
 import { useExplainer } from "@sphynxoid/stepwise/kit";
 import { FAILING_PAYLOAD, PAYLOAD_FIELDS } from "./driftwood";
-import type { ShrinkInput, ShrinkStep } from "./shrink.explainer";
-import { QUADRANTS, quadrantOf, type TriageInput, type TriageStep } from "./triage.explainer";
+import type { ShrinkStep } from "./shrink.explainer";
+import { QUADRANTS, quadrantOf, type TriageStep } from "./triage.explainer";
 import { Frame } from "./views";
 
 // Views for §10: shrinking a failing payload, and triage on a 2×2.
 
 export function ShrinkView() {
-  const { step } = useExplainer<ShrinkInput, ShrinkStep>();
+  const { step } = useExplainer<null, ShrinkStep>();
   if (!step) return null;
   return (
     <Frame
@@ -67,7 +67,7 @@ const Q_CLASS: Record<string, string> = {
 };
 
 export function TriageView() {
-  const { step } = useExplainer<TriageInput, TriageStep>();
+  const { step } = useExplainer<null, TriageStep>();
   if (!step) return null;
   return (
     <Frame title="triage board" tone={step.tone} status={`${step.placed.length} placed`} label={`${step.placed.length} bugs placed on the severity and priority grid`}>

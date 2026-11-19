@@ -1,5 +1,5 @@
-import { fromGraph, type WalkSimulation, type WalkStep } from "@sphynxoid/stepwise/core";
-import { LIFECYCLE_SHIPPED, LIFECYCLE_SPEC, LIFE_STATES, type LifeAction, type LifeState } from "./driftwood";
+import { defineExplainer, fromGraph, type WalkSimulation, type WalkStep } from "@sphynxoid/stepwise/core";
+import { LIFECYCLE_SHIPPED, LIFECYCLE_SPEC, LIFE_ACTIONS, LIFE_STATES, type LifeAction, type LifeState } from "./driftwood";
 
 // Chapter 5: state transitions. The booking lifecycle is declared twice as
 // a graph (spec and shipped); `fromGraph` gives each a transition function
@@ -9,8 +9,9 @@ import { LIFECYCLE_SHIPPED, LIFECYCLE_SPEC, LIFE_STATES, type LifeAction, type L
 
 const nodes = Object.fromEntries(LIFE_STATES.map((s) => [s, { label: s }])) as Record<LifeState, { label: string }>;
 
-export const specGraph = fromGraph<LifeAction>({ start: "draft", nodes, edges: LIFECYCLE_SPEC });
-export const shippedGraph = fromGraph<LifeAction>({ start: "draft", nodes, edges: LIFECYCLE_SHIPPED });
+// No type arguments: actions are inferred from the edges, states from `nodes`.
+export const specGraph = fromGraph({ start: "draft", nodes, edges: LIFECYCLE_SPEC });
+export const shippedGraph = fromGraph({ start: "draft", nodes, edges: LIFECYCLE_SHIPPED });
 
 /** Tries the reader may make before the walk ends. */
 export const MAX_ACTIONS = 12;
@@ -50,8 +51,8 @@ export const lifecycleWalk: WalkSimulation<null, LifeStep, LifeAction> = functio
     await: true,
   };
   for (let n = 1; n <= MAX_ACTIONS && action; n++) {
-    const spec = specGraph.delta(state, action) as LifeState | null;
-    const shipped = shippedGraph.delta(state, action) as LifeState | null;
+    const spec = specGraph.delta(state, action);
+    const shipped = shippedGraph.delta(state, action);
     log.push({ from: state, on: action, spec, shipped });
     if (spec === null && shipped !== null) {
       yield {
@@ -80,3 +81,14 @@ export const lifecycleWalk: WalkSimulation<null, LifeStep, LifeAction> = functio
     };
   }
 };
+
+/**
+ * The chapter's explainer: the walk, and the five actions as its choices
+ * (labelled as typed, lowercase, like the code). Linked as #life.path=…
+ * with `id="life"`; a linked action that isn't one of these is rejected.
+ */
+export const lifecycle = defineExplainer({
+  name: "lifecycle",
+  walk: lifecycleWalk,
+  choose: { options: LIFE_ACTIONS.map((a) => ({ value: a, label: a })) },
+});

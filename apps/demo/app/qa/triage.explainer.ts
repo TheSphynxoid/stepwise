@@ -13,8 +13,6 @@ export const QUADRANTS = [
 ] as const;
 export const quadrantOf = (c: Pick<BugCard, "severity" | "priority">) => `${c.severity}-${c.priority}`;
 
-/** No real input: the kit needs an object type, and an empty one breaks prop typing (docs/KIT-FEEDBACK.md). */
-export type TriageInput = { board: "release" };
 export type TriageStep = StepwiseStep<{
   kind: "start" | "card" | "placed" | "done";
   explain: string;
@@ -24,7 +22,8 @@ export type TriageStep = StepwiseStep<{
   current: BugCard | null;
 }>;
 
-const sim: Simulation<TriageInput, TriageStep> = function* () {
+// No input: one fixed board, so the definition has no `input`.
+const sim: Simulation<null, TriageStep> = function* () {
   const placed: BugCard[] = [];
   yield {
     key: "start",
@@ -64,7 +63,6 @@ const sim: Simulation<TriageInput, TriageStep> = function* () {
 export const triage = defineExplainer({
   name: "qa-triage",
   simulation: sim,
-  input: { default: { board: "release" } as TriageInput },
   predict: {
     at: (step) => step.kind === "card",
     options: [...QUADRANTS],

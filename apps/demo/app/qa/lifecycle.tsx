@@ -1,16 +1,16 @@
 "use client";
 
-import { PlayerBar, type StepTone } from "@sphynxoid/stepwise";
-import { useWalk } from "@sphynxoid/stepwise/experimental";
-import { useSiteTheme } from "../theme-provider";
-import { LIFE_ACTIONS, LIFECYCLE_SHIPPED, LIFECYCLE_SPEC, type LifeAction, type LifeState } from "./driftwood";
-import { MAX_ACTIONS, lifecycleWalk, specGraph } from "./lifecycle.walk";
+import type { StepTone } from "@sphynxoid/stepwise";
+import { Choices, useExplainer } from "@sphynxoid/stepwise/kit";
+import { LIFECYCLE_SHIPPED, LIFECYCLE_SPEC, type LifeState } from "./driftwood";
+import { MAX_ACTIONS, specGraph, type LifeStep } from "./lifecycle.walk";
 import { Frame } from "./views";
 
-// §05: a walk, not a kit explainer. The kit has no form for a simulation
-// that waits on the reader's choices (see docs/KIT-FEEDBACK.md), so this
-// chapter uses useWalk directly with the plain PlayerBar, and draws the
-// spec's graph from fromGraph's `.graph`.
+// §05's view. The chapter is a walk explainer (lifecycle.walk.ts): the kit
+// runs the walk, links the path (#life.path=…) and renders the narration,
+// the "why" box and the bar; this draws the spec's graph from fromGraph's
+// `.graph` (typed: edges carry LifeState ids) and places <Choices> in the
+// frame's controls.
 
 const POS: Record<LifeState, [number, number]> = {
   draft: [70, 54],
@@ -23,7 +23,6 @@ const POS: Record<LifeState, [number, number]> = {
 const W = 620;
 const R = 30;
 
-const ACTION_SET = new Set<string>(LIFE_ACTIONS);
 const edgeKey = (e: { from: string; on: string; to?: string | null }) => `${e.from}-${e.on}`;
 
 function Edge({ from, to, on, cls, label }: { from: LifeState; to: LifeState; on: string; cls: string; label: string }) {
@@ -53,15 +52,9 @@ function Edge({ from, to, on, cls, label }: { from: LifeState; to: LifeState; on
 
 const RESULT_TONE: Record<string, StepTone> = { start: "neutral", moved: "good", refused: "accent", bug: "bad", end: "write" };
 
-export function Lifecycle() {
-  const { theme } = useSiteTheme();
-  const walk = useWalk(lifecycleWalk, null, {
-    syncHash: "life.frame",
-    syncChoices: { key: "life.path", serialize: (c) => c, parse: (v) => (ACTION_SET.has(v) ? (v as LifeAction) : null) },
-  });
-  const step = walk.step!;
-  const asking = walk.choicePoints.includes(walk.frame);
-  const answered = walk.choiceAt(walk.frame);
+export function LifecycleView() {
+  const { step: current } = useExplainer<null, LifeStep>();
+  const step = current!;
   const found = step.result === "bug";
   const tried = new Set(step.log.map(edgeKey));
   const covered = LIFECYCLE_SPEC.filter((e) => step.log.some((a) => a.from === e.from && a.on === e.on)).length;
@@ -69,7 +62,6 @@ export function Lifecycle() {
   const extra = LIFECYCLE_SHIPPED.filter((e) => !LIFECYCLE_SPEC.some((s) => edgeKey(s) === edgeKey(e)));
 
   return (
-    <div data-testid="qa-life" data-stepwise="" className="space-y-3">
       <Frame
         title="booking-lifecycle · you are the tester"
         tone={RESULT_TONE[step.result]}
@@ -77,21 +69,9 @@ export function Lifecycle() {
         label={`Booking in state ${step.state}; ${step.log.length} actions tried`}
         controls={
           <>
-            <span role="group" aria-label="Next action" className="inline-flex flex-wrap items-center gap-1.5">
-              <span className="mr-1">Try</span>
-              {LIFE_ACTIONS.map((a) => (
-                <button
-                  key={a}
-                  type="button"
-                  disabled={!asking}
-                  onClick={() => walk.choose(a)}
-                  aria-pressed={answered === a}
-                  className="rounded-md border border-border px-2.5 py-1 transition hover:border-primary hover:text-primary disabled:opacity-40 aria-pressed:border-primary aria-pressed:bg-primary/10 aria-pressed:text-primary"
-                >
-                  {a}
-                </button>
-              ))}
-            </span>
+            <Choices label="Next action" className="font-mono">
+              Try
+            </Choices>
             <span className="text-muted-foreground">
               valid edges tried {covered}/{LIFECYCLE_SPEC.length} · refusals checked {refusals}
             </span>
@@ -107,8 +87,8 @@ export function Lifecycle() {
           {specGraph.graph.edges.map((e) => (
             <Edge
               key={edgeKey(e)}
-              from={e.from as LifeState}
-              to={e.to as LifeState}
+              from={e.from}
+              to={e.to}
               on={e.on}
               cls={tried.has(edgeKey(e)) ? "stroke-accent" : "stroke-muted-foreground/40"}
               label={tried.has(edgeKey(e)) ? "fill-accent" : "fill-muted-foreground"}
@@ -150,14 +130,5 @@ export function Lifecycle() {
           {step.log.length === 0 && <li className="text-muted-foreground">No actions yet. Every state has five buttons; the interesting ones are the ones that should fail.</li>}
         </ol>
       </Frame>
-      <p aria-live="polite" className="min-h-5 text-sm text-foreground/85">
-        {step.label}
-      </p>
-      <div className="rounded-lg border border-primary/25 bg-primary/5 px-3 py-2.5 text-[13px] leading-relaxed text-foreground/80">
-        <span className="mr-2 font-mono text-[10px] uppercase tracking-widest text-primary">Why</span>
-        {step.explain}
-      </div>
-      <PlayerBar player={walk.player} toneAt={walk.toneAt} titleAt={walk.titleAt} theme={theme} />
-    </div>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { PlayerBar, useTrace } from "@sphynxoid/stepwise";
 import { useExplainer } from "@sphynxoid/stepwise/kit";
 import { useSiteTheme } from "../theme-provider";
@@ -101,8 +101,8 @@ export function CiFeed() {
     const t = setTimeout(() => setCount((c) => Math.min(BUILDS.length, c + 1)), BUILD_EVERY_MS);
     return () => clearTimeout(t);
   }, [count]);
-  // Memoized: useTrace re-anchors on every new array, and a fresh slice per render loops forever.
-  const builds = useMemo(() => BUILDS.slice(0, count), [count]);
+  // A fresh slice each render is fine: an array with the same steps is not a new trace.
+  const builds = BUILDS.slice(0, count);
   const { step, player, toneAt, titleAt } = useTrace(builds, { follow: true, autoPlay: true, baseDelayMs: 500 });
   const b = step as Build;
   return (

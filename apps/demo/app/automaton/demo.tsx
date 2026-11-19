@@ -230,7 +230,8 @@ export default function Demo() {
           </div>
 
           <div className="mt-4">
-            <PlayerBar player={quiz.player} toneAt={quiz.toneAt} titleAt={quiz.titleAt} theme={theme} />
+            {/* Stepped, not played: every frame is the reader's move. */}
+            <PlayerBar controls="step" player={quiz.player} toneAt={quiz.toneAt} titleAt={quiz.titleAt} theme={theme} />
           </div>
         </div>
       </div>

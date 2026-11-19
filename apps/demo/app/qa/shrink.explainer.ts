@@ -7,8 +7,6 @@ import { DEFAULT_PAYLOAD, FAILING_PAYLOAD, PAYLOAD_FIELDS, payloadFails, type Pa
 // report's repro steps. (A one-at-a-time pass is the simplest form of
 // delta debugging; ddmin removes halves first, then smaller chunks.)
 
-/** No real input: the kit needs an object type, and an empty one breaks prop typing (docs/KIT-FEEDBACK.md). */
-export type ShrinkInput = { report: "checkout" };
 export type ShrinkStep = StepwiseStep<{
   kind: "start" | "try" | "result" | "done";
   explain: string;
@@ -23,7 +21,8 @@ export type ShrinkStep = StepwiseStep<{
   upcoming: "fails" | "passes" | null;
 }>;
 
-const sim: Simulation<ShrinkInput, ShrinkStep> = function* () {
+// No input: the customer's payload is fixed, so the definition has no `input`.
+const sim: Simulation<null, ShrinkStep> = function* () {
   let payload: Payload = { ...FAILING_PAYLOAD };
   let kept = [...PAYLOAD_FIELDS];
   let runs = 1;
@@ -97,7 +96,6 @@ const sim: Simulation<ShrinkInput, ShrinkStep> = function* () {
 export const shrink = defineExplainer({
   name: "qa-shrink",
   simulation: sim,
-  input: { default: { report: "checkout" } as ShrinkInput },
   predict: {
     at: (step) => step.kind === "try",
     options: [

@@ -72,8 +72,6 @@ export type ThinkStep = StepwiseStep<{
   explain: string;
   feature: Feature;
   ideas: Idea[];
-  /** The category of the next frame's idea, so predict can stop only where a category follows. */
-  nextCat: Category | null;
 }>;
 
 const sim: Simulation<ThinkInput, ThinkStep> = function* ({ feature }) {
@@ -87,7 +85,6 @@ const sim: Simulation<ThinkInput, ThinkStep> = function* ({ feature }) {
     label: `"How would you test ${FEATURE_LABEL[feature]}?"`,
     explain: EXPLAIN.start,
     ideas: [],
-    nextCat: all[0]?.cat ?? null,
   };
   for (let i = 0; i < all.length; i++) {
     const idea = all[i];
@@ -100,10 +97,9 @@ const sim: Simulation<ThinkInput, ThinkStep> = function* ({ feature }) {
       label: `${CATEGORIES.find((c) => c.id === idea.cat)!.label}: ${idea.text}`,
       explain: first ? EXPLAIN[idea.cat] : "Another idea in the same category. Two or three per category is plenty in an interview.",
       ideas: all.slice(0, i + 1),
-      nextCat: all[i + 1]?.cat ?? null,
     };
   }
-  yield { ...base, key: "done", kind: "done", tone: "good", label: `${all.length} test ideas in 7 categories`, explain: EXPLAIN.done, ideas: all, nextCat: null };
+  yield { ...base, key: "done", kind: "done", tone: "good", label: `${all.length} test ideas in 7 categories`, explain: EXPLAIN.done, ideas: all };
 };
 
 export const think = defineExplainer({
@@ -115,7 +111,8 @@ export const think = defineExplainer({
     parse: (s) => ((FEATURES as readonly string[]).includes(s) ? { feature: s as Feature } : null),
   },
   predict: {
-    at: (step) => step.nextCat !== null && step.nextCat !== step.kind,
+    // Stop where the next idea opens a new category (not before the summary).
+    at: (step, _frame, next) => next.kind !== "done" && next.kind !== step.kind,
     options: CATEGORIES.map((c) => ({ value: c.id, label: c.label })),
     truth: (next) => next?.kind,
     hint: "The sweep goes: happy path, boundaries, negative, state, integration, UI, non-functional.",

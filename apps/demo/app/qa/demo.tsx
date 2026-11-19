@@ -15,7 +15,7 @@ import {
   type StepwiseStep,
   type TourStepInput,
 } from "@sphynxoid/stepwise";
-import { createExplainer, useExplainer } from "@sphynxoid/stepwise/kit";
+import { createExplainer, useStepParts } from "@sphynxoid/stepwise/kit";
 import { useSiteTheme } from "../theme-provider";
 import { think } from "./think.explainer";
 import { boundaries } from "./boundaries.explainer";
@@ -31,9 +31,11 @@ import { BisectView, FlakyView } from "./ci-views";
 import { shrink } from "./shrink.explainer";
 import { triage } from "./triage.explainer";
 import { ShrinkView, TriageView } from "./repro-views";
+import { lifecycle } from "./lifecycle.walk";
+import { LifecycleView } from "./lifecycle";
 
 // The lesson's client half: explainers (a definition from a *.explainer.ts
-// file plus a view, bound by createExplainer), and the shell around the
+// file, or §05's walk in lifecycle.walk.ts, plus a view, bound by createExplainer), and the shell around the
 // server-rendered prose: chapter nav, glossary, and a first-visit tour.
 
 const Think = createExplainer({ definition: think, view: ThinkView });
@@ -45,6 +47,7 @@ const Flaky = createExplainer({ definition: flaky, view: FlakyView });
 const Bisect = createExplainer({ definition: bisect, view: BisectView });
 const Shrink = createExplainer({ definition: shrink, view: ShrinkView });
 const Triage = createExplainer({ definition: triage, view: TriageView });
+const Lifecycle = createExplainer({ definition: lifecycle, view: LifecycleView });
 
 // The server page passes plain data (precomputed traces, ids); the theme
 // follows the site's light/dark toggle from here.
@@ -80,9 +83,13 @@ export function TriageClient(props: ComponentProps<typeof Triage>) {
   return <Triage {...props} theme={useSiteTheme().theme} />;
 }
 
-/** The current step's "why": what this moment teaches. */
+export function LifecycleClient(props: ComponentProps<typeof Lifecycle>) {
+  return <Lifecycle {...props} theme={useSiteTheme().theme} />;
+}
+
+/** The current step's "why": what this moment teaches. Reads the step parts' context, so it also works in a <StepParts>. */
 export function Explain() {
-  const { step } = useExplainer<unknown, StepwiseStep<{ explain?: string }>>();
+  const { step } = useStepParts<StepwiseStep<{ explain?: string }>>();
   if (!step?.explain) return null;
   return (
     <div data-stepwise="" className="rounded-lg border border-primary/25 bg-primary/5 px-3 py-2.5 text-[13px] leading-relaxed text-foreground/80">
@@ -127,10 +134,9 @@ const TOUR: TourStepInput[] = [
 ];
 
 /**
- * First-visit tour, remembered with useDiscoveries. Returns the replay
- * button and the overlay separately: the overlay must not render inside the
- * blurred sticky nav, since backdrop-filter makes `position: fixed` children
- * position against the nav instead of the viewport.
+ * First-visit tour, remembered with useDiscoveries. The overlay renders next
+ * to its replay button inside the blurred sticky nav: the tour parts portal
+ * to <body>, so backdrop-filter on the nav doesn't capture them.
  */
 function useIntroTour() {
   const { theme } = useSiteTheme();
@@ -176,11 +182,11 @@ export function QaLesson({ chapters, children }: { chapters: Chapter[]; children
               className="static z-auto min-w-0 flex-1 border-transparent bg-transparent shadow-none"
             />
             {intro.button}
+            {intro.overlay}
           </div>
         </div>
         <div className="mx-auto max-w-4xl px-6 pt-10">{children}</div>
       </main>
-      {intro.overlay}
     </GlossaryProvider>
   );
 }

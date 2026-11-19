@@ -10,9 +10,9 @@ import { think } from "./think.explainer";
 import { boundaries } from "./boundaries.explainer";
 import { decisions } from "./decisions.explainer";
 import { mutation } from "./mutation.explainer";
-import { ApiClient, BisectClient, FlakyClient, ShrinkClient, TriageClient, BoundariesClient, DecisionsClient, Explain, MutationClient, QaLesson, ThinkClient } from "./demo";
+import { ApiClient, BisectClient, FlakyClient, ShrinkClient, TriageClient, BoundariesClient, DecisionsClient, Explain, LifecycleClient, MutationClient, QaLesson, ThinkClient } from "./demo";
 import { Answer, C, Chapter, FollowUp, Prose, TryThis } from "./ui";
-import { Lifecycle } from "./lifecycle";
+import { lifecycle } from "./lifecycle.walk";
 import { Pyramid } from "./automation-views";
 import { api } from "./api.explainer";
 import { flaky } from "./flaky.explainer";
@@ -41,6 +41,8 @@ const Flaky = precomputed(flaky, FlakyClient);
 const Bisect = precomputed(bisect, BisectClient);
 const Shrink = precomputed(shrink, ShrinkClient);
 const Triage = precomputed(triage, TriageClient);
+// A walk precomputes like a simulation: the server ships its first choice point.
+const Lifecycle = precomputed(lifecycle, LifecycleClient);
 
 const CHAPTERS: ChapterSpec[] = [
   { id: "approach", label: "How to test" },
@@ -295,7 +297,11 @@ export default function Page() {
               from there.
             </p>
           </Prose>
-          <Lifecycle />
+          <div data-testid="qa-life">
+            <Lifecycle id="life">
+              <Parts end="The booking can't move any further. Scrub back to an earlier choice and try another action." />
+            </Lifecycle>
+          </div>
           <TryThis>
             Systematic beats lucky: in each state, try all five actions before moving on. That&apos;s 6 states × 5 actions =
             30 cases, and the bug is one of them.
