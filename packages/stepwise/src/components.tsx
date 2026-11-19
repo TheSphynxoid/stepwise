@@ -217,7 +217,15 @@ export function PlayerBar({
   groupOf,
   labels,
   live,
+  controls = "full",
 }: {
+  /**
+   * "full" (default): ← Play →, then the scrubber. "step": ← scrubber →,
+   * no Play button, for timelines the reader drives one step at a time (a
+   * walk that stops at every choice, where Play would only run to the next
+   * one).
+   */
+  controls?: "full" | "step";
   player: {
     total: number;
     index: number;
@@ -270,19 +278,30 @@ export function PlayerBar({
   };
   const behind = Math.max(0, player.total - 1 - Math.max(player.index, 0));
   const playLabel = player.playing ? L.pause : player.total > 0 && player.atEnd ? L.replay : L.play;
+  const prevButton = (
+    <StepButton variant="ghost" onClick={() => player.prev()} className="h-7 px-2 text-xs" aria-label={L.previous}>
+      ←
+    </StepButton>
+  );
+  const nextButton = (
+    <StepButton variant="ghost" onClick={() => player.next(onEmpty)} className="h-7 px-2 text-xs" aria-label={L.next}>
+      →
+    </StepButton>
+  );
+  const step = controls === "step";
 
   return (
     <div data-stepwise="" className={cn("flex items-center gap-2 p-2", className)}>
       {leading}
-      <StepButton variant="ghost" onClick={() => player.prev()} className="h-7 px-2 text-xs" aria-label={L.previous}>
-        ←
-      </StepButton>
-      <StepButton variant="outline" onClick={() => player.toggle(onEmpty)} className="h-7 px-3.5 text-[11px]">
-        {playLabel}
-      </StepButton>
-      <StepButton variant="ghost" onClick={() => player.next(onEmpty)} className="h-7 px-2 text-xs" aria-label={L.next}>
-        →
-      </StepButton>
+      {prevButton}
+      {!step && (
+        <>
+          <StepButton variant="outline" onClick={() => player.toggle(onEmpty)} className="h-7 px-3.5 text-[11px]">
+            {playLabel}
+          </StepButton>
+          {nextButton}
+        </>
+      )}
       <StepScrubber
         count={player.total}
         index={player.index}
@@ -293,6 +312,7 @@ export function PlayerBar({
         theme={theme}
         groupOf={groupOf}
       />
+      {step && nextButton}
       <span className={cn("text-[10px] font-mono w-11 text-right shrink-0", theme.muted)}>
         {player.total > 0 ? `${player.index + 1}/${player.total}` : "—"}
       </span>
@@ -440,6 +460,17 @@ export function LessonPager({
 
 // ─── Guided tour ─────────────────────────────────────────────────────────────
 
+// Both tour parts are `position: fixed` and portal to <body>: rendered in
+// place, a filtered or transformed ancestor (a sticky header with
+// backdrop-blur, a common home for a "Take the tour" button) becomes their
+// containing block and the card lands off-screen. Portals only after mount
+// (SSR-safe), like the glossary tooltip and ShortcutsDialog.
+function useMounted() {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  return mounted;
+}
+
 export function TourSpotlight({
   target,
   theme = defaultTheme,
@@ -448,6 +479,7 @@ export function TourSpotlight({
   theme?: StepwiseTheme;
 }) {
   const [rect, setRect] = useState<DOMRect | null>(null);
+  const mounted = useMounted();
 
   useEffect(() => {
     if (!target) {
@@ -455,12 +487,15 @@ export function TourSpotlight({
       return;
     }
     // The target may not exist yet (conditional rendering downstream) — poll
-    // until it appears, then track it frame by frame.
+    // until it appears, then track it frame by frame. If it is replaced (a
+    // re-keyed React subtree, an HTMX or Turbo swap), the old node is
+    // detached: look the target up again rather than track a node at 0,0.
     let el: Element | null = null;
     let scrolled = false;
     let raf = 0;
     let last = "";
     const tick = () => {
+      if (el && !el.isConnected) el = null;
       if (!el) {
         // Resolve by DOM id first (most common), then by data-tour attribute.
         el = document.getElementById(target) ?? document.querySelector(`[data-tour="${target}"]`);
@@ -483,9 +518,9 @@ export function TourSpotlight({
     return () => cancelAnimationFrame(raf);
   }, [target]);
 
-  if (!rect) return null;
+  if (!rect || !mounted) return null;
   const pad = 6;
-  return (
+  return createPortal(
     <div data-stepwise="" className="fixed inset-0 z-40 pointer-events-none">
       <div
         className={cn("absolute", theme.spotlight)}
@@ -497,7 +532,8 @@ export function TourSpotlight({
           boxShadow: "0 0 0 9999px rgba(0,0,0,0.55)",
         }}
       />
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -541,9 +577,12 @@ export function TourCard({
     finish: labels?.finish ?? "Finish",
     end: labels?.end ?? "End tour",
   };
-  const trapRef = useFocusTrap(true);
+  const mounted = useMounted();
+  // Armed once the portal has rendered, so the trap finds its container.
+  const trapRef = useFocusTrap(mounted);
 
-  return (
+  if (!mounted) return null;
+  return createPortal(
     <div
       ref={trapRef}
       data-stepwise=""
@@ -592,7 +631,8 @@ export function TourCard({
           {index === total - 1 ? L.finish : L.next}
         </StepButton>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

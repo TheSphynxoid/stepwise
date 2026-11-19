@@ -83,6 +83,30 @@ describe("useSimulation — syncInput", () => {
     expect(window.location.hash).toBe("#frame=3&n=5");
   });
 
+  it("a link opened in the same tab restores its input, then its frame", () => {
+    const { result } = renderHook(() => useLinked(2));
+    expect(result.current.sim.steps).toHaveLength(2);
+    act(() => {
+      window.history.replaceState(null, "", "#frame=4&n=6");
+      window.dispatchEvent(new HashChangeEvent("hashchange"));
+    });
+    expect(result.current.input).toBe(6);
+    expect(result.current.sim.frame).toBe(4);
+    expect(result.current.sim.step?.key).toBe("s4");
+    expect(window.location.hash).toBe("#frame=4&n=6");
+  });
+
+  it("a same-tab hash change to the frame only leaves the input alone", () => {
+    window.history.replaceState(null, "", "#frame=1&n=5");
+    const { result } = renderHook(() => useLinked(2));
+    act(() => {
+      window.history.replaceState(null, "", "#frame=3&n=5");
+      window.dispatchEvent(new HashChangeEvent("hashchange"));
+    });
+    expect(result.current.input).toBe(5);
+    expect(result.current.sim.frame).toBe(3);
+  });
+
   it("a linked frame stays put under autoplay with reduced motion", () => {
     window.matchMedia = vi.fn().mockImplementation((q: string) => ({
       matches: q.includes("reduce"),

@@ -4,7 +4,7 @@ import { createElement, isValidElement, type ReactElement } from "react";
 import { defineExplainer } from "../core";
 import type { PrecomputedTrace } from "../core";
 import { GlossaryAppendix, Term } from "../index";
-import { EndNote, ExplainerBar, Narration, Predict, PredictToggle, Stage, StepCode } from "../kit";
+import { Choices, EndNote, ExplainerBar, Narration, Predict, PredictToggle, Stage, StepCode } from "../kit";
 import { precomputed, stepwiseComponents } from "../kit/mdx";
 
 // Runs under node, not jsdom: `precomputed` is a server component, so it must
@@ -140,6 +140,7 @@ describe("precomputed", () => {
       PredictToggle,
       ExplainerBar,
       EndNote,
+      Choices,
     });
     for (const [name, component] of Object.entries(stepwiseComponents)) {
       expect(typeof component, name).toBe("function");

@@ -99,6 +99,9 @@ describe("./kit", () => {
       "StepCode",
       "ExplainerBar",
       "EndNote",
+      "Choices",
+      "StepParts",
+      "useStepParts",
       "Predict",
       "PredictToggle",
     ];

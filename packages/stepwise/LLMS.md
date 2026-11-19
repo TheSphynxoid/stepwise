@@ -235,8 +235,10 @@ const asking = walk.choicePoints.includes(walk.frame);
 - A walk is (simulation, input, seed, choices): `syncChoices` puts the
   choices in the URL, so a link replays the same path.
 - Automata: `fromGraph({ start, nodes, edges: [{ from, on, to }], accept, otherwise })`
-  gives `.simulation` (run it over a word: one step per symbol) and
-  `.graph` (draw it). Use `useWalk(dfa.simulation, word, { anchor: "index" })`
+  gives `.simulation` (run it over a word: one step per symbol),
+  `.graph` (draw it) and `.delta(from, on)`. Pass no type arguments: the
+  symbols are inferred from the edges and the node ids from `nodes`, so an
+  unknown node is a type error (`fromGraph<Sym>(...)` leaves ids as `string`). Use `useWalk(dfa.simulation, word, { anchor: "index" })`
   so editing the word keeps the position.
 - `walk.lastChange` (`diffTraces`) says which steps an edit changed.
 
@@ -285,7 +287,7 @@ export const sorting = defineExplainer({
     },
   },
   predict: { // optional: pause and ask
-    at: (step) => step.kind === "compare",
+    at: (step) => step.kind === "compare", // also gets (frame, next): stop where `next` changes something
     options: ["swap", "keep"], // bare strings get a label: "Swap", "Keep"
     truth: (next) => next?.kind, // the frame after the held one
     hint: "Is the left bar taller than the right one?",
@@ -401,7 +403,7 @@ Explainer props (all optional):
   when the definition has `serialize` and `parse`. `link={false}` opts out.
 - `autoPlay` (default **false**), `keys` (default true), `theme`,
   `className`, `children` (replaces the default layout: `Stage`, `Narration`,
-  `Predict`, `StepCode`, `ExplainerBar`, `EndNote`).
+  `Choices`, `Predict`, `StepCode`, `ExplainerBar`, `EndNote`).
 - `predict`: start in predict mode. The reader owns it after mount
   (`PredictToggle`).
 - Input: `input={...}` replaces the whole input; for a plain-object default,
@@ -446,7 +448,7 @@ Behaviour worth knowing:
   (the note, the question, the switch's label; defaults "End of the run.
   Play to replay.", "What happens next?", "Predict mode").
 - Custom parts read the provider: `useExplainer<Input, Step>()` returns
-  `{ step, input, setInput, editable, error, truncated, sim, predict, id, theme }`.
+  `{ step, input, setInput, editable, error, truncated, sim, predict, walk, id, theme }`.
   `step` is frame 0 before playback; `sim` is the player with `steps`: the
   `useSimulation` result for a live explainer, the `useTrace` result plus
   `steps` for a recorded one (`sim.player` for your own controls either way);
@@ -460,6 +462,73 @@ Behaviour worth knowing:
   created per render re-renders every part.
 - The kit's components need styling like the rest (`styles.css` or the
   Tailwind `@source` line).
+
+**Walk explainers** (0.6+). A definition can hold a `walk` instead of a
+`simulation`: the run stops at every `await: true` step until the reader
+picks a choice. The kit links the choices (`#<id>.path=a.b`), and
+`precompute` / `precomputed` work unchanged (the server ships the walk up to
+its first choice point).
+
+```ts
+// maze.explainer.ts (no "use client")
+import { defineExplainer, type WalkSimulation, type WalkStep } from "@sphynxoid/stepwise/core";
+
+type Turn = "left" | "right";
+type Room = WalkStep & { key: string; tone: "neutral" | "good"; label: string };
+
+const maze: WalkSimulation<null, Room, Turn> = function* () {
+  const first = yield { key: "hall", tone: "neutral", label: "A fork. Which way?", await: true };
+  yield { key: `room.${first}`, tone: "good", label: `You went ${first}.` };
+};
+
+export const mazeExplainer = defineExplainer({
+  name: "maze",
+  walk: maze,
+  choose: { options: ["left", { value: "right", label: "Right" }] }, // checked against Turn
+});
+```
+
+- A walk explainer's `ExplainerBar` has no Play button (`controls="step"`:
+  ← scrubber →), and Space is left to the page; `<ExplainerBar controls="full" />`
+  brings Play back. A plain `PlayerBar` takes the same `controls` prop.
+- `Choices` renders the options (buttons, disabled off a choice point, the
+  answer given there pressed); the default layout includes it. Children are
+  a visible prompt, `label` the group's accessible name.
+- `useExplainer().walk` is `{ choices, choose, choiceAt, asking, awaiting, options }`
+  (`null` for a simulation). A different answer at an earlier choice point
+  cuts off the old future and replays from there.
+- `choose.options` can be a function of the step; `choose.parse` checks a
+  linked choice (default: one of the options when they are a list).
+- No `predict` on a walk (a type error): the choices are the question.
+
+**Step parts outside an explainer** (0.6+). `Narration`, `StepCode`,
+`ExplainerBar` and `EndNote` only need a step and a player, so they also
+work around a plain `useTrace` / `useSimulation` / `useWalk`:
+
+```tsx
+"use client";
+import { useTrace } from "@sphynxoid/stepwise";
+import { ExplainerBar, Narration, StepParts } from "@sphynxoid/stepwise/kit";
+
+const STEPS = [
+  { tone: "neutral" as const, label: "First" },
+  { tone: "good" as const, label: "Second" },
+];
+
+export function Walkthrough() {
+  const trace = useTrace(STEPS);
+  return (
+    <StepParts source={trace}>
+      <Narration />
+      <ExplainerBar />
+    </StepParts>
+  );
+}
+```
+
+A custom part that only needs the step should read `useStepParts()`, not
+`useExplainer()`: it then works in both places. `Stage`, `Predict` and
+`Choices` still need an explainer.
 
 ## Pitfalls checklist
 
@@ -480,3 +549,7 @@ Behaviour worth knowing:
 14. `runSimulation` / `createTrace` / `precompute` imported from the root entry in a server component or build script → import them from `@sphynxoid/stepwise/core`.
 15. An input field named `id` (or another reserved prop name) passed as a prop → it sets the prop, not the field; use `input={...}`. The kit's `autoPlay` defaults to false.
 16. Two explainers on a page without distinct `id`s → they share `#frame=` / `#in=`; give each an `id`.
+17. An explainer with nothing to edit → leave `input` out of `defineExplainer` (the input is `null`); don't invent a placeholder field.
+18. A seed the reader should change or link → make it an input field (`{ seed: 7 }`) and seed `createRng` from it; `definition.seed` is fixed per definition.
+19. A kit-style page around a plain player that rebuilds the narration line and the bar by hand → wrap it in `<StepParts source={trace}>` and use the parts.
+20. A walk on `useWalk` that wants the kit's links, keys and precomputing → `defineExplainer({ walk, choose: { options } })` and `<Choices />` in the view.

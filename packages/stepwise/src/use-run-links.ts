@@ -58,22 +58,33 @@ export function useRunLinks(
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const hash = openedHash.current ?? window.location.hash;
-    const values = partsRef.current.map((p) => {
-      if (!p) return NONE;
-      const raw = readHashParam(hash, p.key);
-      const parsed = raw === null ? null : p.read(raw);
-      return parsed === null ? NONE : parsed;
-    });
-    if (values.every((v) => v === NONE)) return;
-    const f = frameKey ? readHashParam(hash, frameKey) : null;
-    linked.current = { values, frame: f !== null && /^\d+$/.test(f) ? Number(f) : null };
-    values.forEach((v, i) => {
-      if (v === NONE) return;
-      written.current[i] = v;
-      partsRef.current[i]!.restore(v);
-    });
-    // Mount only: later hash edits by hand don't re-import the run.
+    // Import the run a hash describes: restore its parts, then (in the layout
+    // effect below, once they're in) jump to its frame. On mount every linked
+    // part counts; on a later hashchange (a link pasted into the same tab)
+    // only parts whose value differs from the current one, so a frame-only
+    // change stays the player's business.
+    const importRun = (hash: string, changedOnly: boolean) => {
+      const values = partsRef.current.map((p) => {
+        if (!p) return NONE;
+        const raw = readHashParam(hash, p.key);
+        const parsed = raw === null ? null : p.read(raw);
+        if (parsed === null) return NONE;
+        if (changedOnly && p.write(parsed) === p.write(p.value)) return NONE;
+        return parsed;
+      });
+      if (values.every((v) => v === NONE)) return;
+      const f = frameKey ? readHashParam(hash, frameKey) : null;
+      linked.current = { values, frame: f !== null && /^\d+$/.test(f) ? Number(f) : null };
+      values.forEach((v, i) => {
+        if (v === NONE) return;
+        written.current[i] = v;
+        partsRef.current[i]!.restore(v);
+      });
+    };
+    importRun(openedHash.current ?? window.location.hash, false);
+    const onHashChange = () => importRun(window.location.hash, true);
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

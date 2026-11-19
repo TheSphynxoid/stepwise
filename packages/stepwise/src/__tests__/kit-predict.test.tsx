@@ -124,6 +124,27 @@ describe("Predict", () => {
     expect(error).not.toHaveBeenCalled();
   });
 
+  it("at() sees the next step, so it can stop where something is about to change", () => {
+    const seen: [number, number | undefined][] = [];
+    const lookahead = defineExplainer({
+      ...counting,
+      input: { default: 4 },
+      predict: {
+        ...counting.predict!,
+        at: (s: CountStep, frame: number, next?: CountStep) => {
+          seen.push([frame, next?.i]);
+          return next?.i === 2;
+        },
+      },
+    });
+    renderPredict({ definition: lookahead });
+    tick();
+    expect(screen.getByTestId("i").textContent).toBe("1");
+    expect(api.sim.player.held).toBe(1);
+    expect(seen).toContainEqual([1, 2]);
+    expect(seen).toContainEqual([0, 1]);
+  });
+
   it("does not hold on a checkpoint with no next frame; playback ends normally", () => {
     const atLast = defineExplainer({
       ...counting,

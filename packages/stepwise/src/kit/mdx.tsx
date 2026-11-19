@@ -16,6 +16,7 @@
 import { createElement, type ComponentType, type ReactElement } from "react";
 import { GlossaryAppendix, Term } from "@sphynxoid/stepwise";
 import {
+  Choices,
   EndNote,
   ExplainerBar,
   Narration,
@@ -26,7 +27,7 @@ import {
 } from "@sphynxoid/stepwise/kit";
 import type { ExplainerInstanceProps } from "@sphynxoid/stepwise/kit";
 import { assertJsonInput, precompute, resolveInput } from "../core";
-import type { ExplainerDefinition, PrecomputedTrace, StepwiseStep } from "../core";
+import type { AnyExplainerDefinition, PrecomputedTrace, StepwiseStep } from "../core";
 
 // A page renders the same explainer with the same props on every request (and
 // a static build renders it once per page), so traces are kept per definition.
@@ -35,7 +36,7 @@ const MAX_TRACES = 8;
 const traces = new WeakMap<object, Map<string, PrecomputedTrace<unknown, StepwiseStep>>>();
 
 function traceFor<Input, S extends StepwiseStep>(
-  definition: ExplainerDefinition<Input, S>,
+  definition: AnyExplainerDefinition<Input, S>,
   input: Input
 ): PrecomputedTrace<Input, S> {
   let byInput = traces.get(definition);
@@ -65,7 +66,7 @@ function traceFor<Input, S extends StepwiseStep>(
  *   export const Sorting = precomputed(sorting, SortingClient);
  */
 export function precomputed<Input, S extends StepwiseStep>(
-  definition: ExplainerDefinition<Input, S>,
+  definition: AnyExplainerDefinition<Input, S>,
   Client: ComponentType<ExplainerInstanceProps<Input, S>>
 ): (props: Omit<ExplainerInstanceProps<Input, S>, "trace">) => ReactElement {
   function Precomputed(props: Omit<ExplainerInstanceProps<Input, S>, "trace">): ReactElement {
@@ -90,4 +91,5 @@ export const stepwiseComponents = {
   PredictToggle,
   ExplainerBar,
   EndNote,
+  Choices,
 };

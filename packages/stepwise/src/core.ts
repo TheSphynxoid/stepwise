@@ -60,7 +60,11 @@ export {
   EXPLAINER_PROP_NAMES,
 } from "./explainer";
 export type {
+  AnyExplainerDefinition,
+  ChoiceOption,
+  ExplainerChoose,
   ExplainerDefinition,
+  WalkExplainerDefinition,
   ExplainerInput,
   ExplainerPropName,
   FieldOverrides,

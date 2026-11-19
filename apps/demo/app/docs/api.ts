@@ -475,6 +475,7 @@ export const API: ApiGroup[] = [
               { name: "emptyHint", type: "string", desc: "Scrubber text when there are no frames." },
               { name: "groupOf", type: "(i: number) => number", desc: "Group consecutive segments (see StepScrubber)." },
               { name: "live", type: "boolean", desc: "Show the live-edge badge for a following player: Live at the edge, Go live +N when the reader is behind." },
+              { name: "controls", type: "\"full\" | \"step\"", def: "\"full\"", desc: "\"step\" drops the Play button and puts ← and → on either side of the scrubber: for a timeline the reader drives one step at a time, like a walk that stops at every choice. Since 0.6." },
               { name: "labels", type: "{ previous, play, pause, replay, next, live, goLive }", desc: "Button labels / aria." },
               THEME_ROW,
               CLASS_ROW,
@@ -546,7 +547,7 @@ export const API: ApiGroup[] = [
         name: "TourSpotlight",
         signature: "<TourSpotlight target={tour.current?.target ?? null} />",
         summary:
-          "Dims the page around the target, scrolls it into view once and tracks it every frame. Waits for targets that render late.",
+          "Dims the page around the target, scrolls it into view once and tracks it every frame. Waits for targets that render late, and finds the target again when it is replaced (a re-keyed subtree, an HTMX or Turbo swap). Portals to <body> after mount, so it works inside a filtered or transformed ancestor (a sticky header with backdrop-blur).",
         demo: "/tour",
         tables: [
           {
@@ -559,7 +560,7 @@ export const API: ApiGroup[] = [
         id: "TourCard",
         name: "TourCard",
         signature: "<TourCard step={tour.current} index={tour.index} total={n} onNext onBack onEnd />",
-        summary: "Focus-trapped dialog narrating the active tour step, fixed to the bottom of the viewport.",
+        summary: "Focus-trapped dialog narrating the active tour step, fixed to the bottom of the viewport. Portals to <body> after mount, so it can render next to a tour button inside a blurred or transformed header.",
         demo: "/tour",
         tables: [
           {
@@ -798,6 +799,7 @@ export const API: ApiGroup[] = [
               { name: "choices", type: "readonly Choice[]", desc: "Choices to start with (read once, on mount)." },
               { name: "anchor", type: '"key" | "index"', def: '"key"', desc: "Where the playhead stays when the input changes: on the step with the same key, or at the same index (for walks where step i means \"after i inputs\", like fromGraph)." },
               { name: "syncChoices", type: "{ key, serialize, parse }", desc: "Keep the choices in the URL (#p=a.b.a). Restored together with syncInput, before the linked frame. A choice parse rejects drops the whole linked path." },
+              { name: "initialTrace", type: "PrecomputedTrace<Input, S>", desc: "As for useSimulation, plus the choices: the precomputed path stands in for the run while the input matches by content, the seed matches and the choices equal trace.choices. Choice points are its await: true steps. Since 0.6." },
             ],
           },
           {
@@ -835,9 +837,9 @@ export const API: ApiGroup[] = [
       {
         id: "fromGraph",
         name: "fromGraph",
-        signature: "fromGraph<Sym extends string, N>(spec: { start, nodes, edges: { from, on, to }[], accept?, otherwise? }): StepGraph<Sym, N>",
+        signature: "fromGraph<Sym extends string, N, Id extends string>(spec: { start, nodes, edges: { from, on, to }[], accept?, otherwise? }): StepGraph<Sym, N, Id>",
         summary:
-          "A declared automaton: nodes, labeled edges, accept states. Throws on an inconsistent graph. A missing edge goes to otherwise (a dead state) or ends the run with an error.",
+          "A declared automaton: nodes, labeled edges, accept states. Throws on an inconsistent graph. A missing edge goes to otherwise (a dead state) or ends the run with an error. Pass no type arguments: Sym is inferred from the edges and the node ids (Id) from the keys of nodes, and start, edges, accept and otherwise are checked against them, so an unknown node is a type error. An explicit fromGraph<Sym> leaves Id as string. Typed ids since 0.6.",
         demo: "/automaton",
         tables: [
           {
@@ -845,14 +847,14 @@ export const API: ApiGroup[] = [
             rows: [
               { name: "simulation", type: "GraphSimulation<Sym>", desc: "Runs the graph over a word (a string or any iterable): one step per symbol read, keyed by position. Use with useSimulation or useWalk (anchor: \"index\")." },
               { name: "graph", type: "{ start, nodes, edges, accept: Set, otherwise }", desc: "The declared graph, to draw it." },
-              { name: "delta", type: "(from: string, on: Sym) => string | null", desc: "The transition function, otherwise included." },
+              { name: "delta", type: "(from: Id, on: Sym) => Id | null", desc: "The transition function, otherwise included." },
               { name: "stepAt", type: "(read, node, from?, on?) => GraphStep", desc: "The step for a position, for custom walks over the same graph." },
             ],
           },
           {
             title: "GraphStep (plus StepwiseStep)",
             rows: [
-              { name: "node / from / on", type: "string / string | null / Sym | null", desc: "Where the walk is, where it came from, and the symbol read (null on the start step)." },
+              { name: "node / from / on", type: "Id / Id | null / Sym | null", desc: "Where the walk is, where it came from, and the symbol read (null on the start step)." },
               { name: "read", type: "number", desc: "Symbols read so far." },
               { name: "accepted", type: "boolean", desc: "The node is an accepting one (tone good)." },
             ],
@@ -917,9 +919,9 @@ export const API: ApiGroup[] = [
       {
         id: "defineExplainer",
         name: "defineExplainer",
-        signature: "defineExplainer<Input, S extends StepwiseStep>(def: ExplainerDefinition<Input, S>): Readonly<ExplainerDefinition<Input, S>>",
+        signature: "defineExplainer<Input, S extends StepwiseStep>(def: ExplainerDefinition<Input, S>): Readonly<ExplainerDefinition<Input, S>>\ndefineExplainer<Input, S extends WalkStep, Choice extends string>(def: WalkExplainerDefinition<Input, S, Choice>): Readonly<WalkExplainerDefinition<Input, S, Choice>>",
         summary:
-          "One object that says what to simulate, the default input, how the input goes into a link, and where to stop and ask. Pure data plus pure functions: keep it in a plain module (no \"use client\") so a server can precompute it and the client can re-run it. Freezes the definition shallowly.",
+          "One object that says what to simulate (or walk), the default input, how the input goes into a link, and where to stop and ask. Pure data plus pure functions: keep it in a plain module (no \"use client\") so a server can precompute it and the client can re-run it. Freezes the definition shallowly. A definition has a simulation or a walk, never both (a type error, and a throw from plain JS). A walk definition (since 0.6) stops at every await: true step until the reader picks one of choose.options; the kit links the choices (#<id>.path=) and precomputes the path like a simulation.",
         demo: "/kit",
         tables: [
           {
@@ -929,18 +931,28 @@ export const API: ApiGroup[] = [
               { name: "simulation", type: "Simulation<Input, S>", desc: "The generator. Required. Give every step a key." },
               { name: "seed", type: "number | string", def: "0", desc: "Seed for ctx.rng." },
               { name: "maxSteps", type: "number", def: "10000", desc: "Step cap; precompute throws when a run hits it." },
-              { name: "input", type: "ExplainerInput<Input>", desc: "Required: { default, serialize?, parse? }. With serialize and parse, a linked explainer keeps the input in the URL (#in=, or #<id>.in=); parse returns null to ignore a malformed link." },
+              { name: "input", type: "ExplainerInput<Input>", desc: "{ default, serialize?, parse? }. Leave it out for an explainer with nothing to edit (a recorded walkthrough): the input is null and there are no field props; a simulation that reads an input must declare one. For a seed the reader can change or link, make it an input field and seed createRng from it. With serialize and parse, a linked explainer keeps the input in the URL (#in=, or #<id>.in=); parse returns null to ignore a malformed link." },
               { name: "predict", type: "ExplainerPredict<S>", desc: "Checkpoints for predict mode (below)." },
             ],
           },
           {
             title: "ExplainerPredict<S>",
             rows: [
-              { name: "at", type: "(step: S, frame: number) => boolean", desc: "Hold autoplay here. A checkpoint on a frame with no successor is skipped: the guess is graded against the next frame, so there is nothing to grade." },
+              { name: "at", type: "(step: S, frame: number, next: S) => boolean", desc: "Hold autoplay here. next is the frame the guess is graded against, so a checkpoint can depend on what is about to happen without a lookahead field in the trace. A checkpoint on a frame with no successor is skipped: the guess is graded against the next frame, so there is nothing to grade." },
               { name: "options", type: "readonly (string | { value, label })[]", desc: "Answer options. A bare string gets a capitalized label (\"left\" shows \"Left\")." },
               { name: "truth", type: "(next: S | undefined, held: S) => string | undefined", desc: "The correct option value, judged from the frame after the held one." },
               { name: "feedback", type: "(guess, truth, held) => string | undefined", desc: "Custom message for a graded guess; the defaults are \"Right.\" and \"Not quite.\"." },
               { name: "hint", type: "string", desc: "Appended to the feedback after two failed attempts." },
+            ],
+          },
+          {
+            title: "WalkExplainerDefinition<Input, S, Choice>",
+            rows: [
+              { name: "walk", type: "WalkSimulation<Input, S, Choice>", desc: "Replaces simulation: a generator whose yield at an await: true step returns the reader's choice. Choice is inferred from it (a string union), and options outside it are a type error." },
+              { name: "choose.options", type: "readonly (Choice | { value, label })[] | ((step: S) => …)", desc: "What the Choices part offers: the same everywhere, or per step (called with the step on the playhead). A bare value gets a capitalized label, as for predict." },
+              { name: "choose.parse", type: "(value: string) => Choice | null", desc: "A choice read from a link; null rejects the whole linked path. Default: one of the options when they are a list, any non-empty string when they are a function." },
+              { name: "anchor", type: "\"key\" | \"index\"", def: "\"key\"", desc: "Where the playhead stays when an input edit replays the walk (useWalk's anchor)." },
+              { name: "name / seed / maxSteps / input", type: "as above", desc: "As for a simulation. No predict: the choices are already the question." },
             ],
           },
         ],
@@ -948,9 +960,9 @@ export const API: ApiGroup[] = [
       {
         id: "precompute",
         name: "precompute",
-        signature: "precompute<Input, S extends StepwiseStep>(def: ExplainerDefinition<Input, S>, input?: Input): PrecomputedTrace<Input, S>",
+        signature: "precompute<Input, S extends StepwiseStep>(def: AnyExplainerDefinition<Input, S>, input?: Input, choices?: readonly string[]): PrecomputedTrace<Input, S>",
         summary:
-          "Run a definition to a JSON-safe trace, on the default input when input is undefined (so undefined can't be passed as a real input). Throws a labelled error ([stepwise] precompute(\"name\"): input.arr[1] is not JSON-serializable (undefined)) when the input or a step is not JSON (NaN, a Map, a Date, a class instance, a function, an undefined inside an array; a cycle reports kind cycle), when the simulation throws, or when it hits maxSteps, so a broken explainer fails the build.",
+          "Run a definition to a JSON-safe trace, on the default input when input is undefined (so undefined can't be passed as a real input). Throws a labelled error ([stepwise] precompute(\"name\"): input.arr[1] is not JSON-serializable (undefined)) when the input or a step is not JSON (NaN, a Map, a Date, a class instance, a function, an undefined inside an array; a cycle reports kind cycle), when the simulation throws, or when it hits maxSteps, so a broken explainer fails the build. For a walk it replays choices (default none: the walk up to its first choice point); ending on an unanswered choice point is fine.",
         demo: "/kit",
         tables: [
           {
@@ -959,6 +971,7 @@ export const API: ApiGroup[] = [
               { name: "input", type: "Input", desc: "The input the trace was computed from." },
               { name: "seed", type: "number", desc: "Numeric seed used." },
               { name: "steps", type: "S[]", desc: "The trace." },
+              { name: "choices", type: "string[]", desc: "A walk's answered choices, in order (only those the walk used); absent for a simulation. An explainer given this trace starts partway down the walk." },
             ],
           },
         ],
@@ -974,9 +987,9 @@ export const API: ApiGroup[] = [
       {
         id: "createExplainer",
         name: "createExplainer / Explainer",
-        signature: "createExplainer<Input, S>(cfg: { definition?: ExplainerDefinition<Input, S>; view: ComponentType }): ComponentType<ExplainerInstanceProps<Input, S>>\ntype ExplainerInstanceProps<Input, S> = Omit<ExplainerProps<Input, S>, \"definition\" | \"view\"> & FieldOverrides<Input>",
+        signature: "createExplainer<Input, S>(cfg: { definition?: AnyExplainerDefinition<Input, S>; view: ComponentType }): ComponentType<ExplainerInstanceProps<Input, S>>\ntype ExplainerInstanceProps<Input, S> = Omit<ExplainerProps<Input, S>, \"definition\" | \"view\"> & FieldOverrides<Input>",
         summary:
-          "Bind a definition and a view into one component, so a page or an MDX file renders <Sorting /> with serializable props. Without children it renders the default layout: Stage, Narration, Predict, StepCode, ExplainerBar, EndNote. Without a definition it is a recorded-only explainer that plays its trace prop and ships no simulation code. Explainer is the same shell with definition and view as props. Besides the props below, the default input's fields are props (FieldOverrides<Input>), so a misspelled prop (autoplay) or an unknown field is a type error.",
+          "Bind a definition (a simulation or a walk) and a view into one component, so a page or an MDX file renders <Sorting /> with serializable props. Without children it renders the default layout: Stage, Narration, Choices, Predict, StepCode, ExplainerBar, EndNote (Choices renders nothing for a simulation, Predict nothing for a walk). Without a definition it is a recorded-only explainer that plays its trace prop and ships no simulation code. Explainer is the same shell with definition and view as props. Besides the props below, the default input's fields are props (FieldOverrides<Input>), so a misspelled prop (autoplay) or an unknown field is a type error.",
         demo: "/kit",
         tables: [
           {
@@ -985,7 +998,7 @@ export const API: ApiGroup[] = [
               { name: "trace", type: "PrecomputedTrace<Input, S>", desc: "A precomputed run: the client starts from it instead of running the simulation (useSimulation's initialTrace). Required without a definition." },
               { name: "input", type: "Input", desc: "Replaces the whole default input. Read once, at mount." },
               { name: "<field>", type: "Input[field]", desc: "For a plain-object default, a prop named after one of its own keys overrides that field (<Search target={61} />), typed from the input. Not for fields named like a reserved prop (id, theme, ...): those props stay the explainer's, so override the field with input. Read once, at mount." },
-              { name: "id", type: "string", desc: "Hash namespace: <id>.frame and <id>.in. Two linked explainers on a page without distinct ids share keys (development builds warn once)." },
+              { name: "id", type: "string", desc: "Hash namespace: <id>.frame and <id>.in, and <id>.path for a walk's choices. Two linked explainers on a page without distinct ids share keys (development builds warn once)." },
               { name: "link", type: "boolean", def: "true", desc: "Keep the frame in the URL hash, and the input when the definition has serialize and parse." },
               { name: "autoPlay", type: "boolean", def: "false", desc: "Start playing on mount (reduced motion keeps it paused)." },
               { name: "predict", type: "boolean", def: "false", desc: "Start in predict mode. Read once; the reader owns it after (PredictToggle)." },
@@ -1016,6 +1029,7 @@ export const API: ApiGroup[] = [
               { name: "truncated", type: "boolean", desc: "maxSteps cut the run short. Always false for a recorded explainer." },
               { name: "sim", type: "TracePlayer<S> & { steps }", desc: "The player and the trace (sim.player for your own controls): the useSimulation result for a live explainer, the useTrace result plus steps for a recorded one." },
               { name: "predict", type: "PredictApi | null", desc: "Predict mode's state; null without a predict block." },
+              { name: "walk", type: "WalkApi | null", desc: "A walk's choices (below); null for a simulation and a recorded explainer." },
               { name: "id / theme", type: "string | undefined / StepwiseTheme", desc: "As passed (theme defaults to defaultTheme)." },
             ],
           },
@@ -1033,21 +1047,51 @@ export const API: ApiGroup[] = [
               { name: "release", type: "() => void", desc: "Leave the checkpoint and resume playing." },
             ],
           },
+          {
+            title: "WalkApi",
+            rows: [
+              { name: "choices", type: "readonly Choice[]", desc: "The answers given so far, in order." },
+              { name: "choose", type: "(choice: Choice) => void", desc: "Stable. Answer the choice point on the playhead: the walk moves past it; a different answer at an earlier choice point cuts off the old future and replays from there." },
+              { name: "choiceAt", type: "(frame: number) => Choice | undefined", desc: "Stable. The answer given at frame, if it is an answered choice point." },
+              { name: "asking", type: "boolean", desc: "The playhead is on a choice point (answered or not)." },
+              { name: "awaiting", type: "boolean", desc: "The path ends on a choice point with no answer yet. Playback holds there." },
+              { name: "options", type: "readonly { value, label }[]", desc: "choose.options for the step on the playhead, labelled." },
+            ],
+          },
         ],
       },
       {
         id: "explainerParts",
-        name: "Stage / Narration / StepCode / ExplainerBar / EndNote / Predict / PredictToggle",
-        signature: "<Stage />  <Narration />  <StepCode />  <ExplainerBar />  <EndNote>…</EndNote>  <Predict>…</Predict>  <PredictToggle />",
+        name: "Stage / Narration / StepCode / ExplainerBar / EndNote / Choices / Predict / PredictToggle",
+        signature: "<Stage />  <Narration />  <StepCode />  <ExplainerBar />  <EndNote>…</EndNote>  <Choices label?>…</Choices>  <Predict>…</Predict>  <PredictToggle />",
         summary:
-          "The parts: each reads the provider and renders one thing, with serializable props only, so they read the same in TSX and MDX. Stage renders the view and takes no props. The others take a className, and three take children as prose: Narration the step label (aria-live); StepCode the step's code (nothing without); ExplainerBar a PlayerBar for the explainer; EndNote shows once playback ran to the end (children are the note, default \"End of the run. Play to replay.\"); Predict the question at a held checkpoint (radios, Check, then Continue or Skip; children are the question, default \"What happens next?\"); PredictToggle switches predict mode (children are its label, default \"Predict mode\"). Predict and PredictToggle render nothing without a predict block.",
+          "The parts: each reads the provider and renders one thing, with serializable props only, so they read the same in TSX and MDX. Stage renders the view and takes no props. Choices (a walk) renders one button per option, disabled off a choice point and pressed on the answer given there; children are a visible prompt, label names the group (default \"Choose\"); nothing for a simulation. Narration, StepCode, ExplainerBar and EndNote need only a step and a player, so they also work in a StepParts (below) around a plain player. The others take a className, and three take children as prose: Narration the step label (aria-live); StepCode the step's code (nothing without); ExplainerBar a PlayerBar for the explainer (controls=\"step\" drops Play, the default for a walk explainer, whose keyboard also leaves Space to the page; controls=\"full\" brings it back); EndNote shows once playback ran to the end (children are the note, default \"End of the run. Play to replay.\"); Predict the question at a held checkpoint (radios, Check, then Continue or Skip; children are the question, default \"What happens next?\"); PredictToggle switches predict mode (children are its label, default \"Predict mode\"). Predict and PredictToggle render nothing without a predict block.",
         demo: "/kit",
         tables: [],
       },
       {
+        id: "stepParts",
+        name: "StepParts / useStepParts",
+        signature: "<StepParts source={trace} theme?>…</StepParts>\nuseStepParts<S extends StepwiseStep = StepwiseStep>(): StepPartsApi<S>",
+        summary:
+          "The step parts (Narration, StepCode, ExplainerBar, EndNote) outside an explainer: source is anything with step, player and optionally toneAt / titleAt, which is what useTrace, useSimulation and useWalk return. An explainer opens one for its own parts, so useStepParts also works inside one; a custom part that only needs the step should read it there, so it works in both. Since 0.6. Outside both, the parts throw \"… must be inside <Explainer> or <StepParts>\".",
+        demo: "/qa",
+        tables: [
+          {
+            title: "StepPartsApi<S>",
+            rows: [
+              { name: "step", type: "S | undefined", desc: "The frame to render." },
+              { name: "player", type: "StepPlayer", desc: "The player (ExplainerBar's)." },
+              { name: "toneAt / titleAt", type: "(i: number) => StepTone / string", desc: "Scrubber accessors, when the source has them." },
+              { name: "theme", type: "StepwiseTheme", def: "defaultTheme", desc: "As passed." },
+            ],
+          },
+        ],
+      },
+      {
         id: "precomputed",
         name: "precomputed",
-        signature: "precomputed<Input, S>(definition: ExplainerDefinition<Input, S>, Client: ComponentType<ExplainerInstanceProps<Input, S>>): (props: Omit<ExplainerInstanceProps<Input, S>, \"trace\">) => ReactElement",
+        signature: "precomputed<Input, S>(definition: AnyExplainerDefinition<Input, S>, Client: ComponentType<ExplainerInstanceProps<Input, S>>): (props: Omit<ExplainerInstanceProps<Input, S>, \"trace\">) => ReactElement",
         summary:
           "From @sphynxoid/stepwise/kit/mdx (no \"use client\"). Wraps a createExplainer component in a hook-free server component: it resolves the input from the props as the client would, runs precompute (cached per definition, up to 8 inputs), and renders Client with every prop plus trace. A client component is server-rendered anyway, so the first frame is in the HTML either way. What this adds in every host is a build-time failure for a non-JSON input or a simulation that throws, hits the cap or yields non-JSON data. In an RSC host (the Next.js App Router) the wrapper runs only on the server, so hydration does not re-run the simulation; in a non-RSC SSR host (Docusaurus, the Next.js Pages Router, Remix) the wrapper itself runs again in the browser, so the simulation runs once there too. Name the wrapper file without .server. (Remix and React Router treat *.server.* files as server-only). The wrapper's props are the client component's minus trace, field props typed from the input.",
         demo: "/kit",
@@ -1058,7 +1102,7 @@ export const API: ApiGroup[] = [
         name: "stepwiseComponents",
         signature: "export function useMDXComponents(c: MDXComponents) { return { ...stepwiseComponents, ...c }; }",
         summary:
-          "From @sphynxoid/stepwise/kit/mdx: Term, GlossaryAppendix, Stage, Narration, StepCode, Predict, PredictToggle, ExplainerBar and EndNote as one map, to spread into mdx-components.tsx or an MDX provider's components. Your own explainers are not in it: import them in the MDX file or add them to the map.",
+          "From @sphynxoid/stepwise/kit/mdx: Term, GlossaryAppendix, Stage, Narration, StepCode, Predict, PredictToggle, ExplainerBar, EndNote and Choices as one map, to spread into mdx-components.tsx or an MDX provider's components. Your own explainers are not in it: import them in the MDX file or add them to the map.",
         tables: [],
       },
     ],

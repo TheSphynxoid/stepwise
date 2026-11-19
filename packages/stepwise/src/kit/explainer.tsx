@@ -15,12 +15,16 @@ import {
 import { cn } from "../cn";
 import { fail, normalizeOptions, pass, resolveInput } from "../core";
 import type {
+  AnyExplainerDefinition,
   ExplainerDefinition,
   ExplainerPredict,
   FieldOverrides,
   PrecomputedTrace,
   PredictOption,
   VerdictStatus,
+  WalkExplainerDefinition,
+  WalkSimulation,
+  WalkStep,
 } from "../core";
 import { defaultTheme, type StepwiseTheme } from "../theme";
 import { useEvaluator } from "../use-evaluator";
@@ -29,27 +33,31 @@ import { useSimulation } from "../use-simulation";
 import type { SyncInputOptions } from "../use-simulation";
 import { useTrace } from "../use-trace";
 import type { TracePlayer } from "../use-trace";
+import { useWalk } from "../use-walk";
+import type { SyncChoicesOptions } from "../use-walk";
 import type { StepwiseStep } from "../types";
-import { EndNote, ExplainerBar, Narration, Stage, StepCode } from "./parts";
+import { Choices, EndNote, ExplainerBar, Narration, Stage, StepCode } from "./parts";
+import { StepParts } from "./step-parts";
 import { Predict } from "./predict";
 import { activate, isActive, register } from "./registry";
 
-// The explainer kit: one provider around useSimulation (or useTrace, for a
-// recorded run) plus flat part components that read it from context. An
+// The explainer kit: one provider around useSimulation (useWalk for a walk,
+// useTrace for a recorded run) plus flat part components that read it from
+// context. An
 // author writes a definition and a view; the shell, the player wiring, the
 // hash links and the layout come from here. Parts are flat PascalCase
 // components with serializable props, so they compose from MDX as well.
 
 export interface ExplainerProps<Input, S extends StepwiseStep> {
-  /** What to simulate. Omitted: a recorded-only explainer that plays `trace`. */
-  definition?: ExplainerDefinition<Input, S>;
+  /** What to simulate or walk. Omitted: a recorded-only explainer that plays `trace`. */
+  definition?: AnyExplainerDefinition<Input, S>;
   /** Draws the current frame; it takes no props and calls `useExplainer()`. */
   view: ComponentType;
   /** A precomputed run (see `precompute`): the first render needs no simulation. */
   trace?: PrecomputedTrace<Input, S>;
   /** Replaces the default input. On a component from createExplainer, fields of an object default can also be passed as props. */
   input?: Input;
-  /** Hash namespace: `${id}.frame`, `${id}.in`. Needed for two explainers on one page. */
+  /** Hash namespace: `${id}.frame`, `${id}.in` (and `${id}.path` for a walk's choices). Needed for two explainers on one page. */
   id?: string;
   /** Stop at the definition's checkpoints and ask the reader. Read once, at mount: it is predict mode's starting state. */
   predict?: boolean;
@@ -61,7 +69,7 @@ export interface ExplainerProps<Input, S extends StepwiseStep> {
   autoPlay?: boolean;
   theme?: StepwiseTheme;
   className?: string;
-  /** Replaces the default layout (Stage, Narration, Predict, StepCode, ExplainerBar, EndNote). */
+  /** Replaces the default layout (Stage, Narration, Choices, Predict, StepCode, ExplainerBar, EndNote). */
   children?: ReactNode;
 }
 
@@ -95,6 +103,22 @@ export interface PredictApi {
   release: () => void;
 }
 
+/** A walk explainer's choices, exposed to custom parts (the `Choices` part draws them). Functions are stable. */
+export interface WalkApi<Choice extends string = string> {
+  /** The answers given so far, in order. With the input, they are the walk. */
+  choices: readonly Choice[];
+  /** Answer the choice point on the playhead (see useWalk's `choose`: a new answer cuts off the old future). */
+  choose: (choice: Choice) => void;
+  /** The answer given at `frame`, if it is an answered choice point. */
+  choiceAt: (frame: number) => Choice | undefined;
+  /** The playhead is on a choice point (answered or not). */
+  asking: boolean;
+  /** The path ends on a choice point with no answer yet. */
+  awaiting: boolean;
+  /** The definition's options for the step on the playhead, labelled. */
+  options: readonly { value: Choice; label: string }[];
+}
+
 export interface ExplainerApi<Input = unknown, S extends StepwiseStep = StepwiseStep> {
   sim: TracePlayer<S> & { steps: readonly S[] };
   /** The frame to render (frame 0 before start; undefined for an empty trace). */
@@ -109,6 +133,8 @@ export interface ExplainerApi<Input = unknown, S extends StepwiseStep = Stepwise
   /** The run hit `maxSteps` and was cut short. Always false for a recorded explainer. */
   truncated: boolean;
   predict: PredictApi | null;
+  /** null unless the definition is a walk. */
+  walk: WalkApi | null;
   id: string | undefined;
   theme: StepwiseTheme;
 }
@@ -145,9 +171,12 @@ const hashKey = (id: string | undefined, key: string) => (id ? `${id}.${key}` : 
  *   <Explainer definition={sorting} view={Bars} trace={precomputed} />
  */
 export function Explainer<Input, S extends StepwiseStep>(props: ExplainerProps<Input, S>): ReactElement {
-  // Two components, because hooks can't be conditional: a live run needs
-  // input state and a simulation, a recorded one only a player.
-  if (props.definition) return <LiveExplainer {...props} definition={props.definition} />;
+  // One component per kind, because hooks can't be conditional: a live run
+  // needs input state and a simulation, a walk the same plus its choices, a
+  // recorded one only a player.
+  const def = props.definition;
+  if (def?.walk) return <WalkExplainer {...props} definition={def} />;
+  if (def) return <LiveExplainer {...props} definition={def as ExplainerDefinition<Input, S>} />;
   if (!props.trace) throw new Error("createExplainer without a definition needs a `trace` prop.");
   return <RecordedExplainer {...props} trace={props.trace} />;
 }
@@ -181,8 +210,10 @@ function LiveExplainer<Input, S extends StepwiseStep>(
     // A checkpoint is graded against the frame after it, so one with no
     // successor can't be answered: skip it rather than park the reader.
     holdAt: predictDef
-      ? (frame, step) =>
-          predictOn && step !== undefined && stepsRef.current[frame + 1] !== undefined && predictDef.at(step, frame)
+      ? (frame, step) => {
+          const next = stepsRef.current[frame + 1];
+          return predictOn && step !== undefined && next !== undefined && predictDef.at(step, frame, next);
+        }
       : undefined,
   });
   stepsRef.current = sim.steps;
@@ -202,6 +233,67 @@ function LiveExplainer<Input, S extends StepwiseStep>(
       predictApi={predict}
     />
   );
+}
+
+function WalkExplainer<Input, S extends StepwiseStep>(
+  props: ExplainerProps<Input, S> & { definition: WalkExplainerDefinition<Input, S, string> }
+) {
+  const { definition, trace, id, link = true, autoPlay = false } = props;
+  // Read once, at mount, like a live explainer's input (see LiveExplainer).
+  const [input, setInputState] = useState<Input>(() =>
+    resolveInput(definition, props as unknown as { input?: Input } & Record<string, unknown>)
+  );
+  const { serialize, parse } = definition.input;
+  const syncInput: SyncInputOptions<Input> | undefined =
+    link && serialize && parse ? { key: hashKey(id, "in"), serialize, parse, onRestore: setInputState } : undefined;
+  const { choose: chooseDef } = definition;
+  const syncChoices: SyncChoicesOptions<string> | undefined = link
+    ? { key: hashKey(id, "path"), serialize: (c) => c, parse: (v) => parseChoice(chooseDef, v) }
+    : undefined;
+  const walk = useWalk(definition.walk as WalkSimulation<Input, S & WalkStep, string>, input, {
+    seed: definition.seed,
+    maxSteps: definition.maxSteps,
+    anchor: definition.anchor,
+    initialTrace: trace as PrecomputedTrace<Input, S & WalkStep> | undefined,
+    // A precomputed trace may already be partway down the walk.
+    choices: trace?.choices,
+    autoPlay,
+    syncHash: link ? hashKey(id, "frame") : undefined,
+    syncInput,
+    syncChoices,
+  });
+  useReportError(definition.name, walk.error);
+  const setInput = useCallback((next: Input | ((prev: Input) => Input)) => setInputState(next), []);
+  const step = walk.step;
+  const options = useMemo(() => {
+    const raw = typeof chooseDef.options === "function" ? (step ? chooseDef.options(step) : []) : chooseDef.options;
+    return normalizeOptions(raw);
+  }, [chooseDef, step]);
+  const asking = walk.choicePoints.includes(walk.frame);
+  const { choices, choose, choiceAt, awaiting } = walk;
+  const walkApi = useMemo<WalkApi>(
+    () => ({ choices, choose, choiceAt, asking, awaiting, options }),
+    [choices, choose, choiceAt, asking, awaiting, options]
+  );
+  return (
+    <Shell
+      {...props}
+      sim={walk as unknown as TracePlayer<S> & { steps: readonly S[] }}
+      input={input}
+      setInput={setInput}
+      editable
+      error={walk.error}
+      truncated={walk.truncated}
+      walkApi={walkApi}
+    />
+  );
+}
+
+/** A choice read from a link: one of the options when they are a list, any non-empty string otherwise. */
+function parseChoice<S extends StepwiseStep>(def: WalkExplainerDefinition<unknown, S, string>["choose"], value: string): string | null {
+  if (def.parse) return def.parse(value);
+  if (typeof def.options === "function") return value === "" ? null : value;
+  return normalizeOptions(def.options).some((o) => o.value === value) ? value : null;
 }
 
 /**
@@ -334,8 +426,12 @@ function Shell<Input, S extends StepwiseStep>({
   className,
   children,
   predictApi = null,
+  walkApi = null,
 }: ExplainerProps<Input, S> &
-  Omit<ExplainerApi<Input, S>, "step" | "predict" | "id" | "theme"> & { predictApi?: PredictApi | null }) {
+  Omit<ExplainerApi<Input, S>, "step" | "predict" | "walk" | "id" | "theme"> & {
+    predictApi?: PredictApi | null;
+    walkApi?: WalkApi | null;
+  }) {
   const step = sim.step;
   // One keyboard, many explainers: the registry says which one owns it.
   const token = useRef<object>({});
@@ -347,17 +443,19 @@ function Shell<Input, S extends StepwiseStep>({
     {
       ArrowRight: () => next(),
       ArrowLeft: () => prev(),
-      " ": () => toggle(start),
+      // A walk is stepped, not played: Space there stays the page's.
+      ...(walkApi ? {} : { " ": () => toggle(start) }),
     },
     { enabled: () => keys && isActive(token.current) }
   );
   const claimKeys = useCallback(() => activate(token.current), []);
   const api = useMemo<ExplainerApi<Input, S>>(
-    () => ({ sim, step, input, setInput, editable, error, truncated, predict: predictApi, id, theme }),
-    [sim, step, input, setInput, editable, error, truncated, predictApi, id, theme]
+    () => ({ sim, step, input, setInput, editable, error, truncated, predict: predictApi, walk: walkApi, id, theme }),
+    [sim, step, input, setInput, editable, error, truncated, predictApi, walkApi, id, theme]
   );
   return (
     <ExplainerContext.Provider value={api as unknown as ExplainerApi<unknown, StepwiseStep>}>
+      <StepParts source={sim} theme={theme} controls={walkApi ? "step" : "full"}>
       <ViewContext.Provider value={view}>
         <section
           data-stepwise=""
@@ -370,6 +468,7 @@ function Shell<Input, S extends StepwiseStep>({
             <>
               <Stage />
               <Narration />
+              <Choices />
               <Predict />
               <StepCode />
               <ExplainerBar />
@@ -378,6 +477,7 @@ function Shell<Input, S extends StepwiseStep>({
           )}
         </section>
       </ViewContext.Provider>
+      </StepParts>
     </ExplainerContext.Provider>
   );
 }
@@ -391,7 +491,7 @@ function Shell<Input, S extends StepwiseStep>({
  *   export const Sorting = createExplainer({ definition: sorting, view: Bars });
  */
 export function createExplainer<Input, S extends StepwiseStep>(cfg: {
-  definition?: ExplainerDefinition<Input, S>;
+  definition?: AnyExplainerDefinition<Input, S>;
   view: ComponentType;
 }): ComponentType<ExplainerInstanceProps<Input, S>> {
   function BoundExplainer(props: ExplainerInstanceProps<Input, S>) {

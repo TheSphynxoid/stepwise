@@ -92,7 +92,8 @@ export function useSimulation<Input, S extends StepwiseStep>(
   );
 }
 
-function safeJson(value: unknown): string | undefined {
+/** JSON.stringify, or undefined for a value that can't be stringified (a cycle, a BigInt). */
+export function safeJson(value: unknown): string | undefined {
   try {
     return JSON.stringify(value);
   } catch {

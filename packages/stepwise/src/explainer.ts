@@ -1,6 +1,8 @@
 import { runSimulation } from "./simulation";
 import type { Simulation } from "./simulation";
 import type { StepwiseStep } from "./types";
+import { runWalk } from "./walk";
+import type { WalkSimulation, WalkStep } from "./walk";
 
 // Explainer definitions: one object that says what to simulate, what the
 // default input is, and (optionally) where to stop and ask the reader to
@@ -14,7 +16,13 @@ export interface PredictOption {
 }
 
 export interface ExplainerPredict<S> {
-  at: (step: S, frame: number) => boolean;
+  /**
+   * Whether to stop on this frame and ask. `next` is the frame the answer is
+   * judged from, so a checkpoint can depend on what is about to happen ("stop
+   * where a new category starts") without a lookahead field in the trace.
+   * Never called for the last frame: a checkpoint needs a next frame.
+   */
+  at: (step: S, frame: number, next: S) => boolean;
   options: readonly (string | PredictOption)[];
   /** The correct option value, judged from the frame after the held one. */
   truth: (next: S | undefined, held: S) => string | undefined;
@@ -37,19 +45,97 @@ export interface ExplainerDefinition<Input, S extends StepwiseStep> {
   maxSteps?: number;
   input: ExplainerInput<Input>;
   predict?: ExplainerPredict<S>;
+  /** A definition has a `simulation` or a `walk`, never both. */
+  walk?: undefined;
+  choose?: undefined;
+  anchor?: undefined;
 }
+
+/** A choice the reader can make: a bare value (labelled like a predict option) or a value and its label. */
+export type ChoiceOption<Choice extends string = string> = Choice | { value: Choice; label: string };
+
+/** What a walk explainer offers at its choice points. */
+export interface ExplainerChoose<S, Choice extends string> {
+  /** The same options everywhere, or per step (called with the step on the playhead). */
+  options: readonly ChoiceOption<Choice>[] | ((step: S) => readonly ChoiceOption<Choice>[]);
+  /**
+   * A choice read from a link, or null to reject the linked path. Default:
+   * one of `options` when it is an array, any non-empty string otherwise.
+   */
+  parse?: (value: string) => Choice | null;
+}
+
+// As in graph.ts: inference skips this position (a NoInfer that works before TS 5.4).
+type NoInferHere<T> = [T][T extends unknown ? 0 : never];
+
+/**
+ * An explainer over a walk (see `WalkSimulation`): the run stops at every
+ * `await: true` step until the reader picks one of `choose.options`. The
+ * path is replayed from (input, seed, choices), so it links and precomputes
+ * like a simulation. No `predict`: the choices are already the question.
+ */
+export interface WalkExplainerDefinition<Input, S extends StepwiseStep, Choice extends string = string> {
+  /** Used in error messages. */
+  name?: string;
+  /** Mark a choice point with `await: true` (steps are `WalkStep`s). */
+  walk: WalkSimulation<Input, S & WalkStep, Choice>;
+  seed?: number | string;
+  maxSteps?: number;
+  input: ExplainerInput<Input>;
+  choose: ExplainerChoose<S, Choice>;
+  /** Where the playhead stays when an input edit replays the walk (see useWalk). Default "key". */
+  anchor?: "key" | "index";
+  simulation?: undefined;
+  predict?: undefined;
+}
+
+/** Either kind of definition, as the kit and precompute take it. */
+export type AnyExplainerDefinition<Input, S extends StepwiseStep> =
+  | ExplainerDefinition<Input, S>
+  | WalkExplainerDefinition<Input, S, string>;
 
 export interface PrecomputedTrace<Input, S> {
   input: Input;
   seed: number;
   steps: S[];
+  /** A walk's answered choices, in order (absent for a simulation). */
+  choices?: string[];
 }
 
-/** Freezes the definition itself (shallowly); the simulation and callbacks stay yours. */
+/**
+ * Freezes the definition itself (shallowly); the simulation and callbacks stay yours.
+ *
+ * Leave out `input` for an explainer with nothing to edit (a recorded
+ * walkthrough): its input is `null`, and it takes no field props. A
+ * simulation that reads an input must declare one.
+ */
+export function defineExplainer<S extends WalkStep, Choice extends string>(
+  def: Omit<WalkExplainerDefinition<null, S, Choice>, "input" | "walk" | "choose"> & {
+    walk: WalkSimulation<null, S, Choice>;
+    choose: ExplainerChoose<S, NoInferHere<Choice>>;
+    input?: undefined;
+  }
+): Readonly<WalkExplainerDefinition<null, S, Choice>>;
+export function defineExplainer<Input, S extends WalkStep, Choice extends string>(
+  def: Omit<WalkExplainerDefinition<Input, S, Choice>, "walk" | "choose"> & {
+    walk: WalkSimulation<Input, S, Choice>;
+    choose: ExplainerChoose<S, NoInferHere<Choice>>;
+  }
+): Readonly<WalkExplainerDefinition<Input, S, Choice>>;
+export function defineExplainer<S extends StepwiseStep>(
+  def: Omit<ExplainerDefinition<null, S>, "input"> & { input?: undefined }
+): Readonly<ExplainerDefinition<null, S>>;
 export function defineExplainer<Input, S extends StepwiseStep>(
   def: ExplainerDefinition<Input, S>
-): Readonly<ExplainerDefinition<Input, S>> {
-  return Object.freeze(def);
+): Readonly<ExplainerDefinition<Input, S>>;
+export function defineExplainer<Input, S extends StepwiseStep>(
+  def: { input?: ExplainerInput<Input>; walk?: unknown; simulation?: unknown }
+): Readonly<AnyExplainerDefinition<Input, S>> {
+  // The types already forbid both; plain JS gets told at once.
+  if (def.walk && def.simulation) throw new Error("[stepwise] defineExplainer: pass a simulation or a walk, not both.");
+  return Object.freeze(
+    (def.input ? def : { ...def, input: { default: null as Input } }) as AnyExplainerDefinition<Input, S>
+  );
 }
 
 /**
@@ -114,13 +200,19 @@ export function assertJsonInput(def: { name?: string }, input: unknown): void {
  * of shipping a trace the client then disagrees with.
  */
 export function precompute<Input, S extends StepwiseStep>(
-  def: ExplainerDefinition<Input, S>,
-  input?: Input
+  def: AnyExplainerDefinition<Input, S>,
+  input?: Input,
+  /** A walk's choices to replay (ignored for a simulation). Default: none, the start of the walk. */
+  choices?: readonly string[]
 ): PrecomputedTrace<Input, S> {
   const label = precomputeLabel(def);
   const used = input === undefined ? def.input.default : input;
   assertJsonInput(def, used);
-  const run = runSimulation(def.simulation, used, { seed: def.seed, maxSteps: def.maxSteps });
+  // A walk may end on an unanswered choice point: that is where the reader starts.
+  const walked = def.walk
+    ? runWalk(def.walk, used, { seed: def.seed, maxSteps: def.maxSteps, choices: choices ?? [] })
+    : null;
+  const run = walked ?? runSimulation(def.simulation!, used, { seed: def.seed, maxSteps: def.maxSteps });
   if (run.error !== null && run.error !== undefined) {
     const e = run.error;
     throw new Error(`${label}: simulation threw: ${e instanceof Error ? e.message : String(e)}`);
@@ -132,6 +224,7 @@ export function precompute<Input, S extends StepwiseStep>(
     const bad = findNonJson(run.steps[i], `steps[${i}]`);
     if (bad) throw new Error(`${label}: ${bad.path} is not JSON-serializable (${bad.kind})`);
   }
+  if (walked) return { input: used, seed: run.seed, steps: run.steps, choices: (choices ?? []).slice(0, walked.used) };
   return { input: used, seed: run.seed, steps: run.steps };
 }
 
@@ -169,11 +262,17 @@ export type ExplainerPropName = (typeof EXPLAINER_PROP_NAMES)[number];
  * at runtime (pass `input` to set it). A field named like a reserved prop
  * (`id`, `link`, `theme`, ...) can't be overridden by a field prop either;
  * that name is always the prop. Use `input` for both.
+ *
+ * An input typed with an index signature (`Record<string, …>`) has no known
+ * fields, so it gets no field props: mapped through `Omit`, its index
+ * signature would claim every prop name, reserved ones included.
  */
 export type FieldOverrides<Input> = Input extends readonly unknown[]
   ? {}
   : Input extends object
-    ? Partial<Omit<Input, ExplainerPropName>>
+    ? string extends keyof Input
+      ? {}
+      : Partial<Omit<Input, ExplainerPropName>>
     : {};
 
 const RESERVED = new Set<string>(EXPLAINER_PROP_NAMES);

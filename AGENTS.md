@@ -27,9 +27,9 @@ npm run build -w @sphynxoid/stepwise             # build library → packages/st
 npm run dev                                   # demo app (same as: npm run dev -w @stepwise/demo)
 
 # tests — run from the package directory, NOT the root
-cd packages/stepwise && npx vitest run        # 295 tests (14 useSteps, 32 player, 29 tour, 9 discoveries, 6 chapters, 4 flatten, 4 trace, 11 synced tracks, 9 lesson stream, 3 createTrace, 24 simulation/re-anchoring/checkpoints, 7 evaluators, 11 live edge, 9 syncInput + rebuilt-input warning, 4 barrels (root, core, kit, kit/mdx), 24 walks/graphs/diffs/experimental barrel, 7 core boundary, 16 explainer definitions/precompute, 7 initialTrace, 26 kit explainer, 17 kit predict, 13 kit keys/registry, 9 kit/mdx)
+cd packages/stepwise && npx vitest run        # 326 tests (14 useSteps, 32 player, 29 tour, 3 tour parts (portal, re-found target), 9 discoveries, 6 chapters, 4 flatten, 8 trace (incl. timelines rebuilt every render), 11 synced tracks, 9 lesson stream, 3 createTrace, 24 simulation/re-anchoring/checkpoints, 7 evaluators, 11 live edge, 11 syncInput (+ same-tab links) + rebuilt-input warning, 4 barrels (root, core, kit, kit/mdx), 25 walks/graphs/diffs/experimental barrel, 7 core boundary, 17 explainer definitions/precompute, 7 initialTrace, 26 kit explainer, 19 kit walks + StepParts + step-only bar, 18 kit predict, 13 kit keys/registry, 9 kit/mdx)
 
-# library typecheck, including the type-level tests (src/__tests__/kit-props.typecheck.tsx:
+# library typecheck, including the type-level tests (src/__tests__/kit-props.typecheck.tsx and graph.typecheck.ts:
 # @ts-expect-error lines, which vitest does not check); also run by prepublishOnly and CI
 cd packages/stepwise && npm run typecheck     # = tsc --noEmit -p .
 
@@ -159,7 +159,10 @@ PRESENT   components.tsx    PlayerBar, StepScrubber (groupOf!), ChapterNav,
 KIT       kit/explainer.tsx EXPERIMENTAL (./kit): Explainer / createExplainer
                             (definition + view → one component; recorded-only
                             without a definition), useExplainer, predict mode
-          kit/parts.tsx     Stage, Narration, StepCode, ExplainerBar, EndNote
+          kit/parts.tsx     Stage, Narration, StepCode, ExplainerBar, EndNote,
+                            Choices (a walk explainer's options)
+          kit/step-parts.tsx StepParts / useStepParts: the step parts around
+                            any player, outside an explainer
           kit/predict.tsx   Predict, PredictToggle
           kit/registry.ts   which explainer owns the keyboard; duplicate hash
                             namespace warning (module state, SSR-safe)
@@ -223,8 +226,12 @@ Each of these encodes a bug we already fixed once:
    buttons/margins on non-Tailwind hosts.
 10. **Live traces: three timing rules** (each pinned by a test in
    `simulation.test.tsx`; `/simulate` broke on all three). (a) `useTrace`
-   always forces one commit after re-anchoring, or a same-commit move back
-   nets out, React bails out, and the screen freezes on the anchored frame.
+   forces one commit after a re-anchoring that moved the cursor, or a
+   same-commit move back nets out, React bails out, and the screen freezes
+   on the anchored frame. It forces nothing when the anchor didn't move, and
+   an array with the same steps (by object or key at every index) is not a
+   new trace: a page slicing its timeline in render looped forever (React
+   #185) and had every player move undone (`use-trace.test.tsx`).
    (b) The player's hash writer skips the write that races a fresh hash
    read (`pendingRead`). (c) The hash is read on mount, `hashchange`, and the
    first non-empty timeline only, never on every `total` change. Test
@@ -267,7 +274,7 @@ What each page must keep showcasing (the feature matrix):
 | `/automaton`| **Experimental** transitions: `fromGraph` divisible-by-3 DFA run over a typed word (`anchor: "index"`) and drawn from `dfa.graph`; "be the automaton" `useWalk` with choice points, wrong-answer detours, re-answer truncation, `syncChoices` links |
 | `/kit`     | **Experimental** authoring kit: one `defineExplainer` (in `binary-search.explainer.ts`, imported from `./core`) + one view via `createExplainer`, wrapped by `precomputed` in the server `page.tsx`; two explainers with ids `a` / `b` (separate `a.frame` / `b.in` links, keyboard goes to the last clicked or focused, none before that), the second with a custom child layout, a field prop (`target={61}`) and `predict`. Shows both `demo.tsx` and `page.tsx` source |
 | `/llm`     | **Teaching lesson on the kit**: seven chapters (tokens, vectors, attention, sampling, hallucination, RAG, vector index), one small explainer each (`*.explainer.ts` over the pure `toy-model.ts`: hand-made 2-D vectors, ~50-token vocabulary, invented "Tidepool" rulebook), `precomputed` in the server `page.tsx`, views in `views.tsx`; `useChapters` + `ChapterNav` + glossary `Term`s/appendix in the client shell; one definition used twice via a field prop (`<Rag retrieve={false}>`); predict on five (all but the embedding map and the closed-book run). `apps/demo/scripts/check-llm-model.ts` (`npx jiti`) pins the behaviors the prose relies on (k=1 misleads, nprobe=1 misses) |
-| `/qa`      | **QA Engineer interview lesson**, the widest composition: eleven chapters over one invented system under test (`driftwood.ts`: SPEC vs SHIPPED with planted bugs). Kit explainers (`*.explainer.ts`, `precomputed` in the server `page.tsx`, predict on most) plus the primitives the kit can't host: `useWalk` + `fromGraph` (be the tester, `lifecycle.walk.ts`), `useSyncedTracks` (the pyramid), `useTrace({ follow })` + `PlayerBar live` (CI feed), `useSteps` + `useDiscoveries` (drill), first-visit `useGuidedTour` (skipped on deep links). Views split by chapter group (`views.tsx` holds the shared `Frame`). `apps/demo/scripts/check-qa-model.ts` (`npx jiti`) pins every caught/missed story. Gripes found while building it: `docs/KIT-FEEDBACK.md` |
+| `/qa`      | **QA Engineer interview lesson**, the widest composition: eleven chapters over one invented system under test (`driftwood.ts`: SPEC vs SHIPPED with planted bugs). Kit explainers (`*.explainer.ts`, `precomputed` in the server `page.tsx`, predict on most), a walk explainer over `fromGraph` (be the tester, `lifecycle.walk.ts`: `defineExplainer({ walk })` + `Choices`, `#life.path` links) plus the primitives the kit can't host: `useSyncedTracks` (the pyramid), `useTrace({ follow })` + `PlayerBar live` (CI feed), `useSteps` + `useDiscoveries` (drill), first-visit `useGuidedTour` (skipped on deep links). Views split by chapter group (`views.tsx` holds the shared `Frame`). `apps/demo/scripts/check-qa-model.ts` (`npx jiti`) pins every caught/missed story. Gripes found while building it: `docs/KIT-FEEDBACK.md` |
 | `/live`    | `useTrace({ follow })` over a growing event stream, `PlayerBar live` badge, scrub back stays put, Go live (L) returns, burst to show catch-up |
 | `/player`  | `useTrace` autoPlay, `PlayerBar`, `useGlobalKeys`, `CodeBlock`, tones, `ended` completion banner |
 | `/compare` | `useSyncedTracks` (bubble vs insertion sort under one player), hold vs align-by-pass toggle, traces built with `createTrace` |

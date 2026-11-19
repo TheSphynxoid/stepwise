@@ -79,7 +79,10 @@ export function useTrace<S extends StepwiseStep>(
   const shownRef = useRef<{ steps: readonly S[]; index: number }>({ steps, index: player.index });
   const shown = shownRef.current;
   let anchored: number | null = null;
-  if (shown.steps !== steps && shown.index >= 0) {
+  // A new array with the same steps (a page deriving `BUILDS.slice(0, n)` in
+  // render) is not a new trace: re-anchoring it from the last shown frame
+  // would undo whatever moved the player in this render.
+  if (shown.steps !== steps && shown.index >= 0 && !sameSteps(shown.steps, steps, keyFn)) {
     // Fast path for appends (streams, live edges): the step on screen has
     // the same key at the same index in the new trace, so nothing moves.
     const i = shown.index;
@@ -90,16 +93,19 @@ export function useTrace<S extends StepwiseStep>(
   const index = anchored ?? player.index;
 
   const { jump } = player;
-  // The anchored index lives only in this render. Always follow it with one
-  // real state change: if something else moves the cursor back in the same
-  // commit (a page restoring a linked frame), the player's state nets out
-  // unchanged and React would bail out of the re-render, leaving the screen
-  // on the anchored frame while the player sits elsewhere.
+  // The anchored index lives only in this render. When it moved the cursor,
+  // follow it with one real state change: if something else moves the cursor
+  // back in the same commit (a page restoring a linked frame), the player's
+  // state nets out unchanged and React would bail out of the re-render,
+  // leaving the screen on the anchored frame while the player sits elsewhere.
+  // When it didn't move (an equal trace, rebuilt by the page every render),
+  // the screen already shows the player's frame: forcing a commit there
+  // renders a new array, which anchors again, forever (React #185).
   const [, rerender] = useReducer((n: number) => n + 1, 0);
   useIsomorphicLayoutEffect(() => {
     shownRef.current = { steps, index };
-    if (anchored === null) return;
-    if (anchored >= 0 && anchored !== player.index) jump(anchored);
+    if (anchored === null || anchored === player.index) return;
+    if (anchored >= 0) jump(anchored);
     rerender();
   });
 
@@ -110,4 +116,15 @@ export function useTrace<S extends StepwiseStep>(
   const titleAt = useCallback((i: number) => stepsRef.current[i]?.label ?? `step ${i + 1}`, []);
 
   return useMemo(() => ({ player, step, frame, toneAt, titleAt }), [player, step, frame, toneAt, titleAt]);
+}
+
+/** Same length, and at every index the same step object or the same key. */
+function sameSteps<S>(a: readonly S[], b: readonly S[], keyFn: (step: S, index: number) => string | undefined): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] === b[i]) continue;
+    const k = keyFn(a[i], i);
+    if (k === undefined || k !== keyFn(b[i], i)) return false;
+  }
+  return true;
 }

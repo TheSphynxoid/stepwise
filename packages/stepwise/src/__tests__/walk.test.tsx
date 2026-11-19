@@ -159,7 +159,8 @@ describe("fromGraph", () => {
     expect(g.graph.edges).toHaveLength(6);
     expect([...g.graph.accept]).toEqual(["r0"]);
     expect(g.delta("r2", "0")).toBe("r1");
-    expect(() => fromGraph({ start: "x", nodes: {}, edges: [] })).toThrow(/start node "x"/);
+    // A typed spec can't name an unknown start; data loaded at runtime (or JS) can.
+    expect(() => fromGraph<string, unknown, string>({ start: "x", nodes: {}, edges: [] })).toThrow(/start node "x"/);
     expect(() =>
       fromGraph({
         start: "a",
@@ -293,6 +294,23 @@ describe("useWalk", () => {
     expect(result.current.walk.frame).toBe(5);
     expect(result.current.walk.step?.key).toBe("fork2");
     expect(window.location.hash).toBe("#frame=5&n=3&path=a.b");
+  });
+
+  it("a link pasted into the same tab restores its choices, then its frame", () => {
+    const { result } = renderHook(() =>
+      useWalk(lesson, 3, {
+        syncHash: "frame",
+        syncChoices: { key: "path", serialize: (c) => c, parse: (v) => (v === "a" || v === "b" ? v : null) },
+      })
+    );
+    expect(result.current.choices).toEqual([]);
+    act(() => {
+      window.history.replaceState(null, "", "#frame=5&path=a.b");
+      window.dispatchEvent(new HashChangeEvent("hashchange"));
+    });
+    expect(result.current.choices).toEqual(["a", "b"]);
+    expect(result.current.frame).toBe(5);
+    expect(result.current.step?.key).toBe("fork2");
   });
 
   it("writes choices to the URL, and ignores a link with a bad choice", () => {

@@ -20,6 +20,19 @@ describe("defineExplainer / precompute", () => {
     expect(Object.isFrozen(count)).toBe(true);
   });
 
+  it("a definition without input runs on null and precomputes to JSON", () => {
+    const tour = defineExplainer({
+      name: "tour",
+      simulation: function* () {
+        yield { key: "a", tone: "neutral" as const, label: "a", i: 0 };
+      },
+    });
+    expect(tour.input.default).toBeNull();
+    expect(Object.isFrozen(tour)).toBe(true);
+    expect(precompute(tour)).toEqual({ input: null, seed: 0, steps: [{ key: "a", tone: "neutral", label: "a", i: 0 }] });
+    expect(resolveInput(tour, { id: "x", theme: {} })).toBeNull();
+  });
+
   it("precompute runs the default input", () => {
     expect(precompute(count)).toEqual({ input: 3, seed: 0, steps: expectedSteps(3) });
   });

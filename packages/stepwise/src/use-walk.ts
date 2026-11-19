@@ -1,10 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { diffTraces, runWalk, stepKey } from "./core";
+import { createRng, diffTraces, runWalk, stepKey } from "./core";
 import type { TraceDiff, WalkResult, WalkSimulation, WalkStep } from "./core";
 import { inputPart, useRunLinks } from "./use-run-links";
-import { useRebuiltInputWarning } from "./use-simulation";
+import { safeJson, useRebuiltInputWarning } from "./use-simulation";
 import type { SimulationOptions, SimulationPlayer } from "./use-simulation";
 import { useTrace } from "./use-trace";
 
@@ -82,13 +82,25 @@ export function useWalk<Input, S extends WalkStep, Choice>(
     anchor = "key",
     keyOf,
     holdAt,
+    initialTrace,
     ...traceOpts
   } = opts ?? {};
   const [choices, setChoices] = useState<readonly Choice[]>(() => initialChoices ?? []);
-  const result: WalkResult<S> = useMemo(
-    () => runWalk(simulation, input, { seed, maxSteps, choices }),
-    [simulation, input, seed, maxSteps, choices]
-  );
+  // As in useSimulation: a precomputed path stands in for the run while the
+  // input matches by content, and here the choices too (by value).
+  const initialRef = useRef(initialTrace);
+  initialRef.current = initialTrace;
+  const traceJson = useRef<{ trace: unknown; json: string | undefined }>({ trace: undefined, json: undefined });
+  const result: WalkResult<S> = useMemo(() => {
+    const t = initialRef.current;
+    if (t && createRng(seed ?? 0).seed === t.seed && sameChoices(t.choices ?? [], choices)) {
+      if (traceJson.current.trace !== t) traceJson.current = { trace: t, json: safeJson(t.input) };
+      const json = traceJson.current.json;
+      if (json !== undefined && json === safeJson(input)) return pathOf(t.steps, choices.length, t.seed);
+    }
+    return runWalk(simulation, input, { seed, maxSteps, choices });
+    // initialTrace is read through a ref: it seeds a matching run, it is not a trigger.
+  }, [simulation, input, seed, maxSteps, choices]);
   const resultRef = useRef(result);
   resultRef.current = result;
   const choicesRef = useRef(choices);
@@ -195,6 +207,20 @@ export function useWalk<Input, S extends WalkStep, Choice>(
     }),
     [trace, result, choices, choose, choiceAt, lastChange]
   );
+}
+
+function sameChoices(a: readonly unknown[], b: readonly unknown[]): boolean {
+  return a.length === b.length && a.every((c, i) => Object.is(c, b[i]));
+}
+
+/** The WalkResult a precomputed path stands for: choice points are its `await` steps. */
+function pathOf<S extends WalkStep>(steps: S[], answered: number, seed: number): WalkResult<S> {
+  const choicePoints: number[] = [];
+  steps.forEach((s, i) => {
+    if (s.await) choicePoints.push(i);
+  });
+  const awaiting = choicePoints.length > answered;
+  return { steps, choicePoints, awaiting, used: choicePoints.length - (awaiting ? 1 : 0), truncated: false, error: null, seed };
 }
 
 // Choices in the hash: each serialized and URI-encoded (dots too), joined by ".".

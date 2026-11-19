@@ -78,7 +78,7 @@ because it explains a rule the code already has to follow.
 | `simulation.ts` | `createRng` (seeded mulberry32), `runSimulation` (pure, capped), the `Simulation` type | No React; safe at module scope. On a server, reached through `./core` |
 | `use-simulation.ts` | `useSimulation`: memoized `runSimulation` → `useTrace`; `initialTrace` | Recomputes on `simulation` / `input` / `seed` / `maxSteps` identity. With `initialTrace`, an input equal by content (JSON) and a matching seed return the precomputed steps instead of running. The match is on input and seed only, not on the simulation's identity or `maxSteps` |
 | `explainer.ts` | **Experimental.** `defineExplainer`, `precompute` (run to a JSON-checked trace), `resolveInput`, `normalizeOptions`, `assertJsonInput` | Pure; part of `./core` |
-| `kit/*` | **Experimental.** `./kit`: `Explainer` / `createExplainer` / `useExplainer`, the parts, predict mode, the keyboard registry. `./kit/mdx`: `precomputed`, `stepwiseComponents` | See "The authoring kit" below |
+| `kit/*` | **Experimental.** `./kit`: `Explainer` / `createExplainer` / `useExplainer`, the parts, `StepParts`, walk explainers and `Choices`, predict mode, the keyboard registry. `./kit/mdx`: `precomputed`, `stepwiseComponents` | See "The authoring kit" below |
 | `use-run-links.ts` | Internal: a run's identity in the URL hash (input, choices) restored before the linked frame; shared by `useSimulation` and `useWalk` | See "linked inputs" below |
 | `walk.ts` / `use-walk.ts` | **Experimental.** `runWalk` (pure replay of input + choices), `useWalk` (`choose`, `anchor`, `lastChange`, `syncChoices`) | See "branching walks" below |
 | `graph.ts` | **Experimental.** `fromGraph`: a declared automaton, run over a word and drawable | Steps keyed by position |
@@ -211,8 +211,12 @@ as "the tooltip appears at the bottom of the page".
 
 ### Tour spotlight (`TourSpotlight`)
 
-Polls with `requestAnimationFrame` until the target appears (targets may be
-conditionally rendered), resolves **`getElementById(target)` first, then
+Portals to `<body>` after mount, like `TourCard`: rendered in place, a
+filtered or transformed ancestor (a sticky header with `backdrop-blur`)
+becomes the containing block of `position: fixed` and the card lands
+off-screen. Polls with `requestAnimationFrame` until the target appears (targets may be
+conditionally rendered), and looks it up again whenever the tracked node is
+detached (a re-keyed subtree, an HTMX or Turbo swap); resolves **`getElementById(target)` first, then
 `[data-tour="target"]`** (the portfolio uses the attribute; generic consumers
 use ids), auto-scrolls the target to viewport center once, then tracks its
 rect frame-by-frame (rounded key comparison to avoid redundant setState). The
@@ -274,12 +278,22 @@ never on something later the reader hasn't seen yet.
 Mechanics: the anchored index is computed during render from `shownRef`
 (what the last commit displayed), so the first frame drawn against the new
 trace is already right (no flash). A layout effect then moves the player
-with `jump()` (cursor only, play state untouched) and **always** forces one
-more render: if a sibling effect moves the cursor back in the same commit
-(a page restoring a linked frame), the player's state nets out unchanged,
-React bails out of the re-render, and without the forced update the
-screen would stay on the anchored frame while the player sits elsewhere.
-Unkeyed traces skip all of this and keep index clamping.
+with `jump()` (cursor only, play state untouched) and, when the anchored
+index differs from the player's, forces one more render: if a sibling
+effect moves the cursor back in the same commit (a page restoring a linked
+frame), the player's state nets out unchanged, React bails out of the
+re-render, and without the forced update the screen would stay on the
+anchored frame while the player sits elsewhere. When the anchor didn't move
+the cursor, the screen already shows the player's frame and nothing is
+forced. Unkeyed traces skip all of this and keep index clamping.
+
+A new array is not always a new trace. Pages that derive the timeline in
+render (`BUILDS.slice(0, n)`) pass a fresh array every render; one with the
+same length and, at every index, the same step object or the same key is
+treated as unchanged. Re-anchoring it from `shownRef` would undo whatever
+moved the player in that render (a timer tick, `goLive`), and the forced
+commit would render a new array again: React's "Maximum update depth
+exceeded" (#185).
 
 ### Linked inputs (`use-simulation.ts`, `syncInput`)
 
@@ -298,6 +312,11 @@ player's writer may even put `frame=0` in the URL). So:
 4. Edits are written back by an effect that compares against the last
    input written or restored, not "skip the first run": under StrictMode
    the double mount would otherwise write the default over the link.
+5. A link pasted into the same tab arrives as `hashchange`. The player
+   re-reads its frame on that event against the current trace, so the run's
+   parts are re-read too: each part whose value differs from the current one
+   (compared by its serialized form) is restored, and steps 3 and 4 apply as
+   on mount. A frame-only change restores nothing and stays the player's.
 
 Values are `encodeURIComponent`-ed, so `serialize` may use any characters.
 The logic lives in `use-run-links.ts` as a list of linked parts; a walk adds
@@ -386,10 +405,10 @@ An author writes a **definition** (pure, `defineExplainer`) and a **view**
 (a component with no props); the kit supplies the rest.
 
 - **One provider, flat parts.** `Explainer` runs the definition through
-  `useSimulation` (or, without a definition, plays a recorded `trace` through
-  `useTrace`) and puts an `ExplainerApi` in context: `step`, `input`,
-  `setInput`, `editable`, `error`, `truncated`, `sim`, `predict`, `id`,
-  `theme`. A throwing simulation is logged once in development (it would
+  `useSimulation` (a walk definition through `useWalk`; without a definition
+  it plays a recorded `trace` through `useTrace`) and puts an `ExplainerApi`
+  in context: `step`, `input`, `setInput`, `editable`, `error`, `truncated`,
+  `sim`, `predict`, `walk`, `id`, `theme`. A throwing simulation is logged once in development (it would
   otherwise only show as a short trace). The parts
   (`Stage`, `Narration`, `StepCode`, `ExplainerBar`, `EndNote`, `Predict`,
   `PredictToggle`) read it and take only serializable props (`Stage` none;
@@ -397,8 +416,22 @@ An author writes a **definition** (pure, `defineExplainer`) and a **view**
   children, wrapped in a `div` because MDX turns multi-line children into
   `<p>`), so they compose the same from TSX and MDX. The view lives in a
   second context: it is the author's component, not state, and `Stage`
-  renders it. Live and recorded are two components because hooks can't be
-  conditional.
+  renders it. Live, walk and recorded are three components because hooks
+  can't be conditional.
+- **Step parts read less.** `Narration`, `StepCode`, `ExplainerBar` and
+  `EndNote` need only a step and a player, so they read a second, smaller
+  context (`StepParts`: `step`, `player`, `toneAt`, `titleAt`, `theme`)
+  that the explainer opens for its parts and a page can open around any
+  `TracePlayer` (`useTrace`, `useSimulation`, `useWalk`). `Stage`, `Predict`
+  and `Choices` read the explainer.
+- **Walks.** A definition with `walk` instead of `simulation` (exclusive at
+  the type level) runs through `useWalk`, with the choices linked as a third
+  run part (`<id>.path`, restored with the input before the frame, same-tab
+  links too) and `choose.options` normalized per step for `Choices`. A walk
+  is pure in (input, seed, choices), so `precompute` replays it with
+  `runWalk` and `useWalk`'s `initialTrace` stands in for the run while all
+  three match; choice points are re-derived from the steps' `await` flags.
+  No predict on a walk: its holds would compete with the choice points.
 - **Input from props, once.** `resolveInput` gives `input` precedence, then
   same-named fields of a plain-object default, skipping the reserved prop
   names (`EXPLAINER_PROP_NAMES`). The one rule serves both sides: the
