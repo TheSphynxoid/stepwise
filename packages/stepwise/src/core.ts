@@ -11,6 +11,7 @@
 //   simulation    — createRng, runSimulation
 //   create-trace  — createTrace
 //   walk / graph  — runWalk, fromGraph (experimental on the client side)
+//   walk-session  — createWalkSession: a walk run that continues forward
 //   reanchor      — reanchor, stepKey: the "stay on the same step" rule
 //   align-tracks  — alignTracks: comparison-mode alignment table
 //   diff-traces   — diffTraces, structuralEqual
@@ -42,6 +43,8 @@ export { createTrace } from "./create-trace";
 export type { TraceBuilder } from "./create-trace";
 export { isChoicePoint, runWalk } from "./walk";
 export type { WalkResult, WalkRunOptions, WalkSimulation, WalkStep } from "./walk";
+export { createWalkSession } from "./walk-session";
+export type { WalkSession, WalkSessionOptions } from "./walk-session";
 export { fromGraph } from "./graph";
 export type { GraphEdge, GraphSimulation, GraphSpec, GraphStep, StepGraph } from "./graph";
 export { reanchor, stepKey } from "./reanchor";

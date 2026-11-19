@@ -66,6 +66,7 @@ describe("./core", () => {
       "runSimulation",
       "createTrace",
       "runWalk",
+      "createWalkSession",
       "fromGraph",
       "reanchor",
       "stepKey",

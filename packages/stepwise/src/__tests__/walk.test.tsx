@@ -415,3 +415,59 @@ describe("prompts on walk steps", () => {
     expect(r.truncated).toBe(true);
   });
 });
+
+describe("useWalk forward continuation", () => {
+  const counting = () => {
+    const counter = { created: 0 };
+    const sim: WalkSimulation<number, W, AB> = (n, ctx) => {
+      counter.created++;
+      return lesson(n, ctx);
+    };
+    return { sim, counter };
+  };
+
+  it("answers forward without replaying the walk", () => {
+    const { sim, counter } = counting();
+    const { result } = renderHook(() => useWalk(sim, 2));
+    act(() => result.current.player.seek(1));
+    act(() => result.current.choose("a"));
+    act(() => result.current.player.seek(4));
+    act(() => result.current.choose("b"));
+    expect(keys(result.current.steps)).toEqual(keys(runWalk(lesson, 2, { choices: ["a", "b"] }).steps));
+    expect(counter.created).toBe(1);
+    // A changed earlier answer replays.
+    act(() => result.current.player.seek(1));
+    act(() => result.current.choose("b"));
+    expect(counter.created).toBe(2);
+    expect(keys(result.current.steps)).toEqual(keys(runWalk(lesson, 2, { choices: ["b"] }).steps));
+  });
+
+  it("under StrictMode, the path after answering equals a full replay", () => {
+    const wrapper = ({ children }: { children: ReactNode }) => <StrictMode>{children}</StrictMode>;
+    const { result } = renderHook(() => useWalk(lesson, 3, { seed: 4 }), { wrapper });
+    act(() => result.current.player.seek(1));
+    act(() => result.current.choose("b"));
+    act(() => result.current.player.seek(5));
+    act(() => result.current.choose("a"));
+    expect(result.current.steps).toEqual(runWalk(lesson, 3, { seed: 4, choices: ["b", "a"] }).steps);
+    expect(result.current.choicePoints).toEqual([1, 5]);
+    expect(result.current.awaiting).toBe(false);
+  });
+});
+
+describe("useWalk initialTrace", () => {
+  it("counts prompt-only steps of a precomputed path as choice points", () => {
+    const quiz: WalkSimulation<null, W, AB> = function* () {
+      yield s("intro");
+      const c = yield s("q", { prompt: { id: "q" } });
+      yield s(`after-${c}`);
+    };
+    const pre = runWalk(quiz, null);
+    const initialTrace = { input: null, seed: pre.seed, steps: pre.steps, choices: [] };
+    const sim = vi.fn(quiz);
+    const { result } = renderHook(() => useWalk(sim, null, { initialTrace }));
+    expect(sim).not.toHaveBeenCalled();
+    expect(result.current.choicePoints).toEqual([1]);
+    expect(result.current.awaiting).toBe(true);
+  });
+});

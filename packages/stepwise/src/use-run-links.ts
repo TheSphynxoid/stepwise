@@ -26,7 +26,7 @@ export interface SyncInputOptions<Input> {
 }
 
 /** A linked part: its key, how to read and write it, the live value and its restore. */
-interface LinkPart<T> {
+export interface LinkPart<T> {
   key: string;
   read: (raw: string) => T | null;
   write: (value: T) => string;
