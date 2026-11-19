@@ -21,6 +21,8 @@ export interface WalkRunSettings<S extends WalkStep, Input, Choice>
   links?: readonly (LinkPart<unknown> | null)[];
   /** The public hook's name, for dev warnings. */
   hookName?: string;
+  /** Warn about an input rebuilt every render (default true; off when the caller builds the input). */
+  rebuiltInputWarning?: boolean;
 }
 
 export interface WalkRunState<S extends WalkStep> {
@@ -46,7 +48,7 @@ export function useWalkRun<Input, S extends WalkStep, Choice>(
   choices: readonly (Choice | undefined)[],
   opts: WalkRunSettings<S, Input, Choice>
 ): WalkRunState<S> {
-  const { seed, maxSteps, syncInput, anchor = "key", keyOf, holdAt, initialTrace, links, hookName = "useWalk", ...traceOpts } =
+  const { seed, maxSteps, syncInput, anchor = "key", keyOf, holdAt, initialTrace, links, hookName = "useWalk", rebuiltInputWarning = true, ...traceOpts } =
     opts;
   // As in useSimulation: a precomputed path stands in for the run while the
   // input matches by content, and here the choices too (by value).
@@ -89,7 +91,7 @@ export function useWalkRun<Input, S extends WalkStep, Choice>(
       return (r.awaiting && f === r.steps.length - 1) || (holdAt?.(f, step) ?? false);
     },
   });
-  useRebuiltInputWarning(input, hookName);
+  useRebuiltInputWarning(rebuiltInputWarning ? input : null, hookName);
 
   // What the last re-run changed, paired the same way the playhead anchors.
   const diffKey = keyFn ?? (result.steps.some((s) => stepKey(s) !== undefined) ? stepKey : undefined);

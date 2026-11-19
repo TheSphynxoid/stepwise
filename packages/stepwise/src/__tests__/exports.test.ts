@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import * as stepwise from "../index";
 import * as core from "../core";
+import * as experimental from "../experimental";
 import * as kit from "../kit/index";
 import * as kitMdx from "../kit/mdx";
 
@@ -86,6 +87,29 @@ describe("./core", () => {
       "assertJsonInput",
     ];
     expect(expected.filter((name) => !(name in core))).toEqual([]);
+  });
+});
+
+describe("./experimental", () => {
+  it("exports every runtime entry point", () => {
+    const expected = [
+      "runWalk",
+      "useWalk",
+      "fromGraph",
+      "diffTraces",
+      "structuralEqual",
+      "usePrompts",
+      "EMPTY_RECORD",
+      "applyAnswer",
+      "canAnswer",
+      "reachEntry",
+      "retriesLeft",
+      "scoreOf",
+      "settledAnswer",
+      "skipEntry",
+      "truncateAfter",
+    ];
+    expect(expected.filter((name) => !(name in experimental))).toEqual([]);
   });
 });
 

@@ -13,9 +13,14 @@
 //   graph         — fromGraph: a declared automaton (nodes, edges, accept),
 //                   runnable over a word and drawable
 //   diff-traces   — diffTraces: what an edit changed between two runs
+//   use-prompts   — usePrompts: the reader answers at a step (predict, a
+//                   quiz, a story). One answer record (pure, in ./core): a
+//                   generator step's `prompt` branches the run, an `ask`
+//                   overlay questions any trace
 //
-// The pure names (runWalk, fromGraph, diffTraces) are also in ./core, which
-// is where this entry takes them from: one copy, callable on a server.
+// The pure names (runWalk, fromGraph, diffTraces, the prompt record functions)
+// are also in ./core, which is where this entry takes them from: one copy,
+// callable on a server.
 
 export { runWalk } from "./core";
 export type { WalkResult, WalkRunOptions, WalkSimulation, WalkStep } from "./core";
@@ -25,3 +30,26 @@ export { fromGraph } from "./core";
 export type { GraphEdge, GraphSimulation, GraphSpec, GraphStep, StepGraph } from "./core";
 export { diffTraces, structuralEqual } from "./core";
 export type { DiffTracesOptions, TraceDiff } from "./core";
+export { usePrompts } from "./use-prompts";
+export type { ActivePrompt, PromptSource, PromptsOptions, PromptsRun } from "./use-prompts";
+export {
+  EMPTY_RECORD,
+  applyAnswer,
+  canAnswer,
+  reachEntry,
+  retriesLeft,
+  scoreOf,
+  settledAnswer,
+  skipEntry,
+  truncateAfter,
+} from "./core";
+export type {
+  EntryStatus,
+  Prompt,
+  PromptContext,
+  PromptEntry,
+  PromptOption,
+  PromptRecord,
+  PromptScore,
+  PromptSpec,
+} from "./core";

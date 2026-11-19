@@ -26,7 +26,8 @@ export interface PromptContext<S> {
 
 /** A spec plus the function that judges an answer (functions come from hook settings). */
 export interface Prompt<A, S> extends PromptSpec<A> {
-  judge?: (answer: A, ctx: PromptContext<S>) => EvaluatorResult;
+  /** May be async: the verdict reads "pending" until it resolves. */
+  judge?: (answer: A, ctx: PromptContext<S>) => EvaluatorResult | Promise<EvaluatorResult>;
 }
 
 export type EntryStatus = "open" | "pass" | "fail" | "answered" | "skipped";
