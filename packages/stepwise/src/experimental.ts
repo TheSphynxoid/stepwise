@@ -17,7 +17,7 @@
 //                   quiz, a story). One answer record (pure, in ./core): a
 //                   generator step's `prompt` branches the run, an `ask`
 //                   overlay questions any trace
-//   use-prompt-history — usePromptHistory: the futures an answer cut off, kept
+//   use-prompt-history â€” usePromptHistory: the futures an answer cut off, kept
 //                   as a tree (branches, backtracks, restore)
 //
 // The pure names (runWalk, fromGraph, diffTraces, the prompt record functions)
