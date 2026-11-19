@@ -169,28 +169,27 @@ export function usePrompts<Input, S extends WalkStep, A = string>(
   const nextChoices = choicesOf(record);
   if (!sameList(choicesRef.current, nextChoices)) choicesRef.current = nextChoices;
 
-  // The prompt at a frame, cached per (trace, ask, enabled).
+  // The prompt at a frame, overlays included whatever `enabled` says, cached
+  // per (trace, ask). Links and the "keep" remap resolve prompts this way, so
+  // the record and the link format never depend on `enabled`.
   const stepsRef = useRef<readonly S[]>([]);
-  const cache = useRef<{ steps: unknown; ask: unknown; enabled: boolean; map: Map<number, Found<A, S> | null> }>({
+  const cache = useRef<{ steps: unknown; ask: unknown; map: Map<number, Found<A, S> | null> }>({
     steps: null,
     ask: null,
-    enabled,
     map: new Map(),
   });
   const warnedBoth = useRef(false);
-  const promptAt = useCallback((f: number): Found<A, S> | null => {
+  const anyPromptAt = useCallback((f: number): Found<A, S> | null => {
     const steps = stepsRef.current;
     const step = steps[f];
     if (!step) return null;
     const c = cache.current;
     const a = live.current.ask;
-    if (c.steps !== steps || c.ask !== a || c.enabled !== enabledRef.current) {
-      cache.current = { steps, ask: a, enabled: enabledRef.current, map: new Map() };
-    }
+    if (c.steps !== steps || c.ask !== a) cache.current = { steps, ask: a, map: new Map() };
     const map = cache.current.map;
     if (map.has(f)) return map.get(f)!;
     const spec = step.prompt ?? (step.await === true ? {} : undefined);
-    const overlay = enabledRef.current && a ? a(step, f, steps) : null;
+    const overlay = a ? a(step, f, steps) : null;
     let found: Found<A, S> | null = null;
     if (spec) {
       if (overlay && isDev && !warnedBoth.current) {
@@ -206,6 +205,14 @@ export function usePrompts<Input, S extends WalkStep, A = string>(
     map.set(f, found);
     return found;
   }, []);
+  /** The prompt the reader meets at a frame: overlays only while enabled (off, they neither show nor gate). */
+  const promptAt = useCallback(
+    (f: number): Found<A, S> | null => {
+      const found = anyPromptAt(f);
+      return found?.source === "overlay" && !enabledRef.current ? null : found;
+    },
+    [anyPromptAt]
+  );
 
   const judgeOf = useCallback((prompt: Prompt<A, S>): Judge<A, S> | null => {
     if (prompt.judge) return prompt.judge;
@@ -506,7 +513,7 @@ export function usePrompts<Input, S extends WalkStep, A = string>(
     }
     // Null when nothing moved: a trace that only looks new (a page rebuilding
     // keyless steps each render) must not commit (React #185).
-    const out = remapRecord(recordRef.current, feedbackRef.current, stepsRef.current.length, promptAt, judgeNow);
+    const out = remapRecord(recordRef.current, feedbackRef.current, stepsRef.current.length, anyPromptAt, judgeNow);
     if (!out) return;
     setFeedback(out.feedback);
     commit(out.record);
@@ -519,7 +526,7 @@ export function usePrompts<Input, S extends WalkStep, A = string>(
     const r = restoreRef.current;
     if (!r) return;
     const before = recordRef.current;
-    const out = restoreStep(r, before, stepsRef.current.length, promptAt, reach, judgeNow);
+    const out = restoreStep(r, before, stepsRef.current.length, anyPromptAt, reach, judgeNow);
     if (Object.keys(out.feedback).length > 0) setFeedback((m) => ({ ...m, ...out.feedback }));
     commit(out.record);
     if (out.waiting && out.record !== before && r.next < r.answers.length) return;

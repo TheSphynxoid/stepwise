@@ -559,6 +559,19 @@ describe("usePrompts: input changes", () => {
     expect(entry).toMatchObject({ frame: 2, attempts: ["yes"], status: "pass" });
   });
 
+  it("keep: with prompts off, an input change keeps overlay answers", () => {
+    const { result } = renderHook(() => useSorting({ onInputChange: "keep" }));
+    act(() => result.current.run.player.next());
+    act(() => result.current.run.respond("yes"));
+    act(() => result.current.run.setEnabled(false));
+    act(() => result.current.setInput([1, 3, 2, 0]));
+    expect(result.current.run.record.entries.map((e) => [e.id, e.frame, e.attempts, e.status])).toEqual([
+      ["cmp-0-0", 1, ["yes"], "fail"],
+    ]);
+    act(() => result.current.run.setEnabled(true));
+    expect(result.current.run.active?.entry.attempts).toEqual(["yes"]);
+  });
+
   it("walk-like runs (no judged prompts) default to keep", () => {
     received = [];
     const tagged: WalkSimulation<string, W, string> = function* (tag) {
@@ -628,13 +641,14 @@ describe("usePrompts: answer links", () => {
       ? { options: ["swap", "keep"], answer: steps[f + 1]?.key?.startsWith("swap") ? "swap" : "keep" }
       : null;
   const syncAnswers = { key: "q.a", serialize: (a: string) => a, parse: (v: string) => (v === "swap" || v === "keep" ? v : null) };
-  const linked = (strict = false) =>
+  const linked = (strict = false, enabled?: boolean) =>
     renderHook(() => {
       const [input, setInput] = useState(INPUT);
       const run = usePrompts(
         { simulation: bubble, input },
         {
           ask: askTwoCompares,
+          enabled,
           autoPlay: true,
           syncHash: "q.frame",
           syncAnswers,
@@ -669,6 +683,43 @@ describe("usePrompts: answer links", () => {
     expect(result.current.run.frame).toBe(9);
     expect(result.current.run.record.entries.map((e) => e.attempts)).toEqual([["swap"], ["keep"]]);
     expect(window.location.hash).toBe("#q.a=swap.keep&q.frame=9");
+  });
+
+  it("a link with overlay answers opened with prompts off keeps the answers and the hash", () => {
+    reducedMotion();
+    window.history.replaceState(null, "", "#q.a=swap.keep&q.frame=9");
+    const { result } = linked(false, false);
+    expect(result.current.run.frame).toBe(9);
+    expect(result.current.run.active).toBeNull();
+    expect(result.current.run.record.entries.map((e) => [e.id, e.attempts])).toEqual([
+      ["cmp-0-0", ["swap"]],
+      ["cmp-1-0", ["keep"]],
+    ]);
+    expect(window.location.hash).toBe("#q.a=swap.keep&q.frame=9");
+  });
+
+  it("a mixed generator and overlay link opened with prompts off feeds the generator its own answers", () => {
+    reducedMotion();
+    const askIntro = (step: W): Prompt<string, W> | null => (step.key === "intro" ? { options: ["x"], answer: "x" } : null);
+    const open = (enabled: boolean) => {
+      window.history.replaceState(null, "", "#s.a=x.left&s.frame=3");
+      received = [];
+      const { result, unmount } = renderHook(() =>
+        usePrompts(
+          { simulation: story, input: null },
+          { ask: askIntro, enabled, syncHash: "s.frame", syncAnswers: { key: "s.a", serialize: (a: string) => a, parse: (v: string) => v } }
+        )
+      );
+      const out = { labels: result.current.steps.map((x) => x.label), received: [...received], hash: window.location.hash };
+      unmount();
+      return out;
+    };
+    const on = open(true);
+    const off = open(false);
+    expect(on.labels).toEqual(["intro", "fork", "L1", "L2", "end"]);
+    expect(off.labels).toEqual(on.labels);
+    expect(off.received).toEqual(["left"]);
+    expect(off.hash).toBe("#s.a=x.left&s.frame=3");
   });
 
   it("a link restores the input, the answers, then the frame", () => {
