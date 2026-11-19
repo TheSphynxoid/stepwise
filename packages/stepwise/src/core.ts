@@ -40,7 +40,7 @@ export { createRng, runSimulation } from "./simulation";
 export type { Rng, Simulation, SimulationContext, SimulationResult, SimulationRunOptions } from "./simulation";
 export { createTrace } from "./create-trace";
 export type { TraceBuilder } from "./create-trace";
-export { runWalk } from "./walk";
+export { isChoicePoint, runWalk } from "./walk";
 export type { WalkResult, WalkRunOptions, WalkSimulation, WalkStep } from "./walk";
 export { fromGraph } from "./graph";
 export type { GraphEdge, GraphSimulation, GraphSpec, GraphStep, StepGraph } from "./graph";

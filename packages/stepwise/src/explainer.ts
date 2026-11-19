@@ -1,7 +1,7 @@
 import { runSimulation } from "./simulation";
 import type { Simulation } from "./simulation";
 import type { StepwiseStep } from "./types";
-import { runWalk } from "./walk";
+import { isChoicePoint, runWalk } from "./walk";
 import type { WalkSimulation, WalkStep } from "./walk";
 
 // Explainer definitions: one object that says what to simulate, what the
@@ -218,7 +218,13 @@ export function precompute<Input, S extends StepwiseStep>(
     throw new Error(`${label}: simulation threw: ${e instanceof Error ? e.message : String(e)}`);
   }
   if (run.truncated) {
-    throw new Error(`${label}: simulation hit maxSteps (${def.maxSteps ?? 10_000}); raise maxSteps or fix a non-terminating run`);
+    const cap = def.maxSteps ?? 10_000;
+    const prompted = run.steps.some((st) => isChoicePoint(st as WalkStep));
+    throw new Error(
+      prompted
+        ? `${label}: simulation hit maxSteps (${cap} steps since the last prompt); raise maxSteps or fix a non-terminating run`
+        : `${label}: simulation hit maxSteps (${cap}); raise maxSteps or fix a non-terminating run`
+    );
   }
   for (let i = 0; i < run.steps.length; i++) {
     const bad = findNonJson(run.steps[i], `steps[${i}]`);

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { StrictMode, useState, type ReactNode } from "react";
 import { act, cleanup, renderHook } from "@testing-library/react";
-import { runWalk, type WalkSimulation, type WalkStep } from "../walk";
+import { isChoicePoint, runWalk, type WalkSimulation, type WalkStep } from "../walk";
 import { diffTraces, structuralEqual } from "../diff-traces";
 import { fromGraph } from "../graph";
 import { runSimulation } from "../simulation";
@@ -354,5 +354,64 @@ describe("experimental entry", () => {
   it("exports every runtime entry point", () => {
     const expected = ["runWalk", "useWalk", "fromGraph", "diffTraces", "structuralEqual"];
     expect(expected.filter((name) => !(name in experimental))).toEqual([]);
+  });
+});
+
+describe("prompts on walk steps", () => {
+  it("a step with prompt is a choice point like await", () => {
+    const twin = (mark: Partial<W>): WalkSimulation<number, W, AB> =>
+      function* () {
+        yield s("a");
+        yield s("q", mark);
+        yield s("z");
+      };
+    const withAwait = runWalk(twin({ await: true }), 0);
+    const withPrompt = runWalk(twin({ prompt: { id: "q" } }), 0);
+    expect(withPrompt.choicePoints).toEqual(withAwait.choicePoints);
+    expect(withPrompt.choicePoints).toEqual([1]);
+    expect(withPrompt.awaiting).toBe(true);
+    expect(isChoicePoint(s("x", { prompt: {} }))).toBe(true);
+    expect(isChoicePoint(s("x", { await: true }))).toBe(true);
+    expect(isChoicePoint(s("x"))).toBe(false);
+  });
+
+  it("an undefined choice is fed to the generator", () => {
+    const seen: unknown[] = [];
+    const sim: WalkSimulation<number, W, AB> = function* () {
+      seen.push(yield s("p1", { prompt: {} }));
+      seen.push(yield s("p2", { prompt: {} }));
+      yield s("end");
+    };
+    const r = runWalk(sim, 0, { choices: [undefined, "b"] });
+    expect(seen).toEqual([undefined, "b"]);
+    expect(r.awaiting).toBe(false);
+    expect(r.used).toBe(2);
+  });
+
+  it("the cap counts steps since the last choice point", () => {
+    const sim: WalkSimulation<number, W, AB> = function* () {
+      for (let r = 0; r < 5; r++) {
+        for (let i = 0; i < 8; i++) yield s(`r${r}-${i}`);
+        yield s(`p${r}`, { prompt: {} });
+      }
+    };
+    const ok = runWalk(sim, 0, { maxSteps: 10, choices: ["a", "a", "a", "a", "a"] });
+    expect(ok.truncated).toBe(false);
+    expect(ok.steps).toHaveLength(45);
+    const loop: WalkSimulation<number, W, AB> = function* () {
+      yield s("p", { prompt: {} });
+      for (let i = 0; i < 11; i++) yield s(`l${i}`);
+    };
+    const bad = runWalk(loop, 0, { maxSteps: 10, choices: ["a"] });
+    expect(bad.truncated).toBe(true);
+  });
+
+  it("a run without choice points keeps the whole-run cap", () => {
+    const sim: WalkSimulation<number, W, AB> = function* () {
+      for (let i = 0; i < 12; i++) yield s(`k${i}`);
+    };
+    const r = runWalk(sim, 0, { maxSteps: 10 });
+    expect(r.steps).toHaveLength(10);
+    expect(r.truncated).toBe(true);
   });
 });

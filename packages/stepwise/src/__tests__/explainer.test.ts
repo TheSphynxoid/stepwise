@@ -59,6 +59,19 @@ describe("defineExplainer / precompute", () => {
     expect(() => precompute(boom)).toThrow('[stepwise] precompute("boom"): simulation threw: nope');
   });
 
+  it("precompute's maxSteps error says \"since the last prompt\" for walks with prompts", () => {
+    const looping = defineExplainer({
+      name: "looping",
+      walk: function* () {
+        yield { key: "p", tone: "neutral" as const, label: "p", prompt: {} };
+        for (let i = 0; i < 20; i++) yield { key: `k${i}`, tone: "neutral" as const, label: "k" };
+      },
+      maxSteps: 5,
+      choose: { options: () => [] },
+    } as never);
+    expect(() => precompute(looping as never, undefined, ["a"])).toThrow("steps since the last prompt");
+  });
+
   it("throws when maxSteps is hit", () => {
     const capped = defineExplainer({ ...count, maxSteps: 5 });
     expect(() => precompute(capped, 6)).toThrow("hit maxSteps (5)");

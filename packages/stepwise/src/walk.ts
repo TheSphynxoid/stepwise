@@ -1,5 +1,6 @@
 import { createRng } from "./simulation";
 import type { SimulationContext, SimulationRunOptions } from "./simulation";
+import type { PromptSpec } from "./prompts";
 import type { StepwiseStep } from "./types";
 
 // Walks: simulations that branch on the reader's choices. A step marked
@@ -19,7 +20,14 @@ import type { StepwiseStep } from "./types";
 export type WalkStep = StepwiseStep & {
   /** The walk pauses after this step until a choice arrives (`choose`). */
   await?: boolean;
+  /** A prompt on the step; also makes it a choice point (the answer is the choice). */
+  prompt?: PromptSpec;
 };
+
+/** A choice point is an `await: true` step or a step carrying a `prompt`. */
+export function isChoicePoint(step: WalkStep): boolean {
+  return step.await === true || step.prompt !== undefined;
+}
 
 /** A generator whose `yield` at a choice point returns the reader's choice. */
 export type WalkSimulation<Input, S extends WalkStep, Choice> = (
@@ -28,8 +36,8 @@ export type WalkSimulation<Input, S extends WalkStep, Choice> = (
 ) => Generator<S, unknown, Choice | undefined>;
 
 export interface WalkRunOptions<Choice> extends SimulationRunOptions {
-  /** Answers to the choice points, in the order they're reached. */
-  choices?: readonly Choice[];
+  /** Answers to the choice points, in the order they're reached (`undefined` is a skipped prompt). */
+  choices?: readonly (Choice | undefined)[];
 }
 
 export interface WalkResult<S> {
@@ -59,6 +67,8 @@ export function runWalk<Input, S extends WalkStep, Choice>(
   const steps: S[] = [];
   const choicePoints: number[] = [];
   let used = 0;
+  // maxSteps bounds a run between prompts, not the whole run.
+  let sinceChoice = 0;
   let awaiting = false;
   let truncated = false;
   let error: unknown = null;
@@ -67,13 +77,15 @@ export function runWalk<Input, S extends WalkStep, Choice>(
     gen = simulation(input, { rng });
     let it = gen.next();
     while (!it.done) {
-      if (steps.length >= maxSteps) {
+      if (sinceChoice >= maxSteps) {
         truncated = true;
         break;
       }
       const step = it.value;
       steps.push(step);
-      if (step.await) {
+      sinceChoice++;
+      if (isChoicePoint(step)) {
+        sinceChoice = 0;
         choicePoints.push(steps.length - 1);
         if (used >= choices.length) {
           awaiting = true;
