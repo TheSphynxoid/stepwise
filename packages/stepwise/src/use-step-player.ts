@@ -53,6 +53,14 @@ export interface StepPlayerOptions {
    * hold; a custom `engine` owns its own timing and ignores this.
    */
   follow?: boolean;
+  /**
+   * Forward moves (next, seek, a linked frame, the timer) stop at the first
+   * frame after the cursor for which this returns true, and do not leave a
+   * frame for which it returns true. Backward moves and `jump` are never
+   * stopped. Read through a ref: a new function identity per render changes
+   * nothing, but its answer is consulted live.
+   */
+  stopAt?: (frame: number) => boolean;
 }
 
 export interface StepPlayer {
@@ -119,6 +127,7 @@ export function useStepPlayer({
   respectReducedMotion = true,
   holdAt,
   follow = false,
+  stopAt,
 }: StepPlayerOptions): StepPlayer {
   const core = useSteps(total);
   // useSteps' movement callbacks are referentially stable; depend on them
@@ -135,6 +144,8 @@ export function useStepPlayer({
   onEndRef.current = onEnd;
   const holdAtRef = useRef(holdAt);
   holdAtRef.current = holdAt;
+  const stopAtRef = useRef(stopAt);
+  stopAtRef.current = stopAt;
   // Checkpoint state: the frame playback is held on, and the frames already
   // released this playthrough (so resuming doesn't immediately re-hold).
   const [held, setHeld] = useState<number | null>(null);
@@ -173,6 +184,17 @@ export function useStepPlayer({
   heldRef.current = held;
   const startedRef = useRef(started);
   startedRef.current = started;
+
+  // Where a forward move from `from` toward `to` ends up: on the cursor when
+  // it already sits on a gated frame, else on the first gated frame in
+  // (from, to], else on `to`. Backward and null moves pass through.
+  const gateTarget = useCallback((from: number, to: number) => {
+    const gate = stopAtRef.current;
+    if (!gate || to <= from) return to;
+    if (from >= 0 && gate(from)) return from;
+    for (let f = from + 1; f <= to; f++) if (gate(f)) return f;
+    return to;
+  }, []);
 
   const engineRef = useRef(engine);
   engineRef.current = engine;
@@ -252,13 +274,14 @@ export function useStepPlayer({
       setPlaying(false);
       clearEnded();
       setHeld(null);
-      go(Math.max(0, Math.min(f, t - 1)));
+      const target = gateTarget(cursorRef.current, Math.max(0, Math.min(f, t - 1)));
+      go(target);
       if (engineRef.current) {
         engineApiRef.current.pause?.();
-        engineApiRef.current.seek?.(f);
+        engineApiRef.current.seek?.(stopAtRef.current ? target : f);
       }
     },
-    [go, clearEnded]
+    [go, clearEnded, gateTarget]
   );
 
   const next = useCallback(
@@ -272,14 +295,14 @@ export function useStepPlayer({
       setStarted(true);
       clearEnded();
       setHeld(null);
-      const target = Math.min(cursorRef.current + 1, t - 1);
-      coreNext();
+      const target = gateTarget(cursorRef.current, Math.min(cursorRef.current + 1, t - 1));
+      if (!stopAtRef.current || target === cursorRef.current + 1) coreNext();
       if (engineRef.current) {
         engineApiRef.current.pause?.();
         engineApiRef.current.seek?.(target);
       }
     },
-    [coreNext, clearEnded]
+    [coreNext, clearEnded, gateTarget]
   );
 
   const prev = useCallback(() => {
@@ -399,6 +422,11 @@ export function useStepPlayer({
       setPlaying(false);
       return;
     }
+    // Gate: playback parks on a gated frame and stays paused (not ended).
+    if (stopAtRef.current?.(core.index)) {
+      setPlaying(false);
+      return;
+    }
     if (core.index >= total - 1) {
       markEnded();
       setPlaying(false);
@@ -427,11 +455,12 @@ export function useStepPlayer({
     if (value === null || !/^\d+$/.test(value)) return;
     const f = Number(value);
     if (f < t) {
-      pendingRead.current = f;
+      const target = gateTarget(cursorRef.current, f);
+      pendingRead.current = target;
       setStarted(true);
-      go(f);
+      go(target);
     }
-  }, [syncHash, go]);
+  }, [syncHash, go, gateTarget]);
 
   // The hash is read on mount, on real hashchange events, and once more when
   // a timeline first arrives (mounted empty, loaded later), but not on every

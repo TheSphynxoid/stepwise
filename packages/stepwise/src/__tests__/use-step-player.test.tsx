@@ -427,3 +427,76 @@ describe("useStepPlayer — custom engine", () => {
     expect(first.handle.disconnect).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("useStepPlayer — stopAt", () => {
+  it("next stops on a gated frame", () => {
+    const { result } = renderHook(() => useStepPlayer({ total: 8, stopAt: (f) => f === 2 }));
+    act(() => result.current.seek(0));
+    act(() => result.current.next());
+    act(() => result.current.next());
+    act(() => result.current.next());
+    expect(result.current.index).toBe(2);
+  });
+
+  it("seek past a gate lands on it; seek before it is unchanged", () => {
+    const { result } = renderHook(() => useStepPlayer({ total: 8, stopAt: (f) => f === 3 }));
+    act(() => result.current.seek(7));
+    expect(result.current.index).toBe(3);
+    act(() => result.current.seek(2));
+    expect(result.current.index).toBe(2);
+  });
+
+  it("backward moves and jump ignore the gate", () => {
+    const { result } = renderHook(() => useStepPlayer({ total: 8, stopAt: (f) => f === 3 }));
+    act(() => result.current.seek(7));
+    expect(result.current.index).toBe(3);
+    act(() => result.current.prev());
+    expect(result.current.index).toBe(2);
+    act(() => result.current.jump(7));
+    expect(result.current.index).toBe(7);
+    act(() => result.current.seek(1));
+    expect(result.current.index).toBe(1);
+  });
+
+  it("the timer stops on a gate and stays paused", () => {
+    vi.useFakeTimers();
+    const { result } = renderHook(() =>
+      useStepPlayer({ total: 6, autoPlay: true, baseDelayMs: 100, stopAt: (f) => f === 2 })
+    );
+    for (let i = 0; i < 6; i++) {
+      act(() => {
+        vi.advanceTimersByTime(100);
+      });
+    }
+    expect(result.current.index).toBe(2);
+    expect(result.current.playing).toBe(false);
+    expect(result.current.ended).toBe(false);
+  });
+
+  it("a linked #f=7 lands on the first gate", () => {
+    window.location.hash = "f=7";
+    const { result } = renderHook(() =>
+      useStepPlayer({ total: 8, syncHash: "f", stopAt: (f) => f === 4 })
+    );
+    expect(result.current.index).toBe(4);
+  });
+
+  it("with no stopAt behaviour is unchanged", () => {
+    const { result } = renderHook(() => useStepPlayer({ total: 8 }));
+    act(() => result.current.seek(7));
+    expect(result.current.index).toBe(7);
+  });
+
+  it("callbacks stay referentially stable when stopAt changes identity per render", () => {
+    const { result, rerender } = renderHook(() =>
+      useStepPlayer({ total: 8, stopAt: (f) => f === 5 })
+    );
+    const first = result.current;
+    rerender();
+    act(() => result.current.seek(7));
+    expect(result.current.index).toBe(5);
+    for (const key of ["start", "reset", "seek", "next", "prev", "toggle", "jump", "release", "goLive"] as const) {
+      expect(result.current[key]).toBe(first[key]);
+    }
+  });
+});
