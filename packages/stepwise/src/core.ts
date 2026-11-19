@@ -16,6 +16,7 @@
 //   diff-traces   — diffTraces, structuralEqual
 //   flatten       — flattenChapters
 //   evaluate      — toVerdict, pass, fail, pending
+//   prompts       — the prompt answer record: reachEntry, applyAnswer, scoreOf
 //   explainer     — defineExplainer, precompute: a definition run to a JSON trace
 //   types         — the trace / tour / chapter schema and ports
 
@@ -72,3 +73,24 @@ export type {
   PrecomputedTrace,
   PredictOption,
 } from "./explainer";
+export {
+  EMPTY_RECORD,
+  reachEntry,
+  canAnswer,
+  applyAnswer,
+  skipEntry,
+  truncateAfter,
+  retriesLeft,
+  settledAnswer,
+  scoreOf,
+} from "./prompts";
+export type {
+  EntryStatus,
+  Prompt,
+  PromptContext,
+  PromptEntry,
+  PromptOption,
+  PromptRecord,
+  PromptScore,
+  PromptSpec,
+} from "./prompts";
