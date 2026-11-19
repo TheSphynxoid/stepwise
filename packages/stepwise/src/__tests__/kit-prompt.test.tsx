@@ -132,13 +132,24 @@ describe("Prompt part", () => {
   });
 
   it("links the answers under the explainer's id", () => {
-    render(<Explainer definition={counting} view={View} id="q" predict />);
-    act(() => api.sim.player.next());
+    // A judged run links its answers only when the definition opts in.
+    const linked = defineExplainer({ ...counting, prompts: { linkAnswers: true } });
+    render(<Explainer definition={linked} view={View} id="q" predict />);
     act(() => api.sim.player.next());
     fireEvent.click(screen.getByRole("radio", { name: "Up" }));
     fireEvent.click(screen.getByRole("button", { name: "Check" }));
     expect(window.location.hash).toContain("q.a=up");
     expect(window.location.hash).toContain("q.frame=");
+  });
+
+  it("a predict quiz writes no answers to the link by default", () => {
+    render(<Explainer definition={counting} view={View} id="q" predict />);
+    act(() => api.sim.player.next());
+    fireEvent.click(screen.getByRole("radio", { name: "Up" }));
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+    act(() => api.prompts!.proceed());
+    expect(window.location.hash).toContain("q.frame=");
+    expect(window.location.hash).not.toContain("q.a=");
   });
 
   it("recorded-only explainers have no prompts", () => {
@@ -171,7 +182,7 @@ describe("Choices", () => {
     expect(narration(r.container)).toBe("took b");
     cleanup();
 
-    // With `prompts`: the same options, answered through the prompts run.
+    // With `prompts`: Choices is Prompt, answered through the prompts run.
     let seen: ExplainerApi | null = null;
     function Spy() {
       seen = useExplainer();
@@ -184,18 +195,63 @@ describe("Choices", () => {
       </Explainer>
     );
     expect(seen!.prompts).not.toBeNull();
-    expect(choice("A").disabled).toBe(false);
-    fireEvent.click(choice("Bee"));
-    expect(choice("Bee").getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByRole("radiogroup")).toBeTruthy();
+    fireEvent.click(screen.getByRole("radio", { name: "Bee" }));
+    expect(screen.getByRole("radio", { name: "Bee" }).getAttribute("aria-checked")).toBe("true");
     expect(seen!.walk!.choices).toEqual(["b"]);
-    act(() => seen!.sim.player.next());
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     expect(seen!.sim.step!.label).toBe("took b");
-    expect(choice("A").disabled).toBe(true);
+    // Off a prompt there is nothing to answer.
+    expect(screen.queryByRole("radiogroup")).toBeNull();
     // Walk defaults: re-answering is free (retries Infinity), and cuts off the old future.
     act(() => seen!.sim.player.prev());
-    fireEvent.click(choice("A"));
+    expect((screen.getByRole("radio", { name: "A" }) as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(screen.getByRole("radio", { name: "A" }));
     expect(seen!.walk!.choices).toEqual(["a"]);
     act(() => seen!.sim.player.next());
     expect(seen!.sim.step!.label).toBe("took a");
+  });
+});
+
+type Line = WalkStep & { key: string; tone: "neutral"; label: string };
+const lineWalk: WalkSimulation<null, Line, AB> = function* () {
+  const c = yield { key: "pick", tone: "neutral", label: "pick", await: true };
+  yield { key: "quiz", tone: "neutral", label: `quiz ${c}` };
+  yield { key: "end", tone: "neutral", label: "end" };
+};
+const quizWalk = defineExplainer({
+  name: "quizWalk",
+  walk: lineWalk,
+  choose: { options: ["a", "b"] },
+  prompts: { ask: (step: Line) => (step.key === "quiz" ? { options: ["x", "y"], answer: "x" } : null) },
+});
+
+describe("walk with prompts in the default layout", () => {
+  it("asks a walk's overlay prompt: Next stays put until it is answered", () => {
+    let seen: ExplainerApi | null = null;
+    function Spy() {
+      seen = useExplainer();
+      return null;
+    }
+    render(<Explainer definition={quizWalk} view={Spy} link={false} />);
+    const nextStep = () => fireEvent.click(screen.getByRole("button", { name: "Next step" }));
+    // The generator's choice point, drawn by Prompt with the walk's options.
+    fireEvent.click(screen.getByRole("radio", { name: "A" }));
+    nextStep();
+    expect(seen!.sim.step!.label).toBe("quiz a");
+    // The overlay prompt gates.
+    nextStep();
+    expect(seen!.sim.step!.label).toBe("quiz a");
+    fireEvent.click(screen.getByRole("radio", { name: "X" }));
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+    expect(seen!.prompts!.status).toBe("pass");
+    nextStep();
+    expect(seen!.sim.step!.label).toBe("end");
+  });
+
+  it("links a walk's choices under its path key by default", () => {
+    render(<Explainer definition={promptedForks} view={Blank} id="w" />);
+    fireEvent.click(screen.getByRole("radio", { name: "Bee" }));
+    expect(window.location.hash).toContain("w.path=b");
   });
 });

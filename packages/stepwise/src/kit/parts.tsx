@@ -4,6 +4,7 @@ import { createElement, type ReactElement, type ReactNode } from "react";
 import { cn } from "../cn";
 import { CodeBlock, PlayerBar } from "../components";
 import { useExplainer, useExplainerView } from "./explainer";
+import { Prompt } from "./predict";
 import { useStepParts } from "./step-parts";
 
 // The explainer's parts: each reads a provider and renders one thing.
@@ -74,6 +75,8 @@ export function EndNote({ children, className }: { children?: ReactNode; classNa
  * given there pressed. Off a choice point the buttons stay (disabled), so
  * the layout doesn't jump; renders nothing for a simulation. Children are a
  * visible prompt ("Try"); `label` names the group for screen readers.
+ * On an explainer that runs on prompts (a definition with `prompts`) it is
+ * `Prompt`, with the children (else `label`) as the question.
  */
 export function Choices({
   children,
@@ -84,7 +87,8 @@ export function Choices({
   label?: string;
   className?: string;
 }): ReactElement | null {
-  const { walk, sim, theme } = useExplainer();
+  const { walk, sim, theme, prompts } = useExplainer();
+  if (prompts) return <Prompt className={className}>{children ?? label}</Prompt>;
   if (!walk || walk.options.length === 0) return null;
   const answered = walk.asking ? walk.choiceAt(sim.frame) : undefined;
   return (

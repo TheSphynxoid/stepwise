@@ -51,6 +51,13 @@ export interface ExplainerPrompts<S, A = string> {
   autoContinue?: boolean;
   /** What an input edit does to the answers (default "lock" once a judged prompt is reached, else "keep"). */
   onInputChange?: "lock" | "clear" | "keep";
+  /**
+   * Link the answers in the hash (`${id}.a`; a walk's `${id}.path`). Default:
+   * only when the definition has no judged prompts (no `predict`, `judge` or
+   * `ask`), since a link would carry the answers. A walk whose steps' prompts
+   * carry an `answer` should set false.
+   */
+  linkAnswers?: boolean;
 }
 
 export interface ExplainerInput<Input> {

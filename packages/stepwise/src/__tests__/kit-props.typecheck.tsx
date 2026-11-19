@@ -116,13 +116,19 @@ const asking = defineExplainer({
     judge: (answer, prompt) => answer === prompt.answer,
     retries: 1,
     onInputChange: "clear",
+    linkAnswers: true,
   },
 });
 export const Asking = createExplainer({ definition: asking, view: View });
 // @ts-expect-error: navigation is "gate" or "free"
 defineExplainer({ simulation: sim, input: { default: { arr: [], target: 0, id: 0 } }, prompts: { navigation: "open" } });
-export function promptsOf(api: ExplainerApi<Input, Step>): PromptsRun<WalkStep, string> | null {
+export function promptsOf(api: ExplainerApi<Input, Step>): PromptsRun<Step & WalkStep, string> | null {
   return api.prompts;
+}
+// The run's steps keep the author's step type.
+export function promptStep(api: ExplainerApi<Input, Step>): number | undefined {
+  const step: Step | undefined = api.prompts?.step;
+  return step?.n;
 }
 
 // The api reports a failed or capped run.
