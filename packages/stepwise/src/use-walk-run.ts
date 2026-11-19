@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { createRng, createWalkSession, diffTraces, isChoicePoint, stepKey } from "./core";
 import type { TraceDiff, WalkResult, WalkSession, WalkSimulation, WalkStep } from "./core";
 import { inputPart, useRunLinks } from "./use-run-links";
@@ -103,8 +103,30 @@ export function useWalkRun<Input, S extends WalkStep, Choice>(
     };
   }
 
+  // A linked frame past a gated one (an unsettled prompt) lands on the first
+  // such frame, as any forward move from the start would.
+  const stopAtRef = useRef(traceOpts.stopAt);
+  stopAtRef.current = traceOpts.stopAt;
+  const { jump } = trace.player;
+  const linkJump = useCallback(
+    (f: number) => {
+      const gate = stopAtRef.current;
+      let target = f;
+      if (gate) {
+        for (let i = 0; i < f; i++) {
+          if (gate(i)) {
+            target = i;
+            break;
+          }
+        }
+      }
+      jump(target);
+    },
+    [jump]
+  );
+
   // Declared after useTrace: the linked frame lands after re-anchoring.
-  useRunLinks([inputPart(syncInput, input), ...(links ?? [])], traceOpts.syncHash, trace.player.jump);
+  useRunLinks([inputPart(syncInput, input), ...(links ?? [])], traceOpts.syncHash, linkJump);
 
   return { result, trace, lastChange: changeRef.current.change };
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { EMPTY_RECORD, applyAnswer, canAnswer, reachEntry, retriesLeft as retriesLeftOf, scoreOf } from "./core";
 import { sameSteps, settledAnswer, skipEntry, stepKey, structuralEqual, toVerdict, truncateAfter } from "./core";
@@ -9,12 +9,17 @@ import type { PromptScore, PromptSpec, Simulation, Verdict, WalkSimulation, Walk
 import type { SimulationPlayer } from "./use-simulation";
 import type { WalkOptions } from "./use-walk";
 import { useWalkRun } from "./use-walk-run";
+import type { LinkPart } from "./use-run-links";
+import { STEPS_WALK, asWalk, choicesOf, entryAt, inputChangeOf, isLocked, linkedAnswersOf } from "./use-prompts-parts";
+import { parseAnswers, remapRecord, restoreStep, sameList, serializeAnswers } from "./use-prompts-parts";
+import type { Feedback, Found, InputChange, Judge, Judged, Restore } from "./use-prompts-parts";
 
 // Prompts: "the reader answers at a step". One answer record (./core
 // prompts.ts) fed from two declarations: a generator step's `prompt` (the
 // answer is the value of that `yield`, so it can branch the run) and an
 // `ask` overlay (any trace; the answer changes nothing downstream). The hook
-// owns the record, judging and the gate; the run under it is useWalkRun.
+// owns the record, judging, the gate, the input lock and the answer link;
+// the run under it is useWalkRun.
 
 export type PromptSource<Input, S extends WalkStep, A> =
   | { steps: readonly S[] }
@@ -38,7 +43,20 @@ export interface PromptsOptions<Input, S extends WalkStep, A>
   defaultEnabled?: boolean;
   /** Whether the reader may toggle prompts (uncontrolled only; default true). */
   readerToggle?: boolean;
-  onInputChange?: "lock" | "clear" | "keep";
+  /**
+   * What an input change does to the answers. "lock": once the reader has
+   * answered, the input is locked (`inputLocked`, `requestInput`) until
+   * `restart()`. "clear": the answers and score are cleared. "keep": answers
+   * stay, by position (generator prompts) or id (overlay prompts), and
+   * overlay verdicts are judged again against the new trace. Default: "lock"
+   * once a judged prompt is reached, else "keep".
+   */
+  onInputChange?: InputChange;
+  /**
+   * Deep-link the answers (`#key=a.b..c`, a skipped prompt is empty), so a
+   * link replays the run up to its frame. Restored with `syncInput`, before
+   * the frame. A value `parse` rejects drops the whole list.
+   */
   syncAnswers?: { key: string; serialize: (a: A) => string; parse: (v: string) => A | null };
 }
 
@@ -66,71 +84,22 @@ export interface PromptsRun<S extends WalkStep, A> extends SimulationPlayer<S> {
   skip: () => void;
   /** Once the active prompt is settled: release a hold, or step on (at the end, finish the run). */
   proceed: () => void;
-  /** Clear every answer and the score; the playhead returns to frame 0. */
+  /** Clear every answer and the score, unlock the input; the playhead returns to frame 0. */
   restart: () => void;
   enabled: boolean;
+  /** The reader's toggle: ignored when `enabled` is controlled, or while the input is locked. */
   setEnabled: (on: boolean) => void;
   canToggle: boolean;
+  /** Under "lock", true once the reader has answered: views disable their input. */
   inputLocked: boolean;
+  /** Run an input change (`() => setInput(x)`) unless the input is locked; returns whether it ran. */
+  requestInput: (apply: () => void) => boolean;
   record: PromptRecord<A>;
   score: PromptScore;
 }
 
-interface Found<A, S> {
-  prompt: Prompt<A, S>;
-  source: "generator" | "overlay";
-  id: string;
-}
-
-type Judge<A, S> = (answer: A, ctx: PromptContext<S>) => EvaluatorResult | Promise<EvaluatorResult>;
-
 const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 const isDev = typeof process !== "undefined" && process.env?.NODE_ENV !== "production";
-
-// A `{ steps }` source is a walk over the steps themselves.
-const STEPS_WALK = function* (steps: readonly WalkStep[]) {
-  yield* steps;
-};
-// A plain simulation as a walk: `yield*` forwards sent answers to a generator
-// and ignores them for any other iterable. One wrapper per simulation, so the
-// run sees a stable identity.
-const walks = new WeakMap<object, WalkSimulation<unknown, WalkStep, unknown>>();
-function asWalk<Input, S extends WalkStep, A>(
-  sim: Simulation<Input, S> | WalkSimulation<Input, S, A>
-): WalkSimulation<Input, S, A> {
-  let w = walks.get(sim);
-  if (!w) {
-    const inner = sim as unknown as Simulation<unknown, WalkStep>;
-    w = function* (input, ctx) {
-      return yield* inner(input, ctx) as Generator<WalkStep, unknown, unknown>;
-    };
-    walks.set(sim, w);
-  }
-  return w as unknown as WalkSimulation<Input, S, A>;
-}
-
-// The entry of the prompt at `frame`. Core keeps one entry per frame and
-// reachEntry replaces one whose id no longer matches, so after a reach this
-// finds the entry core's functions act on; before it, a stale entry (another
-// prompt's) reads as missing, never as this prompt's answer.
-function entryAt<A>(rec: PromptRecord<A>, frame: number, id: string): PromptEntry<A> | undefined {
-  return rec.entries.find((e) => e.frame === frame && e.id === id);
-}
-
-/** What the session is fed: generator entries' settled answers in order, up to the first unsettled one. */
-function choicesOf<A>(rec: PromptRecord<A>): (A | undefined)[] {
-  const out: (A | undefined)[] = [];
-  for (const e of rec.entries) {
-    if (e.source !== "generator") continue;
-    if (!e.settled) break;
-    out.push(settledAnswer(e));
-  }
-  return out;
-}
-
-function sameList(a: readonly unknown[], b: readonly unknown[]): boolean {
-  return a.length === b.length && a.every((x, i) => Object.is(x, b[i]));
-}
 
 /**
  * Ask the reader at a step: predict what happens next, a running quiz, a
@@ -144,6 +113,7 @@ function sameList(a: readonly unknown[], b: readonly unknown[]): boolean {
  *     step.kind === "compare" ? { options: ["swap", "keep"], answer: steps[f + 1].kind } : null });
  *   {run.active && <Options onPick={run.respond} />}
  *   {run.revealed && <button onClick={run.proceed}>Continue</button>}
+ *   <Editor disabled={run.inputLocked} onChange={(x) => run.requestInput(() => setInput(x))} />
  */
 export function usePrompts<Input, S extends WalkStep, A = string>(
   source: PromptSource<Input, S, A>,
@@ -158,22 +128,22 @@ export function usePrompts<Input, S extends WalkStep, A = string>(
     enabled: enabledProp,
     defaultEnabled = true,
     readerToggle = true,
-    // Input locking and answer links build on this hook (not used here yet).
-    onInputChange: _onInputChange,
-    syncAnswers: _syncAnswers,
+    onInputChange,
+    syncAnswers,
     holdAt,
     ...runOpts
   } = opts ?? {};
 
   // Live settings, read by the stable callbacks.
-  const live = useRef({ ask, judge, retries, navigation, autoContinue, holdAt });
-  live.current = { ask, judge, retries, navigation, autoContinue, holdAt };
+  const live = useRef({ ask, judge, retries, navigation, autoContinue, holdAt, onInputChange });
+  live.current = { ask, judge, retries, navigation, autoContinue, holdAt, onInputChange };
   const [enabledState, setEnabledState] = useState(defaultEnabled);
   const enabled = enabledProp ?? enabledState;
   const enabledRef = useRef(enabled);
   enabledRef.current = enabled;
   const controlledRef = useRef(enabledProp !== undefined);
   controlledRef.current = enabledProp !== undefined;
+  const [, rerender] = useReducer((n: number) => n + 1, 0);
 
   // A steps array with the same steps (object or key at each index) is the
   // same trace: keep the old one, so nothing reruns (invariant 10a).
@@ -271,12 +241,72 @@ export function usePrompts<Input, S extends WalkStep, A = string>(
     [settledAt]
   );
 
+  // The answer link. Its value keeps one identity while its text is the
+  // same; while a link is restored it stays put, then shows the restored list
+  // for one commit (the run links compare by identity before applying the
+  // linked frame).
+  const restoreRef = useRef<Restore<A> | null>(null);
+  const linkText = syncAnswers ? serializeAnswers(linkedAnswersOf(record), syncAnswers.serialize) : "";
+  const linkRef = useRef<{ text: string; value: readonly (A | undefined)[]; pinned: "set" | "shown" | null }>({
+    text: linkText,
+    value: linkedAnswersOf(record),
+    pinned: null,
+  });
+  if (linkRef.current.pinned === "set") linkRef.current.pinned = "shown";
+  else if (linkRef.current.pinned === null && !restoreRef.current && linkRef.current.text !== linkText) {
+    linkRef.current = { text: linkText, value: linkedAnswersOf(record), pinned: null };
+  }
+
+  // Judging state: feedback per frame, the one verdict in flight, and the
+  // record generation (bumped by restart, input changes and links) a late
+  // verdict must still match.
+  const [feedback, setFeedback] = useState<Feedback>({});
+  const feedbackRef = useRef(feedback);
+  feedbackRef.current = feedback;
+  const [pending, setPending] = useState<number | null>(null);
+  const pendingRef = useRef<{ token: object; frame: number } | null>(null);
+  const generation = useRef(0);
+  const loggedErrors = useRef(new Set<string>());
+  const continueAfter = useRef<PromptRecord<A> | null>(null);
+  const restarting = useRef(false);
+  const warnedLock = useRef(false);
+
+  /** Drop whatever is in flight: a pending verdict, an auto-continue. */
+  const dropInFlight = useCallback(() => {
+    generation.current++;
+    pendingRef.current = null;
+    continueAfter.current = null;
+    setPending(null);
+  }, []);
+
+  const startRestore = useCallback(
+    (answers: readonly (A | undefined)[]) => {
+      dropInFlight();
+      setFeedback({});
+      restoreRef.current = { answers, next: 0, frame: 0 };
+      commit(EMPTY_RECORD as PromptRecord<A>);
+      rerender();
+    },
+    [dropInFlight, commit]
+  );
+
   const { result, trace } = useWalkRun(simulation, input, choicesRef.current, {
     ...runOpts,
     holdAt: holdAtRun,
     stopAt,
     hookName: "usePrompts",
     rebuiltInputWarning: !isSteps,
+    links: [
+      syncAnswers
+        ? ({
+            key: syncAnswers.key,
+            read: (raw) => parseAnswers(raw, syncAnswers.parse),
+            write: (v) => serializeAnswers(v as readonly (A | undefined)[], syncAnswers.serialize),
+            value: linkRef.current.value,
+            restore: (v) => startRestore(v as readonly (A | undefined)[]),
+          } satisfies LinkPart<unknown>)
+        : null,
+    ],
   });
   stepsRef.current = result.steps;
   const { player } = trace;
@@ -287,15 +317,34 @@ export function usePrompts<Input, S extends WalkStep, A = string>(
   const heldRef = useRef(player.held);
   heldRef.current = player.held;
 
-  // Judging state: feedback per frame, the one verdict in flight, and the
-  // record generation (bumped by restart) a late verdict must still match.
-  const [feedback, setFeedback] = useState<Record<number, { feedback: ReactNode; error: unknown }>>({});
-  const [pending, setPending] = useState<number | null>(null);
-  const pendingRef = useRef<{ token: object; frame: number } | null>(null);
-  const generation = useRef(0);
-  const loggedErrors = useRef(new Set<string>());
-  const continueAfter = useRef<PromptRecord<A> | null>(null);
-  const restarting = useRef(false);
+  const reportError = useCallback((e: unknown) => {
+    const key = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
+    if (!isDev || loggedErrors.current.has(key)) return;
+    loggedErrors.current.add(key);
+    console.error("[stepwise] usePrompts: a judge threw; the answer counts as a miss.", e);
+  }, []);
+
+  /** Judge an answer now (restoring, re-judging): "async" when the judge returns a promise. */
+  const judgeNow = useCallback(
+    (found: Found<A, S>, answer: A, f: number): Judged => {
+      const judgeFn = judgeOf(found.prompt);
+      if (!judgeFn) return { verdict: null, error: null };
+      const steps = stepsRef.current;
+      let out: EvaluatorResult | Promise<EvaluatorResult>;
+      try {
+        out = judgeFn(answer, { step: steps[f], frame: f, steps });
+      } catch (e) {
+        reportError(e);
+        return { verdict: { status: "fail" }, error: e };
+      }
+      if (typeof (out as Promise<EvaluatorResult>)?.then === "function") {
+        (out as Promise<EvaluatorResult>).then(undefined, () => {});
+        return "async";
+      }
+      return { verdict: toVerdict(out as EvaluatorResult), error: null };
+    },
+    [judgeOf, reportError]
+  );
 
   const proceed = useCallback(() => {
     const f = frameRef.current;
@@ -335,13 +384,6 @@ export function usePrompts<Input, S extends WalkStep, A = string>(
     },
     [commit]
   );
-
-  const reportError = useCallback((e: unknown) => {
-    const key = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
-    if (!isDev || loggedErrors.current.has(key)) return;
-    loggedErrors.current.add(key);
-    console.error("[stepwise] usePrompts: a judge threw; the answer counts as a miss.", e);
-  }, []);
 
   const respond = useCallback(
     (answer: A) => {
@@ -418,10 +460,9 @@ export function usePrompts<Input, S extends WalkStep, A = string>(
   }, [promptAt, reach, commit]);
 
   const restart = useCallback(() => {
-    generation.current++;
-    pendingRef.current = null;
-    continueAfter.current = null;
-    setPending(null);
+    dropInFlight();
+    restoreRef.current = null;
+    warnedLock.current = false;
     setFeedback({});
     // Clearing answers replays the run: jump again once it's on screen, or
     // re-anchoring moves the playhead onto the old path's nearest step. (An
@@ -430,22 +471,75 @@ export function usePrompts<Input, S extends WalkStep, A = string>(
     commit(EMPTY_RECORD as PromptRecord<A>);
     reset();
     jump(0);
-  }, [commit, reset, jump]);
+  }, [dropInFlight, commit, reset, jump]);
 
   const setEnabled = useCallback((on: boolean) => {
-    if (!controlledRef.current) setEnabledState(on);
+    if (controlledRef.current || isLocked(recordRef.current, live.current.onInputChange)) return;
+    setEnabledState(on);
   }, []);
+
+  const requestInput = useCallback((apply: () => void) => {
+    if (isLocked(recordRef.current, live.current.onInputChange)) {
+      if (isDev && !warnedLock.current) {
+        warnedLock.current = true;
+        console.warn("[stepwise] usePrompts: the input is locked while answers count; restart() unlocks it. Change ignored.");
+      }
+      return false;
+    }
+    apply();
+    return true;
+  }, []);
+
+  // A new input: under "clear" the answers go; otherwise they follow the new
+  // trace, generator entries by position (the session was fed them so), overlay
+  // entries by id, with overlay verdicts judged again. ("lock" lands here only
+  // before the first answer, or when the page changed the input anyway.)
+  const prevInput = useRef(input);
+  useIsomorphicLayoutEffect(() => {
+    if (Object.is(prevInput.current, input)) return;
+    prevInput.current = input;
+    dropInFlight();
+    if (inputChangeOf(recordRef.current, live.current.onInputChange) === "clear") {
+      setFeedback({});
+      commit(EMPTY_RECORD as PromptRecord<A>);
+      return;
+    }
+    // Null when nothing moved: a trace that only looks new (a page rebuilding
+    // keyless steps each render) must not commit (React #185).
+    const out = remapRecord(recordRef.current, feedbackRef.current, stepsRef.current.length, promptAt, judgeNow);
+    if (!out) return;
+    setFeedback(out.feedback);
+    commit(out.record);
+  }, [input]);
+
+  // Restore linked answers: walk the trace from frame 0, giving each prompt
+  // the next answer (a generator's continues the path, which arrives with the
+  // next commit). Stops at an answer that leaves its prompt unsettled.
+  useIsomorphicLayoutEffect(() => {
+    const r = restoreRef.current;
+    if (!r) return;
+    const before = recordRef.current;
+    const out = restoreStep(r, before, stepsRef.current.length, promptAt, reach, judgeNow);
+    if (Object.keys(out.feedback).length > 0) setFeedback((m) => ({ ...m, ...out.feedback }));
+    commit(out.record);
+    if (out.waiting && out.record !== before && r.next < r.answers.length) return;
+    restoreRef.current = null;
+    if (syncAnswers) {
+      linkRef.current = { text: serializeAnswers(r.answers, syncAnswers.serialize), value: r.answers, pinned: "set" };
+    }
+    rerender();
+  });
 
   // Reach the prompt at the playhead. Under "free", prompts the playhead
   // moved forward past without an answer count as skipped.
-  // The prompt at the playhead (cached: one Found per trace, ask and enabled).
   const found = frame >= 0 ? promptAt(frame) : null;
   const prevFrame = useRef<number | null>(null);
   useIsomorphicLayoutEffect(() => {
     const prev = prevFrame.current;
     prevFrame.current = frame;
-    // Mid-restart the frame on screen is the old path's anchor, not where the reader is.
-    if (frame < 0 || restarting.current) return;
+    // Mid-restart the frame on screen is the old path's anchor, not where the
+    // reader is; mid-restore the record is being rebuilt from a link.
+    if (frame < 0 || restarting.current || restoreRef.current) return;
     let rec = recordRef.current;
     if (live.current.navigation === "free" && prev !== null && prev >= 0 && frame > prev) {
       for (let f = prev; f < frame; f++) {
@@ -457,15 +551,24 @@ export function usePrompts<Input, S extends WalkStep, A = string>(
     commit(rec);
   }, [frame, found, record, promptAt, reach, commit]);
 
-  // After every commit: finish a restart, then move on after an auto-continued settle.
+  // After every commit: finish a restart, then move on after an
+  // auto-continued settle; a restored link shown for its one commit gives way
+  // to the record's own value.
   useIsomorphicLayoutEffect(() => {
     if (restarting.current) {
       restarting.current = false;
       jump(0);
+      // Already on frame 0 the jump commits nothing: reach its prompt here.
+      const p = frameRef.current === 0 ? promptAt(0) : null;
+      if (p) commit(reach(recordRef.current, 0, p));
     }
     if (continueAfter.current !== null && continueAfter.current === recordRef.current) {
       continueAfter.current = null;
       proceed();
+    }
+    if (linkRef.current.pinned === "shown") {
+      linkRef.current.pinned = null;
+      if (linkRef.current.text !== linkText) rerender();
     }
   });
 
@@ -486,7 +589,9 @@ export function usePrompts<Input, S extends WalkStep, A = string>(
     [active]
   );
   const score = useMemo(() => scoreOf(record), [record]);
-  const canToggle = enabledProp === undefined && readerToggle;
+  // One rule for the input and the reader's toggle.
+  const inputLocked = isLocked(record, onInputChange);
+  const canToggle = enabledProp === undefined && readerToggle && !inputLocked;
 
   return useMemo(
     () => ({
@@ -508,11 +613,11 @@ export function usePrompts<Input, S extends WalkStep, A = string>(
       enabled,
       setEnabled,
       canToggle,
-      // Locking the input while answers count builds on this hook.
-      inputLocked: false,
+      inputLocked,
+      requestInput,
       record,
       score,
     }),
-    [trace, result, active, status, fb, entry, revealed, respond, skip, proceed, restart, enabled, setEnabled, canToggle, record, score]
+    [trace, result, active, status, fb, entry, revealed, respond, skip, proceed, restart, enabled, setEnabled, canToggle, inputLocked, requestInput, record, score]
   );
 }

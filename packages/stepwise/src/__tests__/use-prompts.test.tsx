@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { StrictMode, useState, type ReactNode } from "react";
 import { act, cleanup, renderHook } from "@testing-library/react";
 import type { Simulation } from "../simulation";
 import type { WalkSimulation, WalkStep } from "../walk";
@@ -6,7 +7,10 @@ import type { Prompt } from "../prompts";
 import { usePrompts } from "../use-prompts";
 import type { PromptsOptions } from "../use-prompts";
 
+const realMatchMedia = window.matchMedia;
+
 afterEach(() => {
+  window.matchMedia = realMatchMedia;
   cleanup();
   vi.useRealTimers();
   vi.restoreAllMocks();
@@ -415,5 +419,306 @@ describe("usePrompts", () => {
     expect(result.current.active).toBeNull();
     act(() => result.current.setEnabled(true));
     expect(result.current.enabled).toBe(true);
+  });
+});
+
+// ── Navigation, restart, enabled, input changes, links ─────────────────────
+
+function reducedMotion() {
+  window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+    matches: query.includes("reduce"),
+    media: query,
+    addEventListener() {},
+    removeEventListener() {},
+  })) as unknown as typeof window.matchMedia;
+}
+
+// The sort with its input as state, the way a page holds it.
+function useSorting(opts?: PromptsOptions<number[], Sort, string>, initial: number[] = INPUT) {
+  const [input, setInput] = useState(initial);
+  const run = usePrompts({ simulation: bubble, input }, { ask: willSwap, ...opts });
+  return { input, setInput, run };
+}
+
+const FIVE: W[] = [s("one"), s("two"), s("three"), s("four"), s("five")];
+const askEven = (step: W): Prompt<string, W> | null =>
+  step.key === "two" || step.key === "four" ? { options: ["a", "b"] } : null;
+
+describe("usePrompts: navigation and restart", () => {
+  it("free navigation passes prompts and counts skipped", () => {
+    const { result } = renderHook(() => usePrompts({ steps: FIVE }, { ask: askEven, navigation: "free", retries: 1 }));
+    for (let i = 0; i < 4; i++) act(() => result.current.player.next());
+    expect(result.current.frame).toBe(4);
+    expect(result.current.score.skipped).toBe(2);
+    for (let i = 0; i < 3; i++) act(() => result.current.player.prev());
+    expect(result.current.frame).toBe(1);
+    expect(result.current.status).toBe("skipped");
+    act(() => result.current.respond("a"));
+    expect(result.current.status).toBe("answered");
+    // Answering a skipped prompt is the first answer: no retry used.
+    expect(result.current.retriesLeft).toBe(1);
+    expect(result.current.score).toMatchObject({ answered: 1, skipped: 1 });
+  });
+
+  it("skip() under gate is ignored with a dev warning", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { result } = sorting();
+    act(() => result.current.player.next());
+    act(() => result.current.skip());
+    expect(result.current.status).toBe("open");
+    expect(result.current.score.skipped).toBe(0);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(String(warn.mock.calls[0][0])).toMatch(/^\[stepwise\] usePrompts/);
+  });
+
+  it("restart clears the record, unlocks the input and returns to frame 0", () => {
+    const { result } = renderHook(() => useSorting());
+    act(() => result.current.run.player.next());
+    act(() => result.current.run.respond("yes"));
+    act(() => result.current.run.proceed());
+    expect(result.current.run.inputLocked).toBe(true);
+    act(() => result.current.run.restart());
+    expect(result.current.run.frame).toBe(0);
+    expect(result.current.run.record.entries).toEqual([]);
+    expect(result.current.run.inputLocked).toBe(false);
+  });
+
+  it("restart with a prompt on frame 0 reaches it again", () => {
+    const askOne = (step: W): Prompt<string, W> | null => (step.key === "one" ? { options: ["a", "b"], answer: "b" } : null);
+    const { result } = renderHook(() => usePrompts({ steps: STEPS }, { ask: askOne }));
+    expect(result.current.score.reached).toBe(1);
+    act(() => result.current.respond("b"));
+    expect(result.current.status).toBe("pass");
+    act(() => result.current.restart());
+    expect(result.current.frame).toBe(0);
+    expect(result.current.status).toBe("open");
+    expect(result.current.score.reached).toBe(1);
+    expect(result.current.record.entries[0].attempts).toEqual([]);
+  });
+});
+
+describe("usePrompts: input changes", () => {
+  it("lock: once answered, inputLocked is true and requestInput returns false with one dev warning; after restart it applies", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { result } = renderHook(() => useSorting());
+    const requestInput = result.current.run.requestInput;
+    expect(result.current.run.inputLocked).toBe(false);
+    act(() => result.current.run.player.next());
+    act(() => result.current.run.respond("yes"));
+    expect(result.current.run.inputLocked).toBe(true);
+    let ran: boolean | undefined;
+    act(() => {
+      ran = result.current.run.requestInput(() => result.current.setInput([1, 2, 3, 0]));
+    });
+    expect(ran).toBe(false);
+    expect(result.current.input).toEqual(INPUT);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(String(warn.mock.calls[0][0])).toMatch(/^\[stepwise\] usePrompts/);
+    act(() => result.current.run.restart());
+    act(() => {
+      ran = result.current.run.requestInput(() => result.current.setInput([1, 2, 3, 0]));
+    });
+    expect(ran).toBe(true);
+    expect(result.current.input).toEqual([1, 2, 3, 0]);
+    expect(result.current.run.requestInput).toBe(requestInput);
+  });
+
+  it("clear: an input change empties the record and score", () => {
+    const { result } = renderHook(() => useSorting({ onInputChange: "clear" }));
+    act(() => result.current.run.player.next());
+    act(() => result.current.run.respond("yes"));
+    expect(result.current.run.score.passed).toBe(1);
+    expect(result.current.run.inputLocked).toBe(false);
+    act(() => result.current.setInput([1, 3, 2, 0]));
+    expect(result.current.run.record.entries.every((e) => e.attempts.length === 0)).toBe(true);
+    expect(result.current.run.score).toMatchObject({ passed: 0, failed: 0, answered: 0, skipped: 0 });
+  });
+
+  it("keep: an input change keeps overlay answers by id and re-judges them", () => {
+    const { result } = renderHook(() => useSorting({ onInputChange: "keep" }));
+    act(() => result.current.run.player.next());
+    act(() => result.current.run.respond("yes"));
+    expect(result.current.run.status).toBe("pass");
+    // 1 and 3 are compared first now: no swap, so "yes" is wrong.
+    act(() => result.current.setInput([1, 3, 2, 0]));
+    expect(result.current.run.frame).toBe(1);
+    expect(result.current.run.active?.entry.id).toBe("cmp-0-0");
+    expect(result.current.run.active?.entry.attempts).toEqual(["yes"]);
+    expect(result.current.run.status).toBe("fail");
+    expect(result.current.run.score).toMatchObject({ passed: 0, failed: 1 });
+  });
+
+  it("keep: an answer whose prompt moved to another frame follows it by id", () => {
+    const { result } = renderHook(() => useSorting({ onInputChange: "keep", navigation: "free" }));
+    // [3,1,2,0]: cmp-0-1 is frame 3. [1,3,2,0]: no swap at 0, so cmp-0-1 is frame 2.
+    for (let i = 0; i < 3; i++) act(() => result.current.run.player.next());
+    expect(result.current.run.active?.entry.id).toBe("cmp-0-1");
+    act(() => result.current.run.respond("yes"));
+    act(() => result.current.setInput([1, 3, 2, 0]));
+    const entry = result.current.run.record.entries.find((e) => e.id === "cmp-0-1");
+    expect(entry).toMatchObject({ frame: 2, attempts: ["yes"], status: "pass" });
+  });
+
+  it("walk-like runs (no judged prompts) default to keep", () => {
+    received = [];
+    const tagged: WalkSimulation<string, W, string> = function* (tag) {
+      yield s("intro");
+      const c = yield s("fork", { prompt: { options: ["left", "right"] } });
+      received.push(c);
+      yield s(`${c}-${tag}`);
+    };
+    const { result } = renderHook(() => {
+      const [tag, setTag] = useState("a");
+      return { setTag, run: usePrompts({ simulation: tagged, input: tag }) };
+    });
+    act(() => result.current.run.player.next());
+    act(() => result.current.run.respond("left"));
+    expect(result.current.run.inputLocked).toBe(false);
+    let ran: boolean | undefined;
+    act(() => {
+      ran = result.current.run.requestInput(() => result.current.setTag("b"));
+    });
+    expect(ran).toBe(true);
+    expect(result.current.run.steps.map((x) => x.label)).toEqual(["intro", "fork", "left-b"]);
+    expect(result.current.run.record.entries).toHaveLength(1);
+    expect(result.current.run.record.entries[0]).toMatchObject({ id: "fork", frame: 1, attempts: ["left"] });
+  });
+});
+
+describe("usePrompts: enabled", () => {
+  const askIntro = (step: W): Prompt<string, W> | null => (step.key === "intro" ? { options: ["x"], answer: "x" } : null);
+
+  it("enabled false hides overlay prompts and their gates; generator prompts still apply", () => {
+    received = [];
+    const { result } = renderHook(() => usePrompts({ simulation: story, input: null }, { ask: askIntro, enabled: false }));
+    expect(result.current.active).toBeNull();
+    act(() => result.current.player.next());
+    expect(result.current.frame).toBe(1);
+    expect(result.current.active?.entry.source).toBe("generator");
+    act(() => result.current.player.next());
+    expect(result.current.frame).toBe(1);
+    act(() => result.current.respond("right"));
+    expect(result.current.steps.map((x) => x.label)).toEqual(["intro", "fork", "R1", "end"]);
+  });
+
+  it("controlled enabled ignores setEnabled; canToggle false", () => {
+    const { result } = sorting({ enabled: true });
+    expect(result.current.canToggle).toBe(false);
+    act(() => result.current.setEnabled(false));
+    expect(result.current.enabled).toBe(true);
+  });
+
+  it("under lock, canToggle turns false after the first answer", () => {
+    const { result } = sorting();
+    expect(result.current.canToggle).toBe(true);
+    act(() => result.current.player.next());
+    act(() => result.current.respond("yes"));
+    expect(result.current.canToggle).toBe(false);
+    act(() => result.current.setEnabled(false));
+    expect(result.current.enabled).toBe(true);
+    act(() => result.current.restart());
+    expect(result.current.canToggle).toBe(true);
+  });
+});
+
+describe("usePrompts: answer links", () => {
+  // Asks on cmp-0-0 (frame 1, a swap) and cmp-1-0 (frame 7, no swap) only.
+  const askTwoCompares = (step: Sort, f: number, steps: readonly Sort[]): Prompt<string, Sort> | null =>
+    step.key === "cmp-0-0" || step.key === "cmp-1-0"
+      ? { options: ["swap", "keep"], answer: steps[f + 1]?.key?.startsWith("swap") ? "swap" : "keep" }
+      : null;
+  const syncAnswers = { key: "q.a", serialize: (a: string) => a, parse: (v: string) => (v === "swap" || v === "keep" ? v : null) };
+  const linked = (strict = false) =>
+    renderHook(() => {
+      const [input, setInput] = useState(INPUT);
+      const run = usePrompts(
+        { simulation: bubble, input },
+        {
+          ask: askTwoCompares,
+          autoPlay: true,
+          syncHash: "q.frame",
+          syncAnswers,
+          syncInput: {
+            key: "q.in",
+            serialize: (a: number[]) => a.join("-"),
+            parse: (v: string) => (/^\d(-\d)*$/.test(v) ? v.split("-").map(Number) : null),
+            onRestore: setInput,
+          },
+        }
+      );
+      return { input, run };
+    }, strict ? { wrapper: ({ children }: { children: ReactNode }) => <StrictMode>{children}</StrictMode> } : undefined);
+
+  it("a link restores answers then the frame", () => {
+    reducedMotion();
+    window.history.replaceState(null, "", "#q.a=swap.keep&q.frame=9");
+    const { result } = linked();
+    expect(result.current.run.frame).toBe(9);
+    expect(result.current.run.player.playing).toBe(false);
+    expect(result.current.run.record.entries.map((e) => [e.id, e.status, e.attempts])).toEqual([
+      ["cmp-0-0", "pass", ["swap"]],
+      ["cmp-1-0", "pass", ["keep"]],
+    ]);
+    expect(window.location.hash).toBe("#q.a=swap.keep&q.frame=9");
+  });
+
+  it("a link restores answers then the frame under StrictMode", () => {
+    reducedMotion();
+    window.history.replaceState(null, "", "#q.a=swap.keep&q.frame=9");
+    const { result } = linked(true);
+    expect(result.current.run.frame).toBe(9);
+    expect(result.current.run.record.entries.map((e) => e.attempts)).toEqual([["swap"], ["keep"]]);
+    expect(window.location.hash).toBe("#q.a=swap.keep&q.frame=9");
+  });
+
+  it("a link restores the input, the answers, then the frame", () => {
+    reducedMotion();
+    // [1,3,2,0]: cmp-0-0 keeps (frame 1); cmp-1-0 is frame 6 and keeps.
+    window.history.replaceState(null, "", "#q.in=1-3-2-0&q.a=keep.keep&q.frame=8");
+    const { result } = linked();
+    expect(result.current.input).toEqual([1, 3, 2, 0]);
+    expect(result.current.run.frame).toBe(8);
+    expect(result.current.run.record.entries.map((e) => [e.id, e.frame, e.status])).toEqual([
+      ["cmp-0-0", 1, "pass"],
+      ["cmp-1-0", 6, "pass"],
+    ]);
+  });
+
+  it("answering writes the answers to the link", () => {
+    const { result } = linked();
+    act(() => result.current.run.player.next());
+    act(() => result.current.run.respond("swap"));
+    expect(window.location.hash).toContain("q.a=swap");
+  });
+
+  it("a link with an unparsable answer ignores all answers and lands on the first unsettled prompt", () => {
+    reducedMotion();
+    window.history.replaceState(null, "", "#q.in=3-1-2-0&q.a=swap.bogus&q.frame=9");
+    const { result } = linked();
+    expect(result.current.run.frame).toBe(1);
+    expect(result.current.run.record.entries.every((e) => e.attempts.length === 0)).toBe(true);
+    expect(result.current.run.active?.entry.id).toBe("cmp-0-0");
+  });
+
+  it("a frame-only link past an unsettled prompt lands on it", () => {
+    reducedMotion();
+    window.history.replaceState(null, "", "#q.frame=9");
+    const { result } = linked();
+    expect(result.current.run.frame).toBe(1);
+  });
+
+  it("a link replays generator answers, then lands on the frame", () => {
+    reducedMotion();
+    received = [];
+    window.history.replaceState(null, "", "#s.a=left&s.frame=3");
+    const { result } = renderHook(() =>
+      usePrompts(
+        { simulation: story, input: null },
+        { syncHash: "s.frame", syncAnswers: { key: "s.a", serialize: (a: string) => a, parse: (v: string) => v } }
+      )
+    );
+    expect(result.current.steps.map((x) => x.label)).toEqual(["intro", "fork", "L1", "L2", "end"]);
+    expect(result.current.frame).toBe(3);
+    expect(result.current.record.entries[0]).toMatchObject({ id: "fork", status: "answered", attempts: ["left"] });
   });
 });
