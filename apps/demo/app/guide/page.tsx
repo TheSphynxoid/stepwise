@@ -119,6 +119,11 @@ const MISTAKES: { see: ReactNode; why: ReactNode; fix: ReactNode }[] = [
     fix: <>Wire a Continue (or Skip) button to <C>player.release()</C>.</>,
   },
   {
+    see: "Next won't go past a question.",
+    why: <>Under <C>usePrompts</C>, forward moves stop at an unanswered question on purpose.</>,
+    fix: <>Show the question while <C>run.active</C> is set and wire its answer to <C>run.respond</C>, or pass <C>navigation: &quot;free&quot;</C> to let readers skip.</>,
+  },
+  {
     see: <>A type error on a tone such as <C>&quot;contrast&quot;</C>.</>,
     why: "There are exactly six tones.",
     fix: <><C>neutral</C>, <C>accent</C>, <C>good</C>, <C>bad</C>, <C>write</C>, <C>idle</C>.</>,
@@ -165,6 +170,7 @@ const WORDS: { word: string; meaning: ReactNode }[] = [
   { word: "Key", meaning: "A step's name for its moment (\"swap 2.1\"). When the steps are recomputed, the player looks for the same key so it stays on the same moment." },
   { word: "Re-anchoring", meaning: "That “stay on the same moment” behavior after the steps change." },
   { word: "Checkpoint", meaning: <>A frame where playback pauses and waits (<C>holdAt</C>), usually to ask the reader something.</> },
+  { word: "Prompt", meaning: <>A question at a frame (<C>usePrompts</C>): the reader answers, it&apos;s judged or just recorded, and on a walk the answer can branch what comes next.</> },
   { word: "Evaluator / verdict", meaning: <>A function that grades something and returns <C>pass(…)</C>, <C>fail(…)</C> or pending, with feedback.</> },
   { word: "Walk / choice point", meaning: "A simulation that stops to ask the reader and branches on the answer. The step that asks is a choice point." },
   { word: "Explainer", meaning: "The kit's bundle: a definition (simulation + input + options) and a view, as one component." },
@@ -295,16 +301,17 @@ export default function GuidePage() {
           <Section id="predict" kicker="Recipe" title="Pause and predict">
             <When>you want the reader to think before they watch: guess the next step, then see if they were right.</When>
             <p>
-              Two pieces. <C>holdAt</C> marks checkpoints: playback pauses there until you call <C>player.release()</C>.{" "}
-              <C>useEvaluator</C> grades an answer and gives you a verdict (<C>pass</C> / <C>fail</C> with feedback, and
-              an attempt count). The right answer is simply what the next frame does. Press play:
+              One hook, <C>usePrompts</C> (from <C>@sphynxoid/stepwise/experimental</C>). Its <C>ask</C> puts a question
+              on any frame; the right answer is simply what the next frame does. Playback holds at a question, Next stops
+              there until it&apos;s answered, a wrong answer reveals the right one, and <C>proceed()</C> moves on. Press play:
             </p>
             <Example files={["examples/predict.tsx"]}>
               <PredictSort />
             </Example>
             <Watch>
-              <li>A checkpoint only holds playback; Next and the scrubber still move freely.</li>
-              <li>Reset the guess and the verdict when the checkpoint changes, or the last answer shows on the new question.</li>
+              <li>Define <C>ask</C> (and the input) at module scope, not inline: a new function each render recomputes every question.</li>
+              <li>One try per question by default. Pass <C>retries</C> for more (<C>Infinity</C> for a story the reader can re-answer).</li>
+              <li>Once an answer counts, the input is locked until <C>restart()</C>; use <C>onInputChange</C> to choose another rule.</li>
             </Watch>
             <SeeLive href="/simulate">predict mode on /simulate</SeeLive>
           </Section>

@@ -8,6 +8,7 @@ import {
   BookMarked,
   BookOpen,
   Columns2,
+  Compass,
   Workflow,
   FileText,
   FlaskConical,
@@ -84,6 +85,13 @@ const DEMOS: {
     title: "Automaton (experimental)",
     desc: "Transitions: a trace becomes a graph. Watch a DFA read the word you type, then be the automaton yourself; change an earlier answer and the future is replayed.",
     tag: "useWalk + fromGraph",
+  },
+  {
+    href: "/adventure",
+    icon: Compass,
+    title: "Text adventure (experimental)",
+    desc: "A night at a lighthouse, told as a generator that asks. Pick or type a command, go Back and choose again, and take a path you left once more.",
+    tag: "usePrompts + usePromptHistory",
   },
   {
     href: "/player",

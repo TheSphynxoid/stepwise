@@ -554,9 +554,9 @@ export function RagView() {
           {scored && <p className="px-1.5 font-mono text-[10px] text-muted-foreground">… and {CHUNKS.length - 6} more, lower</p>}
         </div>
       )}
-      {step.prompt && (
+      {step.augmented && (
         <pre className="mt-3 overflow-x-auto whitespace-pre-wrap rounded-md border border-border bg-background/60 p-3 font-mono text-[11px] leading-relaxed text-foreground/80">
-          {step.prompt}
+          {step.augmented}
         </pre>
       )}
       {step.answer && (

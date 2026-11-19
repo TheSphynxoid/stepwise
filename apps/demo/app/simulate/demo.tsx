@@ -1,21 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, ChevronDown, ChevronUp, Shuffle } from "lucide-react";
 import {
   createRng,
   fail,
   pass,
-  useEvaluator,
   useGlobalKeys,
-  useSimulation,
   CodeBlock,
   PlayerBar,
   TONE_CHIP_CLASS,
   type Simulation,
   type StepwiseStep,
 } from "@sphynxoid/stepwise";
+import { usePrompts, type Prompt, type PromptSpec } from "@sphynxoid/stepwise/experimental";
 import { useSiteTheme } from "../theme-provider";
 
 // The trace is not recorded by hand: it's computed from the input by a
@@ -103,6 +102,18 @@ function parseInput(raw: string): readonly number[] | null {
     : null;
 }
 
+// Predict mode: a question at every third comparison. The right answer is
+// simply the next frame of the trace, so it follows input edits for free.
+type Guess = "swap" | "keep";
+const ask = (s: Frame, f: number, steps: readonly Frame[]): Prompt<Guess, Frame> | null =>
+  s.kind === "compare" && s.cmp % 3 === 1
+    ? { options: [{ value: "swap", label: "Yes, swap" }, { value: "keep", label: "No, keep" }], answer: steps[f + 1]?.kind as Guess }
+    : null;
+const judge = (g: Guess, prompt: PromptSpec<Guess>) =>
+  g === prompt.answer
+    ? pass(g === "swap" ? "Right: the left one is bigger, so they swap." : "Right: they're already in order, so insertion stops.")
+    : fail(prompt.answer === "swap" ? "Not quite: the left value is bigger, so it has to move right." : "Not quite: the left value is smaller or equal, so this element is home.");
+
 export default function SimulateDemo() {
   const { theme } = useSiteTheme();
   const [input, setInput] = useState<readonly number[]>(DEFAULT_INPUT);
@@ -110,18 +121,25 @@ export default function SimulateDemo() {
   const [predict, setPredict] = useState(false);
   const [reruns, setReruns] = useState(0);
 
-  // Checkpoints: every third comparison, in predict mode. holdAt gets the
-  // step from the current trace, also after an input edit recomputes it.
+  // usePrompts is useSimulation plus questions: playback holds at one, Next
+  // stops there until it's answered. `enabled` turns predict mode on and off.
   // syncInput keeps the input in the URL next to the frame: a linked input
   // is handed to setInput on mount, and the linked frame lands on its trace.
-  const sim = useSimulation(insertionSort, input, {
-    autoPlay: true,
-    baseDelayMs: 700,
-    syncHash: "frame",
-    syncInput: { key: "in", serialize: serializeInput, parse: parseInput, onRestore: setInput },
-    holdAt: (_, s) => predict && s?.kind === "compare" && s.cmp % 3 === 1,
-  });
-  const { player, step } = sim;
+  // An edit clears the score ("clear"), so the input stays editable mid-quiz.
+  const sim = usePrompts(
+    { simulation: insertionSort, input },
+    {
+      autoPlay: true,
+      baseDelayMs: 700,
+      syncHash: "frame",
+      syncInput: { key: "in", serialize: serializeInput, parse: parseInput, onRestore: setInput },
+      ask,
+      judge,
+      enabled: predict,
+      onInputChange: "clear",
+    }
+  );
+  const { player, step, active, revealed, score } = sim;
   const cur = step!;
 
   const edit = (next: readonly number[]) => {
@@ -136,24 +154,7 @@ export default function SimulateDemo() {
     setSeed((s) => s + 1);
   };
 
-  // Predict mode: at a checkpoint, guess whether the pair will swap. The
-  // truth is simply the next frame of the trace.
-  const [guess, setGuess] = useState<"swap" | "keep" | null>(null);
-  const truth = player.held !== null ? sim.steps[player.held + 1]?.kind : undefined;
-  const answer = useEvaluator(
-    (g: "swap" | "keep" | null) => {
-      if (g === null) return fail("Pick an answer first.");
-      if (g === truth) return pass(g === "swap" ? "Right: the left one is bigger, so they swap." : "Right: they're already in order, so insertion stops.");
-      return fail(truth === "swap" ? "Not quite: the left value is bigger, so it has to move right." : "Not quite: the left value is smaller or equal, so this element is home.");
-    },
-    guess,
-    { mode: "manual" }
-  );
-  const { reset: resetAnswer } = answer;
-  useEffect(() => {
-    setGuess(null);
-    resetAnswer();
-  }, [player.held, resetAnswer]);
+  const picked = active?.entry.attempts.at(-1);
 
   useGlobalKeys({
     ArrowRight: () => player.next(),
@@ -177,7 +178,9 @@ export default function SimulateDemo() {
           generator on the numbers below and plays the result. Nudge a value with the arrows (or press R for a seeded
           random input): the trace is recomputed and the playhead stays on the <em>same comparison</em>, because every
           step carries a <code className="text-primary">key</code> like <code className="text-primary">c3.2</code>. The URL
-          holds the exact input, so a copied link replays this run frame for frame.
+          holds the exact input, so a copied link replays this run frame for frame. Predict mode, built on{" "}
+          <code className="text-primary">usePrompts</code>, asks at every third comparison: playback and Next stop at the
+          question, and a wrong guess shows the answer.
         </p>
 
         <div className="rounded-xl border border-border bg-card p-4 shadow-sm mb-4">
@@ -233,7 +236,11 @@ export default function SimulateDemo() {
               type="button"
               role="switch"
               aria-checked={predict}
-              onClick={() => setPredict((p) => !p)}
+              onClick={() => {
+                // Off while paused at a question: let playback go on.
+                if (predict && player.held !== null) player.release();
+                setPredict(!predict);
+              }}
               className={`rounded-md border px-3 py-1.5 text-[11px] font-mono transition ${
                 predict ? "border-primary bg-primary/15 text-primary" : "border-border text-foreground/60 hover:text-foreground"
               }`}
@@ -244,43 +251,44 @@ export default function SimulateDemo() {
           </div>
         </div>
 
-        {player.held !== null && (
+        {active && (
           <div className="rounded-xl border border-primary/40 bg-primary/5 p-4 mb-4" data-testid="checkpoint">
-            <p className="text-[11px] font-mono uppercase tracking-widest text-primary mb-1">Checkpoint</p>
+            <div className="flex items-center justify-between gap-2 mb-1">
+              <p className="text-[11px] font-mono uppercase tracking-widest text-primary">Checkpoint</p>
+              <span className="text-[10px] font-mono text-muted-foreground" data-testid="sim-score">
+                {score.passed}/{score.passed + score.failed} right
+              </span>
+            </div>
             <p className="text-[13px] mb-3">
               Will <strong>{cur.arr[cur.hi[0]]}</strong> and <strong>{cur.arr[cur.hi[1]]}</strong> swap?
             </p>
-            <div className="flex flex-wrap items-center gap-2" role="radiogroup" aria-label="Your prediction">
-              {(["swap", "keep"] as const).map((g) => (
-                <button
-                  key={g}
-                  type="button"
-                  role="radio"
-                  aria-checked={guess === g}
-                  onClick={() => setGuess(g)}
-                  className={`rounded-md border px-3 py-1.5 text-[11px] font-mono transition ${
-                    guess === g ? "border-primary bg-primary/15 text-primary" : "border-border text-foreground/60 hover:text-foreground"
-                  }`}
-                >
-                  {g === "swap" ? "Yes, swap" : "No, keep"}
-                </button>
-              ))}
-              <button type="button" onClick={() => void answer.check()} className="rounded-md bg-primary px-3 py-1.5 text-[11px] font-mono text-primary-foreground">
-                Check
-              </button>
-              {answer.passed ? (
-                <button type="button" onClick={player.release} className="rounded-md border border-accent/50 px-3 py-1.5 text-[11px] font-mono text-accent">
+            <div className="flex flex-wrap items-center gap-2" aria-label="Your prediction">
+              {active.prompt.options?.map((o) => {
+                const { value, label } = typeof o === "string" ? { value: o, label: o } : o;
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    aria-pressed={picked === value}
+                    disabled={revealed !== null || sim.status === "pending"}
+                    onClick={() => sim.respond(value as Guess)}
+                    className={`rounded-md border px-3 py-1.5 text-[11px] font-mono transition disabled:opacity-60 ${
+                      picked === value ? "border-primary bg-primary/15 text-primary" : "border-border text-foreground/60 hover:text-foreground"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+              {revealed && (
+                <button type="button" onClick={sim.proceed} className="rounded-md bg-primary px-3 py-1.5 text-[11px] font-mono text-primary-foreground">
                   Continue
-                </button>
-              ) : (
-                <button type="button" onClick={player.release} className="text-[11px] font-mono text-muted-foreground hover:text-foreground">
-                  Skip
                 </button>
               )}
             </div>
-            <p aria-live="polite" className={`mt-2 text-[12px] ${answer.passed ? "text-accent" : "text-foreground/70"}`}>
-              {answer.feedback}
-              {answer.status === "fail" && answer.attempts >= 2 && " (Hint: compare the two highlighted bars.)"}
+            <p aria-live="polite" className={`mt-2 text-[12px] ${sim.status === "pass" ? "text-accent" : "text-foreground/70"}`}>
+              {sim.feedback}
+              {revealed && sim.status !== "pass" && <> Answer: {revealed.answer}.</>}
             </p>
           </div>
         )}

@@ -5,7 +5,7 @@ import { expect, test, type Page } from "@playwright/test";
 // for the library's classes (wrong @source path), which leaves every
 // library-rendered element unstyled while the host page looks fine.
 
-const ROUTES = ["/", "/simulate", "/kit", "/llm", "/qa", "/live", "/automaton", "/player", "/compare", "/lesson", "/tour", "/discovery", "/glossary", "/scroll", "/minimal", "/docs", "/guide"];
+const ROUTES = ["/", "/simulate", "/kit", "/llm", "/qa", "/live", "/automaton", "/adventure", "/player", "/compare", "/lesson", "/tour", "/discovery", "/glossary", "/scroll", "/minimal", "/docs", "/guide"];
 
 function collectErrors(page: Page): string[] {
   const errors: string[] = [];
@@ -141,22 +141,21 @@ test("simulate: a shared link replays the exact frame, and edits keep the playhe
   await expect(page).toHaveURL(/in=6.4.8.1.9.3.6/);
 });
 
-test("simulate: predict mode holds at a checkpoint and grades the guess", async ({ page }) => {
+test("simulate predict: stepping stops at a question; a miss reveals the answer", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/simulate");
   await page.getByRole("switch", { name: /Predict mode/ }).click();
-  await page.getByRole("button", { name: "Play", exact: true }).click();
-
+  // Default input 5, 2, …: the first comparison (frame 1) is a question, and Next stops there.
+  for (let i = 0; i < 4; i++) await page.getByRole("button", { name: "Next step" }).click();
   const checkpoint = page.getByTestId("checkpoint");
-  await expect(checkpoint).toBeVisible({ timeout: 5000 });
-  // Default input 5, 2, …: the first comparison is 5 vs 2, which swaps.
+  await expect(checkpoint).toBeVisible();
   await expect(page.getByTestId("sim-label")).toHaveText("compare a[0]=5 with a[1]=2");
-  await checkpoint.getByRole("radio", { name: "No, keep" }).click();
-  await checkpoint.getByRole("button", { name: "Check" }).click();
+
+  // 5 vs 2 swaps: "keep" is a miss, and with no retries it settles and shows the answer.
+  await checkpoint.getByRole("button", { name: "No, keep" }).click();
   await expect(checkpoint).toContainText("Not quite");
-  await checkpoint.getByRole("radio", { name: "Yes, swap" }).click();
-  await checkpoint.getByRole("button", { name: "Check" }).click();
-  await expect(checkpoint).toContainText("Right");
+  await expect(checkpoint).toContainText("Answer: swap");
+  await expect(page.getByTestId("sim-score")).toHaveText("0/1 right");
   await checkpoint.getByRole("button", { name: "Continue" }).click();
   await expect(page.getByTestId("sim-label")).not.toHaveText("compare a[0]=5 with a[1]=2");
 });
@@ -246,12 +245,12 @@ test("/kit: predict loop", async ({ page }) => {
   await expect(question).toBeVisible({ timeout: 5000 });
   await expect(narration).toHaveText("compare a[3]=25 with target 61");
   await expect(b).toContainText("Will the search go left, right, or stop?");
+  // A miss settles (no retries by default): the answer is revealed, then Continue moves on.
   await question.getByRole("radio", { name: "Left" }).click();
   await b.getByRole("button", { name: "Check" }).click();
   await expect(b).toContainText("Not quite");
-  await question.getByRole("radio", { name: "Right" }).click();
-  await b.getByRole("button", { name: "Check" }).click();
-  await expect(b).toContainText("Right:");
+  await expect(b.locator("[data-reveal]")).toContainText("Answer: Right");
+  await expect(b.getByRole("button", { name: "Check" })).toHaveCount(0);
   await b.getByRole("button", { name: "Continue" }).click();
   await expect(narration).not.toHaveText("compare a[3]=25 with target 61");
 });
@@ -297,6 +296,50 @@ test("/guide: the examples run, the code shown leaves out the site's theme wirin
   await page.locator("#mistakes").scrollIntoViewIfNeeded();
   await page.mouse.wheel(0, 200);
   await expect(page.getByRole("navigation", { name: "Chapters" }).getByRole("button", { name: /Common mistakes/ })).toHaveAttribute("aria-current", "true");
+});
+
+test("/guide predict example: stepping stops at the question", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/guide");
+  const ex = page.locator("#predict").getByTestId("guide-live");
+  // Input 3, 1, 4, 2: frame 1 compares 3 and 1, and Next can't pass it unanswered.
+  for (let i = 0; i < 3; i++) await ex.getByRole("button", { name: "Next step" }).click();
+  await expect(ex.getByText("Compare 3 and 1")).toBeVisible();
+  await ex.getByRole("button", { name: "keep" }).click();
+  await expect(ex.getByRole("status")).toContainText("swap");
+  await ex.getByRole("button", { name: "Continue" }).click();
+  await expect(ex.getByText("Swapped")).toBeVisible();
+});
+
+test("adventure: a choice branches, going back and choosing again keeps the old path in history", async ({ page }) => {
+  await page.goto("/adventure");
+  const adv = page.getByTestId("adventure");
+  const current = adv.getByTestId("adv-current");
+  const next = adv.getByRole("button", { name: "Next", exact: true });
+  const commands = adv.getByRole("group", { name: "Your command" });
+  await next.click();
+  await expect(commands).toBeVisible();
+  // A question blocks Next until it's answered.
+  await expect(next).toBeDisabled();
+  await commands.getByRole("button", { name: "read the logbook" }).click();
+  await expect(current).toContainText("Lens cracked");
+
+  // Back to the question, another command: a new future, the old one kept.
+  await adv.getByRole("button", { name: "Back", exact: true }).click();
+  await commands.getByRole("button", { name: "climb the stairs" }).click();
+  await expect(current).toContainText("lamp room");
+  const history = page.getByTestId("adv-history");
+  await expect(history).toContainText("read the logbook");
+
+  // The typed command: any text, woven into the story.
+  await next.click();
+  await adv.getByRole("textbox", { name: "Your reply" }).fill("Gull Rock");
+  await adv.getByRole("button", { name: "Say it" }).click();
+  await expect(current).toContainText("Gull Rock");
+
+  // An old path can be taken again; the one left is kept in its place.
+  await history.getByRole("button", { name: /Take this path/ }).first().click();
+  await expect(history).toContainText("climb the stairs");
 });
 
 test("AI docs: /llms.txt indexes, /llms-full.txt carries the guide and the API reference", async ({ request }) => {
@@ -444,8 +487,14 @@ test("/qa: one probe per partition misses the bug, boundary probes catch it, lin
 
   // A fresh load: a same-tab hash change re-reads the frame but not the input (see docs/KIT-FEEDBACK.md).
   await page.goto("about:blank");
+  // With predict on, a link can't skip a question: it lands on the first unanswered one (probe 11).
   await gotoQa(page, "#bnd.in=11_12&bnd.frame=4");
-  await expect(page.locator('[data-explainer="bnd"] p[aria-live]').first()).toContainText("Age 12: spec says adult");
+  const linked = page.locator('[data-explainer="bnd"]');
+  await expect(linked.locator("p[aria-live]").first()).toContainText("Age 11: the child partition");
+  await expect(linked.getByRole("radiogroup", { name: "Your prediction" })).toBeVisible();
+  // Predict off, the linked input plays through to the bug.
+  await toEnd(page, "bnd");
+  await expect(linked.locator("p[aria-live]").first()).toContainText("bug");
 });
 
 test("/qa: the weak suite lets mutants survive at 100% coverage, the strong suite kills them", async ({ page }) => {

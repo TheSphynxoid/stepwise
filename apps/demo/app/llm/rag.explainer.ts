@@ -32,8 +32,8 @@ export type RagStep = StepwiseStep<{
   ranking: Scored[];
   /** The ids kept (from the topk step on). */
   top: string[];
-  /** The augmented prompt (from the prompt step on). */
-  prompt: string | null;
+  /** The augmented prompt (from the prompt step on). Not named `prompt`: on a step, that field is a question for the reader. */
+  augmented: string | null;
   answer: { chunk: string | null; text: string; correct: boolean } | null;
 }>;
 
@@ -42,7 +42,7 @@ export const MAX_K = 3;
 const sim: Simulation<RagInput, RagStep> = function* ({ question: qid, k, retrieve: useRetrieval }) {
   const q = question(qid);
   const ranking = retrieve(q.vec, CHUNKS.length);
-  const base = { question: q.text, qvec: q.vec, retrieve: useRetrieval, k, ranking, top: [] as string[], prompt: null, answer: null };
+  const base = { question: q.text, qvec: q.vec, retrieve: useRetrieval, k, ranking, top: [] as string[], augmented: null, answer: null };
   yield {
     ...base,
     key: "question",
@@ -93,7 +93,7 @@ const sim: Simulation<RagInput, RagStep> = function* ({ question: qid, k, retrie
     tone: "write",
     label: `Keep the top ${k}: ${top.join(", ")}. Everything else stays out of the prompt.`,
   };
-  const prompt = [
+  const augmented = [
     "Answer using only these rulebook passages:",
     ...top.map((id) => `- ${chunk(id).text}`),
     "",
@@ -102,7 +102,7 @@ const sim: Simulation<RagInput, RagStep> = function* ({ question: qid, k, retrie
   yield {
     ...base,
     top,
-    prompt,
+    augmented,
     key: "prompt",
     kind: "prompt",
     explain: EXPLAIN.prompt,
@@ -114,7 +114,7 @@ const sim: Simulation<RagInput, RagStep> = function* ({ question: qid, k, retrie
   yield {
     ...base,
     top,
-    prompt,
+    augmented,
     answer: { ...answer, correct },
     key: "answer",
     kind: "answer",

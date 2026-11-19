@@ -60,6 +60,7 @@ export function SiteFooter() {
                 ["/qa", "QA interview"],
                 ["/live", "Live edge"],
                 ["/automaton", "Automaton"],
+                ["/adventure", "Text adventure"],
                 ["/player", "Player"],
                 ["/compare", "Synced tracks"],
                 ["/lesson", "Composed lesson"],
