@@ -84,6 +84,17 @@ describe("prompt record", () => {
     expect(rec.entries.map((e) => e.frame)).toEqual([5, 2]);
   });
 
+  it("reachEntry replaces, in place, an entry at the frame whose id differs", () => {
+    let rec = reach(EMPTY_RECORD, 2);
+    rec = applyAnswer(reach(rec, 5), 5, "keep", "pass");
+    const moved = reachEntry(rec, { id: "other", frame: 5, source: "overlay", judged: true, retries: 0 });
+    expect(moved.entries.map((e) => [e.frame, e.id])).toEqual([
+      [2, "p2"],
+      [5, "other"],
+    ]);
+    expect(at(moved, 5)).toMatchObject({ status: "open", settled: false, attempts: [] });
+  });
+
   it("truncateAfter(rec, 4) drops entries with frame > 4", () => {
     let rec = reach(reach(reach(EMPTY_RECORD, 1), 4), 7);
     rec = truncateAfter(rec, 4);

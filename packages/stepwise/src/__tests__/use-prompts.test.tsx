@@ -361,6 +361,50 @@ describe("usePrompts", () => {
     expect(result.current.steps.map((x) => x.label)).toEqual(["intro", "fork"]);
   });
 
+  it("a prompt whose id at a frame changes can be answered, and its gate opens", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const askAs = (id: string) => (step: W): Prompt<string, W> | null =>
+      step.key === "two" ? { id, options: ["a", "b"], answer: "b" } : null;
+    const { result, rerender } = renderHook(({ id }) => usePrompts({ steps: STEPS }, { ask: askAs(id) }), {
+      initialProps: { id: "q1" },
+    });
+    act(() => result.current.player.next());
+    act(() => result.current.player.next());
+    expect(result.current.frame).toBe(1);
+    expect(result.current.record.entries.map((e) => e.id)).toEqual(["q1"]);
+    rerender({ id: "q2" });
+    expect(result.current.record.entries.map((e) => e.id)).toEqual(["q2"]);
+    act(() => result.current.respond("b"));
+    expect(result.current.status).toBe("pass");
+    act(() => result.current.player.next());
+    expect(result.current.frame).toBe(2);
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it("an input change that renames the step at a gated frame doesn't deadlock", () => {
+    type K = WalkStep;
+    const named: Simulation<string, K> = function* (tag) {
+      yield { key: "a", tone: "neutral", label: "a" };
+      yield { key: `ask-${tag}`, tone: "neutral", label: "ask" };
+      yield { key: "z", tone: "neutral", label: "z" };
+    };
+    const ask = (step: K): Prompt<string, K> | null => (step.label === "ask" ? { options: ["y"], answer: "y" } : null);
+    const { result, rerender } = renderHook(({ tag }) => usePrompts({ simulation: named, input: tag }, { ask }), {
+      initialProps: { tag: "one" },
+    });
+    act(() => result.current.player.next());
+    expect(result.current.active?.entry.id).toBe("ask-one");
+    rerender({ tag: "two" });
+    // Re-anchoring walks back to the last shared key ("a"); step to the renamed prompt.
+    act(() => result.current.player.next());
+    expect(result.current.frame).toBe(1);
+    expect(result.current.active?.entry.id).toBe("ask-two");
+    act(() => result.current.respond("y"));
+    expect(result.current.status).toBe("pass");
+    act(() => result.current.proceed());
+    expect(result.current.step?.label).toBe("z");
+  });
+
   it("enabled turns overlay prompts off, not generator ones", () => {
     const { result } = sorting({ defaultEnabled: false });
     expect(result.current.enabled).toBe(false);

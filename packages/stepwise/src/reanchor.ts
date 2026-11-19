@@ -38,3 +38,23 @@ export const stepKey = (step: unknown): string | undefined =>
   step !== null && typeof step === "object" && typeof (step as { key?: unknown }).key === "string"
     ? (step as { key: string }).key
     : undefined;
+
+/**
+ * The "same trace" rule: same length, and at every index the same step
+ * object or the same key. A page that rebuilds an equal array each render
+ * (`STEPS.slice(0, n)`) has not replaced its trace, so nothing re-anchors or
+ * reruns (re-anchoring it would undo whatever just moved the player).
+ */
+export function sameSteps<S>(
+  a: readonly S[],
+  b: readonly S[],
+  keyOf: (step: S, index: number) => string | undefined
+): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] === b[i]) continue;
+    const k = keyOf(a[i], i);
+    if (k === undefined || k !== keyOf(b[i], i)) return false;
+  }
+  return true;
+}

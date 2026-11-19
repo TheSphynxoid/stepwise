@@ -62,11 +62,20 @@ export const EMPTY_RECORD: PromptRecord<never> = { entries: [] };
 
 type Reach<A> = Pick<PromptEntry<A>, "id" | "frame" | "source" | "judged" | "retries">;
 
-/** Record that the reader reached a prompt. Idempotent per frame; keeps reach order. */
+/**
+ * Record that the reader reached a prompt. Idempotent per (frame, id); keeps
+ * reach order. An entry at the frame with another id belongs to a prompt
+ * that's no longer there (the trace or the overlay changed): it is replaced
+ * in place by a fresh one, so a frame always holds the entry of its prompt.
+ */
 export function reachEntry<A>(rec: PromptRecord<A>, e: Reach<A>): PromptRecord<A> {
-  if (rec.entries.some((x) => x.frame === e.frame)) return rec;
+  const i = rec.entries.findIndex((x) => x.frame === e.frame);
+  if (i >= 0 && rec.entries[i].id === e.id) return rec;
   const entry: PromptEntry<A> = { ...e, attempts: [], status: "open", settled: false };
-  return { entries: [...rec.entries, entry] };
+  if (i < 0) return { entries: [...rec.entries, entry] };
+  const entries = rec.entries.slice();
+  entries[i] = entry;
+  return { entries };
 }
 
 /** Retries still available: every attempt after the first one consumes one. */

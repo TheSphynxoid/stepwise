@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef } from "react";
-import { reanchor, stepKey } from "./core";
+import { reanchor, sameSteps, stepKey } from "./core";
 import { useStepPlayer } from "./use-step-player";
 import type { StepPlayer, StepPlayerOptions } from "./use-step-player";
 import type { StepTone, StepwiseStep } from "./types";
@@ -116,15 +116,4 @@ export function useTrace<S extends StepwiseStep>(
   const titleAt = useCallback((i: number) => stepsRef.current[i]?.label ?? `step ${i + 1}`, []);
 
   return useMemo(() => ({ player, step, frame, toneAt, titleAt }), [player, step, frame, toneAt, titleAt]);
-}
-
-/** Same length, and at every index the same step object or the same key. */
-function sameSteps<S>(a: readonly S[], b: readonly S[], keyFn: (step: S, index: number) => string | undefined): boolean {
-  if (a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i++) {
-    if (a[i] === b[i]) continue;
-    const k = keyFn(a[i], i);
-    if (k === undefined || k !== keyFn(b[i], i)) return false;
-  }
-  return true;
 }

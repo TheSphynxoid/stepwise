@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { EMPTY_RECORD, applyAnswer, canAnswer, reachEntry, retriesLeft as retriesLeftOf, scoreOf } from "./core";
-import { settledAnswer, skipEntry, stepKey, structuralEqual, toVerdict, truncateAfter } from "./core";
+import { sameSteps, settledAnswer, skipEntry, stepKey, structuralEqual, toVerdict, truncateAfter } from "./core";
 import type { EntryStatus, EvaluatorResult, Prompt, PromptContext, PromptEntry, PromptRecord } from "./core";
 import type { PromptScore, PromptSpec, Simulation, Verdict, WalkSimulation, WalkStep } from "./core";
 import type { SimulationPlayer } from "./use-simulation";
@@ -109,6 +109,10 @@ function asWalk<Input, S extends WalkStep, A>(
   return w as unknown as WalkSimulation<Input, S, A>;
 }
 
+// The entry of the prompt at `frame`. Core keeps one entry per frame and
+// reachEntry replaces one whose id no longer matches, so after a reach this
+// finds the entry core's functions act on; before it, a stale entry (another
+// prompt's) reads as missing, never as this prompt's answer.
 function entryAt<A>(rec: PromptRecord<A>, frame: number, id: string): PromptEntry<A> | undefined {
   return rec.entries.find((e) => e.frame === frame && e.id === id);
 }
@@ -126,16 +130,6 @@ function choicesOf<A>(rec: PromptRecord<A>): (A | undefined)[] {
 
 function sameList(a: readonly unknown[], b: readonly unknown[]): boolean {
   return a.length === b.length && a.every((x, i) => Object.is(x, b[i]));
-}
-
-function sameSteps<S>(a: readonly S[], b: readonly S[], keyFn: (s: S, i: number) => string | undefined): boolean {
-  if (a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i++) {
-    if (a[i] === b[i]) continue;
-    const k = keyFn(a[i], i);
-    if (k === undefined || k !== keyFn(b[i], i)) return false;
-  }
-  return true;
 }
 
 /**
@@ -321,7 +315,10 @@ export function usePrompts<Input, S extends WalkStep, A = string>(
       }
       let rec = applyAnswer(recordRef.current, f, answer, verdict ? (verdict.status as "pass" | "fail") : null);
       const after = entryAt(rec, f, entry.id);
-      if (!after) return;
+      if (!after) {
+        if (isDev) console.warn(`[stepwise] usePrompts: the entry for "${entry.id}" at frame ${f} is gone; answer dropped.`);
+        return;
+      }
       let dropFeedback = false;
       if (entry.source === "generator" && entry.settled && !Object.is(settledAnswer(entry), settledAnswer(after))) {
         rec = truncateAfter(rec, f);
@@ -357,7 +354,11 @@ export function usePrompts<Input, S extends WalkStep, A = string>(
       if (pendingRef.current?.frame === f) return; // a verdict for this prompt is on its way
       const rec = reach(recordRef.current, f, found);
       const entry = entryAt(rec, f, found.id);
-      if (!entry || !canAnswer(entry)) return;
+      if (!entry) {
+        if (isDev) console.warn(`[stepwise] usePrompts: no record entry for prompt "${found.id}" at frame ${f}; ignored.`);
+        return;
+      }
+      if (!canAnswer(entry)) return; // final: nothing left to change
       commit(rec);
       const judgeFn = judgeOf(found.prompt);
       if (!judgeFn) {
@@ -437,6 +438,8 @@ export function usePrompts<Input, S extends WalkStep, A = string>(
 
   // Reach the prompt at the playhead. Under "free", prompts the playhead
   // moved forward past without an answer count as skipped.
+  // The prompt at the playhead (cached: one Found per trace, ask and enabled).
+  const found = frame >= 0 ? promptAt(frame) : null;
   const prevFrame = useRef<number | null>(null);
   useIsomorphicLayoutEffect(() => {
     const prev = prevFrame.current;
@@ -450,10 +453,9 @@ export function usePrompts<Input, S extends WalkStep, A = string>(
         if (p) rec = skipEntry(reach(rec, f, p), f);
       }
     }
-    const here = promptAt(frame);
-    if (here) rec = reach(rec, frame, here);
+    if (found) rec = reach(rec, frame, found);
     commit(rec);
-  }, [frame, result.steps, enabled, record, promptAt, reach, commit]);
+  }, [frame, found, record, promptAt, reach, commit]);
 
   // After every commit: finish a restart, then move on after an auto-continued settle.
   useIsomorphicLayoutEffect(() => {
@@ -467,7 +469,6 @@ export function usePrompts<Input, S extends WalkStep, A = string>(
     }
   });
 
-  const found = frame >= 0 ? promptAt(frame) : null;
   const recorded = found ? entryAt(record, frame, found.id) : undefined;
   const active: ActivePrompt<A, S> | null = useMemo(() => {
     if (!found) return null;

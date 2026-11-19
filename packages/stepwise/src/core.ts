@@ -12,7 +12,7 @@
 //   create-trace  — createTrace
 //   walk / graph  — runWalk, fromGraph (experimental on the client side)
 //   walk-session  — createWalkSession: a walk run that continues forward
-//   reanchor      — reanchor, stepKey: the "stay on the same step" rule
+//   reanchor      — reanchor, stepKey, sameSteps: the "stay on the same step" rule
 //   align-tracks  — alignTracks: comparison-mode alignment table
 //   diff-traces   — diffTraces, structuralEqual
 //   flatten       — flattenChapters
@@ -47,7 +47,7 @@ export { createWalkSession } from "./walk-session";
 export type { WalkSession, WalkSessionOptions } from "./walk-session";
 export { fromGraph } from "./graph";
 export type { GraphEdge, GraphSimulation, GraphSpec, GraphStep, StepGraph } from "./graph";
-export { reanchor, stepKey } from "./reanchor";
+export { reanchor, sameSteps, stepKey } from "./reanchor";
 export { alignTracks } from "./align-tracks";
 export type { AlignedCell, AlignedRow, TrackKeyFn, Tracks } from "./align-tracks";
 export { diffTraces, structuralEqual } from "./diff-traces";
