@@ -1,5 +1,4 @@
-import { Term, GlossaryAppendix } from "@sphynxoid/stepwise";
-import BinarySearchPlayer from "@/components/binary-search-player";
+import { BinarySearch } from "@/components/binary-search";
 
 # How binary search finds a number
 
@@ -21,7 +20,14 @@ comparison becomes a frame you can pause, scrub through, and narrate. The trace
 is not a recording — a generator computes it from the target and the array you
 pick, so the numbers on screen and the story underneath always agree.
 
-<BinarySearchPlayer />
+<BinarySearch predict className="bs-player">
+  <Stage />
+  <PredictToggle />
+  <Predict>Will the search go **left**, **right**, or is the target **found here**?</Predict>
+  <StepCode />
+  <ExplainerBar className="bs-bar" />
+  <EndNote className="bs-note">Done. Edit the target or the array and it replays instantly.</EndNote>
+</BinarySearch>
 
 Watch the sequence in the trace above: `mid` is computed as the floor of
 `(lo + hi) / 2`, so the window is always split near its center. When the probe
@@ -31,7 +37,8 @@ moves is a step in the trace, tagged with the move it made. Either way the
 window loses at least one element — the search cannot loop forever, because
 `lo > hi` (an empty window) terminates it.
 
-Now turn on **Predict mode**. The player pauses at every comparison and asks
+**Predict mode** starts on here (the switch under the player turns it off).
+Press play: the player pauses at every comparison and asks
 whether the search will go left, go right, or stop because the probe *is* the
 target. You can answer with a guess, get graded feedback, and only continue
 when you want to. This is where the intuition usually clicks: you realize you

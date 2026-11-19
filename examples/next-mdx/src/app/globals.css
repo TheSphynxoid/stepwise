@@ -239,57 +239,6 @@ body {
   color: var(--stepwise-primary-foreground);
 }
 
-.bs-blur {
-  background: none;
-  border: none;
-  color: var(--page-muted);
-  font-size: 0.75rem;
-  cursor: pointer;
-}
-
-.bs-checkpoint {
-  margin-top: 1rem;
-  border: 1px solid color-mix(in srgb, var(--stepwise-primary) 45%, var(--page-edge));
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--stepwise-primary) 6%, var(--panel-bg));
-  padding: 0.9rem 1rem;
-}
-
-.bs-checkpoint-title {
-  margin: 0 0 0.25rem;
-  font-size: 0.66rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--stepwise-primary);
-}
-
-.bs-checkpoint-ask {
-  margin: 0 0 0.65rem;
-  font-size: 0.9rem;
-}
-
-.bs-choices {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.bs-feedback {
-  margin: 0.6rem 0 0;
-  font-size: 0.82rem;
-  color: var(--page-muted);
-}
-
-.bs-figure {
-  margin: 1rem 0 0;
-}
-
-.bs-src {
-  margin-top: 0.4rem;
-  font-size: 0.7rem;
-  color: var(--page-muted);
-}
-
 .bs-bar {
   margin-top: 0.75rem;
   border: 1px solid var(--page-edge);

@@ -1,4 +1,4 @@
-import type { Simulation, StepwiseStep } from "@sphynxoid/stepwise";
+import type { Simulation, StepwiseStep } from "@sphynxoid/stepwise/core";
 
 export type SearchInput = {
   readonly arr: readonly number[];
@@ -34,7 +34,8 @@ export const binarySearch: Simulation<SearchInput, Frame> = function* (input) {
     key: "start",
     kind: "start",
     tone: "neutral",
-    label: `start: lo=0, hi=${hi} — the range still covers everything`,
+    // Names the target, so an edit shows on the paused first frame too.
+    label: `start: looking for ${input.target} between lo=0 and hi=${hi}`,
     code: ["let lo = 0", "let hi = a.length - 1"],
     arr: [...a],
     lo,
