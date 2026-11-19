@@ -186,7 +186,7 @@ describe("resolveInput", () => {
     // `input` is how such a field is overridden.
     expect(resolveInput(withId, { input: { id: 2, theme: "y", n: 3 } })).toEqual({ id: 2, theme: "y", n: 3 });
     expect([...EXPLAINER_PROP_NAMES].sort()).toEqual(
-      ["autoPlay", "children", "className", "definition", "id", "input", "keys", "link", "predict", "theme", "trace", "view"]
+      ["autoPlay", "children", "className", "definition", "id", "input", "keys", "link", "predict", "promptsEnabled", "theme", "trace", "view"]
     );
   });
 

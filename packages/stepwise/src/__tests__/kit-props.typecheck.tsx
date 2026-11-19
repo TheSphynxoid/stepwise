@@ -5,12 +5,13 @@
 
 import type { ReactElement } from "react";
 import { defineExplainer } from "../core";
-import type { ChoiceOption, ExplainerChoose, Simulation, WalkSimulation, WalkStep } from "../core";
+import type { ChoiceOption, ExplainerChoose, ExplainerPrompts, Simulation, WalkSimulation, WalkStep } from "../core";
 import { createExplainer } from "../kit";
 import type { ExplainerApi } from "../kit";
 import type { PrecomputedTrace } from "../index";
 import { precomputed } from "../kit/mdx";
 import { defaultTheme } from "../theme";
+import type { PromptsOptions, PromptsRun } from "../use-prompts";
 
 type Step = { key: string; tone: "neutral"; label: string; n: number };
 type Input = { arr: number[]; target: number; id: number };
@@ -58,6 +59,8 @@ export function ok(): ReactElement {
       <WalkthroughServer id="w" predict={false} />
       <Dict id="d" autoPlay theme={defaultTheme} />
       <DictServer id="d" theme={defaultTheme} />
+      <Client promptsEnabled />
+      <Server promptsEnabled={false} />
     </>
   );
 }
@@ -73,6 +76,8 @@ export function wrong(): ReactElement {
       <Server id={5} />
       {/* @ts-expect-error: predict is a boolean */}
       <Server predict="no" />
+      {/* @ts-expect-error: promptsEnabled is a boolean */}
+      <Client promptsEnabled="yes" />
       {/* @ts-expect-error: theme is a StepwiseTheme */}
       <Server theme={1} />
       {/* @ts-expect-error: misspelled autoPlay */}
@@ -99,6 +104,26 @@ export function wrong(): ReactElement {
 
 // The root entry names the shape of useSimulation's `initialTrace`.
 export const rootTrace: PrecomputedTrace<number, Step> = { input: 1, seed: 0, steps: [] };
+
+// A definition's prompts are usePrompts settings (string answers), on a simulation or a walk.
+type PromptSettings = Pick<PromptsOptions<Input, Step & WalkStep, string>, "ask" | "judge" | "retries" | "navigation" | "autoContinue" | "onInputChange">;
+export const settingsFit: PromptSettings = {} as ExplainerPrompts<Step & WalkStep>;
+const asking = defineExplainer({
+  simulation: sim,
+  input: { default: { arr: [1], target: 1, id: 0 } },
+  prompts: {
+    ask: (step, frame, steps) => (frame + 1 < steps.length ? { options: ["a", "b"], answer: step.key } : null),
+    judge: (answer, prompt) => answer === prompt.answer,
+    retries: 1,
+    onInputChange: "clear",
+  },
+});
+export const Asking = createExplainer({ definition: asking, view: View });
+// @ts-expect-error: navigation is "gate" or "free"
+defineExplainer({ simulation: sim, input: { default: { arr: [], target: 0, id: 0 } }, prompts: { navigation: "open" } });
+export function promptsOf(api: ExplainerApi<Input, Step>): PromptsRun<WalkStep, string> | null {
+  return api.prompts;
+}
 
 // The api reports a failed or capped run.
 export function report(api: ExplainerApi<Input, Step>): string {
@@ -133,6 +158,8 @@ export const walkRender = (
 defineExplainer({ walk: maze, input: { default: { depth: 2 } }, choose: { options: ["up"] } });
 // @ts-expect-error: a walk has no predict (the choices are the question)
 defineExplainer({ walk: maze, input: { default: { depth: 2 } }, choose: { options: ["left"] }, predict: { at: () => true, options: [], truth: () => undefined } });
+// A walk takes prompt settings too.
+defineExplainer({ walk: maze, input: { default: { depth: 2 } }, choose: { options: ["left"] }, prompts: { retries: 1 } });
 // @ts-expect-error: a simulation and a walk together
 defineExplainer({ simulation: sim, walk: maze, input: { default: { arr: [], target: 0, id: 0 } }, choose: { options: ["left"] } });
 // @ts-expect-error: a walk needs its choices

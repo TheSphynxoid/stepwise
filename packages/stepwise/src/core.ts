@@ -75,6 +75,7 @@ export type {
   ExplainerPropName,
   FieldOverrides,
   ExplainerPredict,
+  ExplainerPrompts,
   PrecomputedTrace,
   PredictOption,
 } from "./explainer";

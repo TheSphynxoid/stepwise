@@ -1,6 +1,7 @@
+import type { Prompt, PromptContext, PromptSpec } from "./prompts";
 import { runSimulation } from "./simulation";
 import type { Simulation } from "./simulation";
-import type { StepwiseStep } from "./types";
+import type { EvaluatorResult, StepwiseStep } from "./types";
 import { isChoicePoint, runWalk } from "./walk";
 import type { WalkSimulation, WalkStep } from "./walk";
 
@@ -27,8 +28,29 @@ export interface ExplainerPredict<S> {
   /** The correct option value, judged from the frame after the held one. */
   truth: (next: S | undefined, held: S) => string | undefined;
   feedback?: (guess: string, truth: string, held: S) => string | undefined;
-  /** Shown after two failed attempts. */
+  /** Shown with the feedback after a miss while a retry remains (see `prompts.retries`). */
   hint?: string;
+}
+
+/**
+ * EXPERIMENTAL. A definition's prompt settings (see `usePrompts`): overlay
+ * prompts (`ask`), a judge for prompts without one, and the run's rules.
+ * Answers are strings in the kit. Defaults as `usePrompts`, except a walk:
+ * `retries: Infinity` and `onInputChange: "keep"` (a walk's choices stay free).
+ */
+export interface ExplainerPrompts<S, A = string> {
+  /** A prompt for a frame, or null. `steps` is the trace (on a walk, the path so far). */
+  ask?: (step: S, frame: number, steps: readonly S[]) => Prompt<A, S> | null;
+  /** Judges every prompt that has no `judge` of its own. May be async. */
+  judge?: (answer: A, prompt: PromptSpec<A>, ctx: PromptContext<S>) => EvaluatorResult | Promise<EvaluatorResult>;
+  /** Changes allowed after the first answer (default 0; a prompt's own `retries` wins). */
+  retries?: number;
+  /** "gate" (default): forward moves stop at an unsettled prompt. "free": they pass it. */
+  navigation?: "gate" | "free";
+  /** Move on as soon as a prompt settles (default false: wait for Continue). */
+  autoContinue?: boolean;
+  /** What an input edit does to the answers (default "lock" once a judged prompt is reached, else "keep"). */
+  onInputChange?: "lock" | "clear" | "keep";
 }
 
 export interface ExplainerInput<Input> {
@@ -44,7 +66,9 @@ export interface ExplainerDefinition<Input, S extends StepwiseStep> {
   seed?: number | string;
   maxSteps?: number;
   input: ExplainerInput<Input>;
+  /** Kept for one release: an `ask` overlay over the frame after the checkpoint. */
   predict?: ExplainerPredict<S>;
+  prompts?: ExplainerPrompts<S>;
   /** A definition has a `simulation` or a `walk`, never both. */
   walk?: undefined;
   choose?: undefined;
@@ -85,6 +109,8 @@ export interface WalkExplainerDefinition<Input, S extends StepwiseStep, Choice e
   choose: ExplainerChoose<S, Choice>;
   /** Where the playhead stays when an input edit replays the walk (see useWalk). Default "key". */
   anchor?: "key" | "index";
+  /** Prompt settings; the walk's choice points (and any `prompt` on a step) are its prompts. */
+  prompts?: ExplainerPrompts<S & WalkStep>;
   simulation?: undefined;
   predict?: undefined;
 }
@@ -248,6 +274,7 @@ export const EXPLAINER_PROP_NAMES = [
   "input",
   "id",
   "predict",
+  "promptsEnabled",
   "keys",
   "link",
   "autoPlay",

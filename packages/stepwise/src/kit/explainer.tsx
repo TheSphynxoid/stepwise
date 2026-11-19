@@ -13,22 +13,27 @@ import {
   type ReactNode,
 } from "react";
 import { cn } from "../cn";
-import { fail, normalizeOptions, pass, resolveInput } from "../core";
+import { fail, normalizeOptions, pass, resolveInput, settledAnswer } from "../core";
 import type {
   AnyExplainerDefinition,
   ExplainerDefinition,
   ExplainerPredict,
+  ExplainerPrompts,
   FieldOverrides,
   PrecomputedTrace,
+  Prompt as PromptDecl,
   PredictOption,
+  Simulation,
   VerdictStatus,
   WalkExplainerDefinition,
   WalkSimulation,
   WalkStep,
 } from "../core";
 import { defaultTheme, type StepwiseTheme } from "../theme";
-import { useEvaluator } from "../use-evaluator";
 import { useGlobalKeys } from "../use-global-keys";
+import { usePrompts } from "../use-prompts";
+import type { PromptsRun, PromptSource } from "../use-prompts";
+import { choicesOf } from "../use-prompts-parts";
 import { useSimulation } from "../use-simulation";
 import type { SyncInputOptions } from "../use-simulation";
 import { useTrace } from "../use-trace";
@@ -59,8 +64,13 @@ export interface ExplainerProps<Input, S extends StepwiseStep> {
   input?: Input;
   /** Hash namespace: `${id}.frame`, `${id}.in` (and `${id}.path` for a walk's choices). Needed for two explainers on one page. */
   id?: string;
-  /** Stop at the definition's checkpoints and ask the reader. Read once, at mount: it is predict mode's starting state. */
+  /**
+   * Ask the definition's overlay prompts (`predict`, `prompts.ask`). Read once, at mount: the starting state of
+   * the reader's toggle (PredictToggle). Default: off for a `predict` block, on for `prompts`.
+   */
   predict?: boolean;
+  /** Overlay prompts forced on (an exam) or off, with no reader toggle. Generator prompts are always on. */
+  promptsEnabled?: boolean;
   /** Keyboard shortcuts (arrows, Space), once the reader has clicked or focused this explainer. Default true. */
   keys?: boolean;
   /** Keep the frame (and the input, when the definition can serialize it) in the URL hash. Default true. */
@@ -81,25 +91,30 @@ export interface ExplainerProps<Input, S extends StepwiseStep> {
 export type ExplainerInstanceProps<Input, S extends StepwiseStep> = Omit<ExplainerProps<Input, S>, "definition" | "view"> &
   FieldOverrides<Input>;
 
-/** Predict mode's state, exposed to custom parts. Functions are stable. */
+/**
+ * The question on the playhead, for custom parts: a thin layer over
+ * `ExplainerApi.prompts` that holds the picked option until Check. Kept one
+ * release under its predict-mode name. Functions are stable.
+ */
 export interface PredictApi {
-  /** Checkpoints hold autoplay only while enabled. */
+  /** Overlay prompts (checkpoints) ask only while enabled. */
   enabled: boolean;
   setEnabled: (on: boolean) => void;
-  /** Playback is parked on a checkpoint, waiting for a guess. */
+  /** The playhead is on a prompt. */
   held: boolean;
+  /** The prompt's options (a walk's choice point: the definition's `choose.options`). */
   options: readonly PredictOption[];
-  /** The chosen option's value; cleared at every new checkpoint. */
+  /** The picked option's value; cleared at every new prompt. */
   guess: string | null;
   setGuess: (value: string) => void;
-  /** Grade the guess against the frame after the held one. */
+  /** Answer with the guess (`prompts.respond`); without one, only says "Pick an answer first." */
   check: () => void;
-  /** null until checked (and after the guess changes). */
+  /** null until answered. */
   status: VerdictStatus | null;
-  /** The verdict's feedback, with the definition's hint after two failed attempts. */
+  /** The verdict's feedback, with the definition's hint after a miss while a retry remains. */
   feedback: ReactNode;
   attempts: number;
-  /** Leave the checkpoint and resume playing. */
+  /** Once the prompt is settled: move on (`prompts.proceed`). */
   release: () => void;
 }
 
@@ -126,12 +141,15 @@ export interface ExplainerApi<Input = unknown, S extends StepwiseStep = Stepwise
   input: Input;
   /** Stable. A no-op (with a dev warning) when the explainer is not editable. */
   setInput: (next: Input | ((prev: Input) => Input)) => void;
-  /** True when there is a definition to re-run. */
+  /** True when there is a definition to re-run and its input isn't locked by answers (see `prompts.inputLocked`). */
   editable: boolean;
   /** What the simulation threw (the trace keeps the steps before it); null when it ran clean, and for a recorded explainer. */
   error: unknown;
   /** The run hit `maxSteps` and was cut short. Always false for a recorded explainer. */
   truncated: boolean;
+  /** EXPERIMENTAL. The prompts run (see `usePrompts`); null unless the definition has `predict` or `prompts`. */
+  prompts: PromptsRun<StepwiseStep, string> | null;
+  /** Non-null whenever `prompts` is. */
   predict: PredictApi | null;
   /** null unless the definition is a walk. */
   walk: WalkApi | null;
@@ -140,6 +158,10 @@ export interface ExplainerApi<Input = unknown, S extends StepwiseStep = Stepwise
 }
 
 const ExplainerContext = createContext<ExplainerApi<unknown, StepwiseStep> | null>(null);
+// Whether PredictToggle has something to toggle: overlay prompts, not forced on or off.
+const ToggleContext = createContext(false);
+/** For PredictToggle (internal). */
+export const usePromptsToggle = (): boolean => useContext(ToggleContext);
 // The view lives apart from the api: it is the author's component, not state.
 const ViewContext = createContext<ComponentType | null>(null);
 
@@ -175,6 +197,7 @@ export function Explainer<Input, S extends StepwiseStep>(props: ExplainerProps<I
   // needs input state and a simulation, a walk the same plus its choices, a
   // recorded one only a player.
   const def = props.definition;
+  if (def && (def.prompts || def.predict)) return <PromptsExplainer {...props} definition={def} />;
   if (def?.walk) return <WalkExplainer {...props} definition={def} />;
   if (def) return <LiveExplainer {...props} definition={def as ExplainerDefinition<Input, S>} />;
   if (!props.trace) throw new Error("createExplainer without a definition needs a `trace` prop.");
@@ -195,11 +218,6 @@ function LiveExplainer<Input, S extends StepwiseStep>(
   const { serialize, parse } = definition.input;
   const syncInput: SyncInputOptions<Input> | undefined =
     link && serialize && parse ? { key: hashKey(id, "in"), serialize, parse, onRestore: setInputState } : undefined;
-  // The `predict` prop is the starting state only; the reader owns it after.
-  const [predictOn, setPredictOn] = useState(() => Boolean(props.predict));
-  const predictDef = definition.predict;
-  // The player asks holdAt from an effect, after this render has set the ref.
-  const stepsRef = useRef<readonly S[]>([]);
   const sim = useSimulation(definition.simulation, input, {
     seed: definition.seed,
     maxSteps: definition.maxSteps,
@@ -207,20 +225,10 @@ function LiveExplainer<Input, S extends StepwiseStep>(
     autoPlay,
     syncHash: link ? hashKey(id, "frame") : undefined,
     syncInput,
-    // A checkpoint is graded against the frame after it, so one with no
-    // successor can't be answered: skip it rather than park the reader.
-    holdAt: predictDef
-      ? (frame, step) => {
-          const next = stepsRef.current[frame + 1];
-          return predictOn && step !== undefined && next !== undefined && predictDef.at(step, frame, next);
-        }
-      : undefined,
   });
-  stepsRef.current = sim.steps;
   useReportError(definition.name, sim.error);
   // useState's setter is already stable; the wrapper only pins the type.
   const setInput = useCallback((next: Input | ((prev: Input) => Input)) => setInputState(next), []);
-  const predict = usePredict(predictDef, sim, predictOn, setPredictOn);
   return (
     <Shell
       {...props}
@@ -230,7 +238,6 @@ function LiveExplainer<Input, S extends StepwiseStep>(
       editable
       error={sim.error}
       truncated={sim.truncated}
-      predictApi={predict}
     />
   );
 }
@@ -311,78 +318,206 @@ function useReportError(name: string | undefined, error: unknown) {
 }
 
 /**
- * Predict mode over a live run: the guess, its verdict and the checkpoint
- * controls. Always called (hooks can't be conditional); null without a
- * predict block in the definition.
+ * Today's `predict` block as an `ask` overlay: a checkpoint is answered from
+ * the frame after it, so the last frame (no successor) never asks.
  */
-function usePredict<S extends StepwiseStep>(
-  def: ExplainerPredict<S> | undefined,
-  sim: { steps: readonly S[]; player: TracePlayer<S>["player"] },
-  enabled: boolean,
-  setEnabled: (on: boolean) => void
-): PredictApi | null {
-  const { steps, player } = sim;
-  const heldFrame = player.held;
-  const { release } = player;
-  const [guess, setGuessState] = useState<string | null>(null);
-  const options = useMemo(() => (def ? normalizeOptions(def.options) : []), [def]);
+function predictAsk<S extends StepwiseStep>(def: ExplainerPredict<S>) {
+  const options = normalizeOptions(def.options);
+  return (step: S, frame: number, steps: readonly S[]): PromptDecl<string, S> | null => {
+    const next = steps[frame + 1];
+    if (next === undefined || !def.at(step, frame, next)) return null;
+    const truth = def.truth(next, step);
+    return {
+      options,
+      answer: truth,
+      judge: (guess) => {
+        const custom = truth === undefined ? undefined : def.feedback?.(guess, truth, step);
+        return guess === truth ? pass(custom ?? "Right.") : fail(custom ?? "Not quite.");
+      },
+    };
+  };
+}
 
-  // The truth is the frame after the held one: the trace already knows what
-  // happens next, so grading needs nothing from the author but `truth`.
-  const answer = useEvaluator(
-    (g: string | null) => {
-      if (g === null) return fail("Pick an answer first.");
-      const heldStep = heldFrame === null ? undefined : steps[heldFrame];
-      if (!def || heldStep === undefined) return fail("Not quite.");
-      const truth = def.truth(steps[heldFrame! + 1], heldStep);
-      const custom = truth === undefined ? undefined : def.feedback?.(g, truth, heldStep);
-      return g === truth ? pass(custom ?? "Right.") : fail(custom ?? "Not quite.");
-    },
-    guess,
-    { mode: "manual" }
+/**
+ * An explainer whose definition asks (`predict` or `prompts`): a simulation
+ * or a walk, on usePrompts. The answers link as `${id}.a` (a walk's as
+ * `${id}.path`, its choices' key), next to the frame and the input.
+ */
+function PromptsExplainer<Input, S extends StepwiseStep>(
+  props: ExplainerProps<Input, S> & { definition: AnyExplainerDefinition<Input, S> }
+) {
+  const { definition, trace, id, link = true, autoPlay = false, promptsEnabled } = props;
+  // Read once, at mount, like a live explainer's input (see LiveExplainer).
+  const [input, setInputState] = useState<Input>(() =>
+    resolveInput(definition, props as unknown as { input?: Input } & Record<string, unknown>)
   );
-  const { check: checkAnswer, reset: resetAnswer, status: answerStatus, attempts } = answer;
+  const { serialize, parse } = definition.input;
+  const syncInput: SyncInputOptions<Input> | undefined =
+    link && serialize && parse ? { key: hashKey(id, "in"), serialize, parse, onRestore: setInputState } : undefined;
+  const walkDef = definition.walk ? (definition as WalkExplainerDefinition<Input, S, string>) : null;
+  const predictDef = walkDef ? undefined : definition.predict;
+  const settings = (definition.prompts ?? {}) as ExplainerPrompts<S & WalkStep>;
+  const ownAsk = settings.ask;
+  const ask = useMemo(() => {
+    const fromPredict = predictDef ? predictAsk(predictDef) : undefined;
+    if (!ownAsk) return fromPredict as ExplainerPrompts<S & WalkStep>["ask"];
+    if (!fromPredict) return ownAsk;
+    return (step: S & WalkStep, frame: number, steps: readonly (S & WalkStep)[]) =>
+      ownAsk(step, frame, steps) ?? (fromPredict(step, frame, steps) as PromptDecl<string, S & WalkStep> | null);
+  }, [ownAsk, predictDef]);
+  const chooseDef = walkDef?.choose;
+  const syncAnswers = !link
+    ? undefined
+    : chooseDef
+      ? { key: hashKey(id, "path"), serialize: (a: string) => a, parse: (v: string) => parseChoice(chooseDef, v) }
+      : { key: hashKey(id, "a"), serialize: (a: string) => a, parse: (v: string) => v };
+  const source = (
+    walkDef ? { simulation: walkDef.walk, input } : { simulation: definition.simulation as Simulation<Input, S>, input }
+  ) as PromptSource<Input, S & WalkStep, string>;
+  const run = usePrompts<Input, S & WalkStep, string>(source, {
+    seed: definition.seed,
+    maxSteps: definition.maxSteps,
+    anchor: walkDef?.anchor,
+    initialTrace: trace as PrecomputedTrace<Input, S & WalkStep> | undefined,
+    autoPlay,
+    syncHash: link ? hashKey(id, "frame") : undefined,
+    syncInput,
+    syncAnswers,
+    ask,
+    judge: settings.judge,
+    navigation: settings.navigation,
+    autoContinue: settings.autoContinue,
+    // The walk shortcut keeps a walk's choices free (Settled in review 1).
+    retries: settings.retries ?? (walkDef ? Infinity : undefined),
+    onInputChange: settings.onInputChange ?? (walkDef ? "keep" : undefined),
+    enabled: promptsEnabled,
+    // A `predict` block starts off (predict mode, as before); `prompts` start on.
+    defaultEnabled: props.predict ?? !predictDef,
+  });
+  useReportError(definition.name, run.error);
+  const { requestInput, respond, proceed, record, active } = run;
+  const setInput = useCallback(
+    (next: Input | ((prev: Input) => Input)) => void requestInput(() => setInputState(next)),
+    [requestInput]
+  );
 
-  // Every checkpoint is a fresh question: no carried-over guess or attempts.
-  // A new trace is too: an input edit while held re-anchors onto the same
-  // index (so `heldFrame` doesn't change), but the next frame, and with it
-  // the truth, may differ.
+  // A prompt that is gone while playback holds on it (prompts turned off, an
+  // input edit moved it): nothing is left to wait for.
+  const { held, release } = run.player;
+  useEffect(() => {
+    if (held !== null && !active) release();
+  }, [held, active, release]);
+
+  // The picked option, kept until Check; cleared at every new prompt and trace.
+  const [guess, setGuessState] = useState<string | null>(null);
+  const [nudge, setNudge] = useState(false);
+  const guessRef = useRef(guess);
+  guessRef.current = guess;
+  const activeFrame = active?.frame ?? null;
   useEffect(() => {
     setGuessState(null);
-    resetAnswer();
-  }, [heldFrame, steps, resetAnswer]);
+    setNudge(false);
+  }, [activeFrame, run.steps]);
+  const setGuess = useCallback((value: string) => {
+    setGuessState(value);
+    setNudge(false);
+  }, []);
+  const check = useCallback(() => {
+    const g = guessRef.current;
+    setNudge(g === null);
+    if (g !== null) respond(g);
+  }, [respond]);
 
-  // Turning predict off while parked on a checkpoint cancels the question.
-  useEffect(() => {
-    if (!enabled && heldFrame !== null) release();
-  }, [enabled, heldFrame, release]);
-
-  const setGuess = useCallback((value: string) => setGuessState(value), []);
-  const check = useCallback(() => void checkAnswer(), [checkAnswer]);
-
-  const status = answerStatus === "idle" ? null : answerStatus;
-  const hint = def?.hint;
-  const showHint = status === "fail" && attempts >= 2 && Boolean(hint);
-  const verdictFeedback = answer.feedback;
-  // Memoized: a fresh fragment per render would churn the api object.
+  // The run with the kit's feedback: the nudge, or the hint after a miss while a retry remains.
+  const hint = predictDef?.hint;
+  const entry = active?.entry;
+  const showHint = Boolean(hint) && run.status === "fail" && entry !== undefined && !entry.settled;
+  const runFeedback = run.feedback;
   const feedback = useMemo<ReactNode>(
     () =>
-      showHint ? (
+      nudge ? (
+        "Pick an answer first."
+      ) : showHint ? (
         <>
-          {verdictFeedback} {hint}
+          {runFeedback} {hint}
         </>
       ) : (
-        verdictFeedback
+        runFeedback
       ),
-    [showHint, verdictFeedback, hint]
+    [nudge, showHint, runFeedback, hint]
   );
-  const held = heldFrame !== null;
+  const promptsApi = useMemo(
+    () => ({ ...run, feedback }) as unknown as PromptsRun<StepwiseStep, string>,
+    [run, feedback]
+  );
 
-  const api = useMemo<PredictApi>(
-    () => ({ enabled, setEnabled, held, options, guess, setGuess, check, status, feedback, attempts, release }),
-    [enabled, setEnabled, held, options, guess, setGuess, check, status, feedback, attempts, release]
+  // A walk's choices, over the run (Choices draws them).
+  const step = run.step;
+  const walkOptions = useMemo(() => {
+    if (!chooseDef) return [];
+    const raw = typeof chooseDef.options === "function" ? (step ? chooseDef.options(step) : []) : chooseDef.options;
+    return normalizeOptions(raw);
+  }, [chooseDef, step]);
+  const recordRef = useRef(record);
+  recordRef.current = record;
+  const choiceAt = useCallback((frame: number) => {
+    const e = recordRef.current.entries.find((x) => x.frame === frame && x.source === "generator");
+    return e?.settled && e.status !== "skipped" ? settledAnswer(e) : undefined;
+  }, []);
+  const choices = useMemo(() => choicesOf(record) as string[], [record]);
+  const asking = active?.entry.source === "generator";
+  const last = run.steps[run.steps.length - 1] as (S & WalkStep) | undefined;
+  const awaiting =
+    walkDef !== null && last !== undefined && (last.await === true || last.prompt !== undefined) &&
+    choiceAt(run.steps.length - 1) === undefined;
+  const walkApi = useMemo<WalkApi | null>(
+    () => (walkDef ? { choices, choose: respond, choiceAt, asking, awaiting, options: walkOptions } : null),
+    [walkDef, choices, respond, choiceAt, asking, awaiting, walkOptions]
   );
-  return def ? api : null;
+
+  const options = useMemo(
+    () => (active?.prompt.options ? normalizeOptions(active.prompt.options) : walkOptions),
+    [active, walkOptions]
+  );
+  const status: VerdictStatus | null = nudge
+    ? "fail"
+    : run.status === "pass" || run.status === "fail" || run.status === "pending"
+      ? run.status
+      : null;
+  const attempts = entry?.attempts.length ?? 0;
+  const { enabled, setEnabled } = run;
+  const predictApi = useMemo<PredictApi>(
+    () => ({
+      enabled,
+      setEnabled,
+      held: active !== null,
+      options,
+      guess,
+      setGuess,
+      check,
+      status,
+      feedback,
+      attempts,
+      release: proceed,
+    }),
+    [enabled, setEnabled, active, options, guess, setGuess, check, status, feedback, attempts, proceed]
+  );
+
+  return (
+    <Shell
+      {...props}
+      sim={run as unknown as TracePlayer<S> & { steps: readonly S[] }}
+      input={input}
+      setInput={setInput}
+      editable={!run.inputLocked}
+      error={run.error}
+      truncated={run.truncated}
+      promptsApi={promptsApi}
+      predictApi={predictApi}
+      walkApi={walkApi}
+      toggleable={promptsEnabled === undefined && ask !== undefined}
+    />
+  );
 }
 
 function RecordedExplainer<Input, S extends StepwiseStep>(
@@ -425,12 +560,16 @@ function Shell<Input, S extends StepwiseStep>({
   view,
   className,
   children,
+  promptsApi = null,
   predictApi = null,
   walkApi = null,
+  toggleable = false,
 }: ExplainerProps<Input, S> &
-  Omit<ExplainerApi<Input, S>, "step" | "predict" | "walk" | "id" | "theme"> & {
+  Omit<ExplainerApi<Input, S>, "step" | "prompts" | "predict" | "walk" | "id" | "theme"> & {
+    promptsApi?: PromptsRun<StepwiseStep, string> | null;
     predictApi?: PredictApi | null;
     walkApi?: WalkApi | null;
+    toggleable?: boolean;
   }) {
   const step = sim.step;
   // One keyboard, many explainers: the registry says which one owns it.
@@ -450,11 +589,25 @@ function Shell<Input, S extends StepwiseStep>({
   );
   const claimKeys = useCallback(() => activate(token.current), []);
   const api = useMemo<ExplainerApi<Input, S>>(
-    () => ({ sim, step, input, setInput, editable, error, truncated, predict: predictApi, walk: walkApi, id, theme }),
-    [sim, step, input, setInput, editable, error, truncated, predictApi, walkApi, id, theme]
+    () => ({
+      sim,
+      step,
+      input,
+      setInput,
+      editable,
+      error,
+      truncated,
+      prompts: promptsApi,
+      predict: predictApi,
+      walk: walkApi,
+      id,
+      theme,
+    }),
+    [sim, step, input, setInput, editable, error, truncated, promptsApi, predictApi, walkApi, id, theme]
   );
   return (
     <ExplainerContext.Provider value={api as unknown as ExplainerApi<unknown, StepwiseStep>}>
+      <ToggleContext.Provider value={toggleable}>
       <StepParts source={sim} theme={theme} controls={walkApi ? "step" : "full"}>
       <ViewContext.Provider value={view}>
         <section
@@ -468,8 +621,8 @@ function Shell<Input, S extends StepwiseStep>({
             <>
               <Stage />
               <Narration />
-              <Choices />
-              <Predict />
+              {/* A walk's question is its choices; anything else asks through Predict. */}
+              {walkApi ? <Choices /> : <Predict />}
               <StepCode />
               <ExplainerBar />
               <EndNote />
@@ -478,6 +631,7 @@ function Shell<Input, S extends StepwiseStep>({
         </section>
       </ViewContext.Provider>
       </StepParts>
+      </ToggleContext.Provider>
     </ExplainerContext.Provider>
   );
 }

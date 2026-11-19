@@ -134,6 +134,7 @@ describe("./kit", () => {
       "useStepParts",
       "Predict",
       "PredictToggle",
+      "Prompt",
     ];
     expect(expected.filter((name) => !(name in kit))).toEqual([]);
   });

@@ -178,13 +178,17 @@ describe("Predict", () => {
     fireEvent.click(button("Check"));
     expect(api.predict!.status).toBe("fail");
     expect(feedback().textContent).toBe("Pick an answer first.");
-    expect(api.predict!.attempts).toBe(1);
+    // Nothing was picked, so the one try is not spent.
+    expect(api.predict!.attempts).toBe(0);
+    fireEvent.click(radio("Up"));
+    fireEvent.click(button("Check"));
+    expect(api.predict!.status).toBe("pass");
   });
 
   it("a right guess passes and shows Continue; Continue releases", () => {
     renderPredict();
     tick();
-    expect(button("Skip")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Continue" })).toBeNull();
     fireEvent.click(radio("Up"));
     fireEvent.click(button("Check"));
     expect(api.predict!.status).toBe("pass");
@@ -197,15 +201,22 @@ describe("Predict", () => {
     expect(screen.getByTestId("i").textContent).toBe("2");
   });
 
-  it("a wrong guess fails and shows Skip; Skip releases", () => {
+  it("a wrong guess fails, reveals the answer and shows Continue", () => {
     renderPredict();
     tick();
     fireEvent.click(radio("Down"));
     fireEvent.click(button("Check"));
     expect(api.predict!.status).toBe("fail");
     expect(feedback().textContent).toBe("Not quite.");
-    expect(screen.queryByRole("button", { name: "Continue" })).toBeNull();
-    fireEvent.click(button("Skip"));
+    // Retries default to 0: the miss is final, the answer is shown.
+    expect(api.prompts!.revealed).toEqual({ answer: "up", explain: undefined });
+    expect(document.querySelector("[data-reveal]")!.textContent).toContain("Up");
+    expect(screen.queryByRole("button", { name: "Check" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Skip" })).toBeNull();
+    // Still parked: the reveal stays on screen until Continue.
+    tick(2);
+    expect(screen.getByTestId("i").textContent).toBe("1");
+    fireEvent.click(button("Continue"));
     expect(api.sim.player.held).toBeNull();
     tick();
     expect(screen.getByTestId("i").textContent).toBe("2");
@@ -224,14 +235,31 @@ describe("Predict", () => {
     expect(feedback().textContent).toBe("down vs up at 1");
   });
 
-  it("shows the hint after two failed attempts", () => {
-    renderPredict();
+  it("shows the hint after a miss while a retry remains", () => {
+    const retrying = defineExplainer({ ...counting, prompts: { retries: 2 } });
+    renderPredict({ definition: retrying });
+    tick();
+    expect(feedback().textContent).not.toContain("Look again.");
+    fireEvent.click(radio("Down"));
+    fireEvent.click(button("Check"));
+    expect(api.predict!.status).toBe("fail");
+    expect(api.prompts!.retriesLeft).toBe(2);
+    expect(feedback().textContent).toContain("Not quite.");
+    expect(feedback().textContent).toContain("Look again.");
+    expect(document.querySelector("[data-reveal]")).toBeNull();
+    // No retry left after the last miss: no hint, the answer instead.
+    fireEvent.click(button("Check"));
+    fireEvent.click(button("Check"));
+    expect(api.predict!.attempts).toBe(3);
+    expect(api.prompts!.retriesLeft).toBe(0);
+    expect(feedback().textContent).not.toContain("Look again.");
+    expect(document.querySelector("[data-reveal]")).not.toBeNull();
+    cleanup();
+
+    renderPredict({ definition: retrying });
     tick();
     fireEvent.click(radio("Down"));
     fireEvent.click(button("Check"));
-    expect(feedback().textContent).not.toContain("Look again.");
-    fireEvent.click(button("Check"));
-    expect(api.predict!.attempts).toBe(2);
     expect(feedback().textContent).toContain("Look again.");
     // A pass hides it again.
     fireEvent.click(radio("Up"));
@@ -250,7 +278,7 @@ describe("Predict", () => {
     fireEvent.click(radio("Down"));
     fireEvent.click(button("Check"));
     expect(api.predict!.attempts).toBe(1);
-    fireEvent.click(button("Skip"));
+    fireEvent.click(button("Continue"));
     tick(2);
     expect(api.sim.player.held).toBe(3);
     expect(api.predict!.guess).toBeNull();
@@ -274,34 +302,39 @@ describe("Predict", () => {
     expect(screen.getByTestId("i").textContent).toBe("2");
   });
 
-  it("manual next is never blocked", () => {
+  it("manual next stops at a checkpoint", () => {
     renderPredict();
     tick();
     expect(api.sim.player.held).toBe(1);
     act(() => api.sim.player.next());
-    expect(screen.getByTestId("i").textContent).toBe("2");
-    expect(api.sim.player.held).toBeNull();
-    expect(screen.queryByRole("radiogroup")).toBeNull();
+    // The checkpoint waits for an answer: Next stays put.
+    expect(screen.getByTestId("i").textContent).toBe("1");
+    expect(screen.getByRole("radiogroup")).toBeTruthy();
 
-    // Replay to the checkpoint again; stepping back leaves it just as freely.
-    act(() => api.sim.player.start());
-    tick();
-    expect(api.sim.player.held).toBe(1);
+    // Stepping back is always free.
     act(() => api.sim.player.prev());
     expect(screen.getByTestId("i").textContent).toBe("0");
-    expect(api.sim.player.held).toBeNull();
     expect(screen.queryByRole("radiogroup")).toBeNull();
+    act(() => api.sim.player.next());
+    expect(screen.getByTestId("i").textContent).toBe("1");
+
+    // Once answered, Next moves on.
+    fireEvent.click(radio("Up"));
+    fireEvent.click(button("Check"));
+    act(() => api.sim.player.next());
+    expect(screen.getByTestId("i").textContent).toBe("2");
   });
 
   it("an input edit while held drops the stale verdict", () => {
-    renderPredict();
+    // "clear": an input change clears the answers (the default, "lock", refuses it).
+    renderPredict({ definition: defineExplainer({ ...counting, prompts: { onInputChange: "clear" } }) });
     tick();
     fireEvent.click(radio("Up"));
     fireEvent.click(button("Check"));
     expect(api.predict!.status).toBe("pass");
-    // On 2 frames, k1 keeps its index but has no next frame: the truth changed.
-    act(() => api.setInput(2));
-    expect(api.sim.steps).toHaveLength(2);
+    expect(api.editable).toBe(true);
+    act(() => api.setInput(4));
+    expect(api.sim.steps).toHaveLength(4);
     expect(api.sim.player.held).toBe(1);
     expect(api.predict!.status).toBeNull();
     expect(api.predict!.attempts).toBe(0);

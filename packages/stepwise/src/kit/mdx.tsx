@@ -22,6 +22,7 @@ import {
   Narration,
   Predict,
   PredictToggle,
+  Prompt,
   Stage,
   StepCode,
 } from "@sphynxoid/stepwise/kit";
@@ -89,6 +90,7 @@ export const stepwiseComponents = {
   StepCode,
   Predict,
   PredictToggle,
+  Prompt,
   ExplainerBar,
   EndNote,
   Choices,

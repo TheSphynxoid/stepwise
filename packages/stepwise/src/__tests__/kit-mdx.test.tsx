@@ -4,7 +4,7 @@ import { createElement, isValidElement, type ReactElement } from "react";
 import { defineExplainer } from "../core";
 import type { PrecomputedTrace } from "../core";
 import { GlossaryAppendix, Term } from "../index";
-import { Choices, EndNote, ExplainerBar, Narration, Predict, PredictToggle, Stage, StepCode } from "../kit";
+import { Choices, EndNote, ExplainerBar, Narration, Predict, PredictToggle, Prompt, Stage, StepCode } from "../kit";
 import { precomputed, stepwiseComponents } from "../kit/mdx";
 
 // Runs under node, not jsdom: `precomputed` is a server component, so it must
@@ -138,6 +138,7 @@ describe("precomputed", () => {
       StepCode,
       Predict,
       PredictToggle,
+      Prompt,
       ExplainerBar,
       EndNote,
       Choices,
