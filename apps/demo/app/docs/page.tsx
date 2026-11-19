@@ -36,7 +36,9 @@ export default function DocsPage() {
           <p className="max-w-2xl text-[14px] leading-relaxed text-muted-foreground">
             Everything exported from the package root, grouped by layer. Hooks are headless and
             SSR-safe; the callbacks they return are referentially stable. Adapters live on
-            subpaths so their optional peers never become required imports.
+            subpaths so their optional peers never become required imports. New here? The{" "}
+            <Link href="/guide" className="text-primary hover:underline">guide</Link> goes one goal at a time, with a live example
+            in every section.
           </p>
           <pre className="mt-5 overflow-x-auto rounded-md border border-border bg-card px-4 py-3 font-mono text-[12px] text-foreground/80">
             npm i @sphynxoid/stepwise

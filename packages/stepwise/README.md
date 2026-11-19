@@ -2,7 +2,7 @@
 
 **Interactive explainers for React: step-through players, guided tours, scroll-driven lessons and glossary tooltips, all on one cursor.**
 
-**[Live demos](https://stepwise.thesphynx.net)** · [API reference](https://stepwise.thesphynx.net/docs) · [StackBlitz starter](https://stackblitz.com/github/TheSphynxoid/stepwise/tree/master/examples/vite-starter) · [GitHub](https://github.com/TheSphynxoid/stepwise)
+**[Live demos](https://stepwise.thesphynx.net)** · [Guide](https://stepwise.thesphynx.net/guide) · [API reference](https://stepwise.thesphynx.net/docs) · [StackBlitz starter](https://stackblitz.com/github/TheSphynxoid/stepwise/tree/master/examples/vite-starter) · [GitHub](https://github.com/TheSphynxoid/stepwise)
 
 <img src="https://raw.githubusercontent.com/TheSphynxoid/stepwise/master/docs/assets/hero.gif" alt="A quicksort trace playing in a stepwise PlayerBar: bars swap as the partition advances; partway through, two bars are clicked and change height, the sort re-runs on the new input and the player stays on the same step" width="516">
 

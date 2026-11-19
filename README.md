@@ -9,7 +9,7 @@
 [![CI](https://github.com/TheSphynxoid/stepwise/actions/workflows/ci.yml/badge.svg)](https://github.com/TheSphynxoid/stepwise/actions/workflows/ci.yml)
 [![license](https://img.shields.io/npm/l/@sphynxoid/stepwise)](LICENSE)
 
-[**Live demos**](https://stepwise.thesphynx.net) · [API reference](https://stepwise.thesphynx.net/docs) · [Try it on StackBlitz](https://stackblitz.com/github/TheSphynxoid/stepwise/tree/master/examples/vite-starter)
+[**Live demos**](https://stepwise.thesphynx.net) · [Guide](https://stepwise.thesphynx.net/guide) · [API reference](https://stepwise.thesphynx.net/docs) · [Try it on StackBlitz](https://stackblitz.com/github/TheSphynxoid/stepwise/tree/master/examples/vite-starter)
 
 <img src="docs/assets/hero.gif" alt="A quicksort trace playing in a stepwise PlayerBar: bars swap as the partition advances; partway through, two bars are clicked and change height, the sort re-runs on the new input and the player stays on the same step" width="516">
 

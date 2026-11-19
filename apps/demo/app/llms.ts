@@ -19,6 +19,7 @@ export function llmsIndex(): string {
 ## Docs
 
 - [Full guide for AI assistants](${SITE}/llms-full.txt): setup, patterns with code, pitfalls, and the complete API reference in one file
+- [Guide](${SITE}/guide): the same patterns written for people, one goal per section, with a live example each
 - [API reference](${SITE}/docs): every hook, component and option
 - [Recipes](${REPO}/blob/master/docs/RECIPES.md): Next.js + MDX article, shareable links, grading a checkpoint, testing
 

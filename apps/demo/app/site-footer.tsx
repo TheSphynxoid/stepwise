@@ -68,6 +68,7 @@ export function SiteFooter() {
                 ["/scroll", "Scroll chapters"],
                 ["/glossary", "Glossary"],
                 ["/minimal", "Bare & light"],
+                ["/guide", "Guide"],
                 ["/docs", "API reference"],
               ].map(([href, label]) => (
                 <li key={href}>

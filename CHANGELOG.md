@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- **Fix**: `ChapterNav` keeps the active chapter in view. When the chapters don't fit, the row scrolls sideways, and the active one used to scroll off the end as the reader moved down the page. The row itself scrolls (the page doesn't).
+- **Docs**: a guide for people at [/guide](https://stepwise.thesphynx.net/guide): one goal per section, from a first player to the authoring kit, each with a live example whose code is its real source, plus common mistakes (symptom, cause, fix) and the vocabulary.
+
 ## 0.6.0 — unreleased
 
 The authoring kit: an explainer from a definition, a view and one tag, from

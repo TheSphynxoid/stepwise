@@ -5,7 +5,7 @@ import { expect, test, type Page } from "@playwright/test";
 // for the library's classes (wrong @source path), which leaves every
 // library-rendered element unstyled while the host page looks fine.
 
-const ROUTES = ["/", "/simulate", "/kit", "/llm", "/qa", "/live", "/automaton", "/player", "/compare", "/lesson", "/tour", "/discovery", "/glossary", "/scroll", "/minimal", "/docs"];
+const ROUTES = ["/", "/simulate", "/kit", "/llm", "/qa", "/live", "/automaton", "/player", "/compare", "/lesson", "/tour", "/discovery", "/glossary", "/scroll", "/minimal", "/docs", "/guide"];
 
 function collectErrors(page: Page): string[] {
   const errors: string[] = [];
@@ -273,6 +273,30 @@ test("live: follows the edge, a reader who scrubs back stays put, Go live return
   await goLive.click();
   await expect(bar.getByRole("status")).toHaveText("Live");
   await expect(page.getByTestId("live-label")).not.toHaveText("fetch sources");
+});
+
+test("/guide: the examples run, the code shown leaves out the site's theme wiring, the nav follows the scroll", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/guide");
+  const live = page.getByTestId("guide-live");
+  await expect(live.first()).toBeVisible();
+  // The first player steps forward on Next.
+  const first = live.first();
+  await expect(first.getByText("Start: three numbers, out of order")).toBeVisible();
+  // Frame 0 is on screen before playback, so one Next shows frame 1.
+  await first.getByRole("button", { name: "Next step" }).click();
+  await expect(first.getByText("Swap 3 and 1")).toBeVisible();
+  // The source under it is the real file, minus the demo-only lines.
+  const main = page.locator("main");
+  await expect(main).toContainText("useTrace(frames)");
+  await expect(main).not.toContainText("demo-only");
+  await expect(main).not.toContainText("useSiteTheme");
+  // The kit explainer's first frame comes from the server.
+  await expect(page.locator("#kit")).toContainText("Start");
+  // The table of contents is useChapters: scrolling to a section marks it.
+  await page.locator("#mistakes").scrollIntoViewIfNeeded();
+  await page.mouse.wheel(0, 200);
+  await expect(page.getByRole("navigation", { name: "Chapters" }).getByRole("button", { name: /Common mistakes/ })).toHaveAttribute("aria-current", "true");
 });
 
 test("AI docs: /llms.txt indexes, /llms-full.txt carries the guide and the API reference", async ({ request }) => {

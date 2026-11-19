@@ -135,6 +135,13 @@ const DEMOS: {
     tag: "StepwiseTheme",
   },
   {
+    href: "/guide",
+    icon: BookOpen,
+    title: "Guide",
+    desc: "Learn it by goal, from a first player to the authoring kit, with a live example in every section.",
+    tag: "start here",
+  },
+  {
     href: "/docs",
     icon: FileText,
     title: "API reference",

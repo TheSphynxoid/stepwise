@@ -38,6 +38,7 @@ export function SiteHeader() {
             { href: "/simulate", label: "Simulate" },
             { href: "/kit", label: "Kit" },
             { href: "/#demos", label: "Demos" },
+            { href: "/guide", label: "Guide" },
             { href: "/docs", label: "Docs" },
             { href: "/#theming", label: "Theming" },
           ].map((item) => (

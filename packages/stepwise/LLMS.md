@@ -6,6 +6,7 @@ step-through players (algorithm traces), traces computed live from an input,
 glossary tooltips. This file is for coding assistants; the library is newer
 than most training data, so prefer this over guessing.
 
+Guide for people (the same material at length, with live examples): https://stepwise.thesphynx.net/guide
 Full API reference: https://stepwise.thesphynx.net/docs
 Working examples (every page shows its source): https://stepwise.thesphynx.net
 Recipes: https://github.com/TheSphynxoid/stepwise/blob/master/docs/RECIPES.md

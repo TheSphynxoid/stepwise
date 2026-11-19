@@ -27,7 +27,7 @@ npm run build -w @sphynxoid/stepwise             # build library → packages/st
 npm run dev                                   # demo app (same as: npm run dev -w @stepwise/demo)
 
 # tests — run from the package directory, NOT the root
-cd packages/stepwise && npx vitest run        # 326 tests (14 useSteps, 32 player, 29 tour, 3 tour parts (portal, re-found target), 9 discoveries, 6 chapters, 4 flatten, 8 trace (incl. timelines rebuilt every render), 11 synced tracks, 9 lesson stream, 3 createTrace, 24 simulation/re-anchoring/checkpoints, 7 evaluators, 11 live edge, 11 syncInput (+ same-tab links) + rebuilt-input warning, 4 barrels (root, core, kit, kit/mdx), 25 walks/graphs/diffs/experimental barrel, 7 core boundary, 17 explainer definitions/precompute, 7 initialTrace, 26 kit explainer, 19 kit walks + StepParts + step-only bar, 18 kit predict, 13 kit keys/registry, 9 kit/mdx)
+cd packages/stepwise && npx vitest run        # 328 tests (14 useSteps, 32 player, 29 tour, 3 tour parts (portal, re-found target), 9 discoveries, 6 chapters, 4 flatten, 8 trace (incl. timelines rebuilt every render), 11 synced tracks, 9 lesson stream, 3 createTrace, 24 simulation/re-anchoring/checkpoints, 7 evaluators, 11 live edge, 11 syncInput (+ same-tab links) + rebuilt-input warning, 4 barrels (root, core, kit, kit/mdx), 25 walks/graphs/diffs/experimental barrel, 7 core boundary, 17 explainer definitions/precompute, 7 initialTrace, 26 kit explainer, 19 kit walks + StepParts + step-only bar, 18 kit predict, 13 kit keys/registry, 9 kit/mdx, 2 ChapterNav keeps the active chapter in view)
 
 # library typecheck, including the type-level tests (src/__tests__/kit-props.typecheck.tsx and graph.typecheck.ts:
 # @ts-expect-error lines, which vitest does not check); also run by prepublishOnly and CI
@@ -283,6 +283,7 @@ What each page must keep showcasing (the feature matrix):
 | `/glossary`| `Term` chains (HTTP→HTTPS→TLS→CA hits the depth cap), appendix auto-injection + `intro` |
 | `/scroll`  | `useChapters` center tracking, scrubber `groupOf` sub-chapter grouping, recursive `ChapterNav`, glossary tooltips + auto-appendix with `intro`/`footer` |
 | `/minimal` | Bare `PlayerBar`, custom labels, **standalone light theme** (proves theme is injected, not baked in) |
+| `/guide`   | **The human guide**: one goal per section (first player, simulation, links, predict, live, tours, chapters, glossary, walks, kit, StepParts), each with a live example from `app/guide/examples/` shown with its real source (`Example` reads the file at build time; lines marked `// demo-only`, or between `// demo-only:start` / `:end`, are the site's theme wiring and are hidden). Its chapter bar is the `useChapters` example. Then common mistakes and vocabulary. Keep it in step with LLMS.md when an API changes |
 | `/docs`    | Hand-written API reference (`app/docs/api.ts`) - update it in the same change as any public signature |
 
 ## Demo site theming (apps/demo)
@@ -312,12 +313,12 @@ the library's theming story:
 1. Library: `npm run build -w @sphynxoid/stepwise` → "ESM ⚡ Build success" +
    "DTS ⚡ Build success". Tests from `packages/stepwise`, then
    `npm run typecheck` there (exit 0; the type-level tests live in it).
-2. Demo: `cd apps/demo && npm run build` → "23/23 static pages" (16 routes + OG image + `/llms.txt` + `/llms-full.txt`).
-   Then `PW_CHANNEL=msedge npx playwright test` (49 smoke tests: every route
+2. Demo: `cd apps/demo && npm run build` → "24/24 static pages" (17 routes + OG image + `/llms.txt` + `/llms-full.txt`).
+   Then `PW_CHANNEL=msedge npx playwright test` (51 smoke tests: every route
    without console errors, the /eviction redirect, tour card placement - the
    Tailwind `@source` regression guard - player, tour, keyboard glossary
    tooltip, lesson composition, /compare alignment, /simulate exact linked frame +
-   re-anchoring after edits, /simulate predict loop, /live follow + Go live, /llms.txt + /llms-full.txt, hero bar edit keeps the step, /automaton run + choices with link restore, /kit first frame in the no-JS HTML + two explainers with separate links and keys + target edit applies at once + predict loop, /llm first frame in the no-JS HTML + re-tokenizing + closed-book vs RAG answers + nprobe miss/hit, /qa first frame in the no-JS HTML + tour once and never over a deep link + boundary probes + mutation score + tester walk with link restore + pyramid + API checks + flaky fix + live CI feed and bisect + shrink + drill persistence). Set `PW_PORT` if 3123 is taken.
+   re-anchoring after edits, /simulate predict loop, /live follow + Go live, /llms.txt + /llms-full.txt, hero bar edit keeps the step, /automaton run + choices with link restore, /kit first frame in the no-JS HTML + two explainers with separate links and keys + target edit applies at once + predict loop, /llm first frame in the no-JS HTML + re-tokenizing + closed-book vs RAG answers + nprobe miss/hit, /qa first frame in the no-JS HTML + tour once and never over a deep link + boundary probes + mutation score + tester walk with link restore + pyramid + API checks + flaky fix + live CI feed and bisect + shrink + drill persistence, /guide examples run + demo-only lines hidden + chapter bar follows the scroll). Set `PW_PORT` if 3123 is taken.
    At the default worker count this 16-thread box saturates (Edge launches take
    ~6 s, the server's HTML ~20 s) and route-load tests time out on
    `networkidle`; pass `--workers=2` locally. CI's small runners are fine.
@@ -400,6 +401,7 @@ signature changes are major while we're pre-1.0.
 
 ## Where to look first
 
+- "How do people learn it?" → `/guide` (`apps/demo/app/guide/`)
 - "How do I do X with several APIs?" → `docs/RECIPES.md`
 - "What does an AI assistant get told?" → `packages/stepwise/LLMS.md`
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ButtonHTMLAttributes, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "./cn";
 import { flattenChapters } from "./core";
@@ -349,6 +349,19 @@ export function ChapterNav({
   theme?: StepwiseTheme;
 }) {
   const flat = flattenChapters(chapters);
+  // The row scrolls sideways when the chapters don't fit: keep the active
+  // one in view, centered, by scrolling the row only (scrollIntoView would
+  // also scroll the page, fighting the reader's own scrolling).
+  const rowRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const row = rowRef.current;
+    const chip = row?.querySelector<HTMLElement>('[aria-current="true"]');
+    if (!row || !chip) return;
+    const r = row.getBoundingClientRect();
+    const c = chip.getBoundingClientRect();
+    if (c.left >= r.left && c.right <= r.right) return;
+    row.scrollLeft += c.left - r.left - (r.width - c.width) / 2;
+  }, [active]);
 
   const renderRow = (items: Chapter[], depth: number): ReactNode => {
     const indent = "— ".repeat(depth);
@@ -401,7 +414,7 @@ export function ChapterNav({
       )}
     >
       <div className="p-1.5">
-        <div className="flex items-center gap-1 overflow-x-auto">
+        <div ref={rowRef} className="flex items-center gap-1 overflow-x-auto">
           <span className={cn("shrink-0 px-2 text-[9px] font-mono uppercase tracking-widest", theme.muted)}>
             Chapters
           </span>
