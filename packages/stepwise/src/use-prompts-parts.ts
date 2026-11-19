@@ -30,6 +30,8 @@ export interface Restore<A> {
   /** Answers placed so far, and the next frame to look at. */
   next: number;
   frame: number;
+  /** The answers are for generator prompts only: overlay prompts are passed over. */
+  generatorOnly?: boolean;
 }
 
 // A `{ steps }` source is a walk over the steps themselves.
@@ -195,7 +197,7 @@ export function restoreStep<A, S>(
   while (r.frame < total && r.next < r.answers.length) {
     const f = r.frame++;
     const found = promptAt(f);
-    if (!found) continue;
+    if (!found || (r.generatorOnly && found.source !== "generator")) continue;
     const answer = r.answers[r.next++];
     rec = reach(rec, f, found);
     if (answer === undefined) rec = skipEntry(rec, f);

@@ -86,6 +86,12 @@ export interface PromptsRun<S extends WalkStep, A> extends SimulationPlayer<S> {
   proceed: () => void;
   /** Clear every answer and the score, unlock the input; the playhead returns to frame 0. */
   restart: () => void;
+  /**
+   * Replay a list of generator answers (a kept branch): like an answer link,
+   * but overlay prompts are passed over. Ignored, with a dev warning, while
+   * the input is locked (`restart()` first).
+   */
+  restoreAnswers: (answers: readonly (A | undefined)[]) => void;
   enabled: boolean;
   /** The reader's toggle: ignored when `enabled` is controlled, or while the input is locked. */
   setEnabled: (on: boolean) => void;
@@ -277,6 +283,7 @@ export function usePrompts<Input, S extends WalkStep, A = string>(
   const continueAfter = useRef<PromptRecord<A> | null>(null);
   const restarting = useRef(false);
   const warnedLock = useRef(false);
+  const warnedRestore = useRef(false);
 
   /** Drop whatever is in flight: a pending verdict, an auto-continue. */
   const dropInFlight = useCallback(() => {
@@ -287,10 +294,10 @@ export function usePrompts<Input, S extends WalkStep, A = string>(
   }, []);
 
   const startRestore = useCallback(
-    (answers: readonly (A | undefined)[]) => {
+    (answers: readonly (A | undefined)[], generatorOnly?: boolean) => {
       dropInFlight();
       setFeedback({});
-      restoreRef.current = { answers, next: 0, frame: 0 };
+      restoreRef.current = { answers, next: 0, frame: 0, generatorOnly };
       commit(EMPTY_RECORD as PromptRecord<A>);
       rerender();
     },
@@ -470,6 +477,7 @@ export function usePrompts<Input, S extends WalkStep, A = string>(
     dropInFlight();
     restoreRef.current = null;
     warnedLock.current = false;
+    warnedRestore.current = false;
     setFeedback({});
     // Clearing answers replays the run: jump again once it's on screen, or
     // re-anchoring moves the playhead onto the old path's nearest step. (An
@@ -479,6 +487,20 @@ export function usePrompts<Input, S extends WalkStep, A = string>(
     reset();
     jump(0);
   }, [dropInFlight, commit, reset, jump]);
+
+  const restoreAnswers = useCallback(
+    (answers: readonly (A | undefined)[]) => {
+      if (isLocked(recordRef.current, live.current.onInputChange)) {
+        if (isDev && !warnedRestore.current) {
+          warnedRestore.current = true;
+          console.warn("[stepwise] usePrompts: restoreAnswers() ignored while answers count; restart() first.");
+        }
+        return;
+      }
+      startRestore(answers, true);
+    },
+    [startRestore]
+  );
 
   const setEnabled = useCallback((on: boolean) => {
     if (controlledRef.current || isLocked(recordRef.current, live.current.onInputChange)) return;
@@ -617,6 +639,7 @@ export function usePrompts<Input, S extends WalkStep, A = string>(
       skip,
       proceed,
       restart,
+      restoreAnswers,
       enabled,
       setEnabled,
       canToggle,
@@ -625,6 +648,6 @@ export function usePrompts<Input, S extends WalkStep, A = string>(
       record,
       score,
     }),
-    [trace, result, active, status, fb, entry, revealed, respond, skip, proceed, restart, enabled, setEnabled, canToggle, inputLocked, requestInput, record, score]
+    [trace, result, active, status, fb, entry, revealed, respond, skip, proceed, restart, restoreAnswers, enabled, setEnabled, canToggle, inputLocked, requestInput, record, score]
   );
 }

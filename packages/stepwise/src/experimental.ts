@@ -17,6 +17,8 @@
 //                   quiz, a story). One answer record (pure, in ./core): a
 //                   generator step's `prompt` branches the run, an `ask`
 //                   overlay questions any trace
+//   use-prompt-history — usePromptHistory: the futures an answer cut off, kept
+//                   as a tree (branches, backtracks, restore)
 //
 // The pure names (runWalk, fromGraph, diffTraces, the prompt record functions)
 // are also in ./core, which is where this entry takes them from: one copy,
@@ -32,6 +34,10 @@ export { diffTraces, structuralEqual } from "./core";
 export type { DiffTracesOptions, TraceDiff } from "./core";
 export { usePrompts } from "./use-prompts";
 export type { ActivePrompt, PromptSource, PromptsOptions, PromptsRun } from "./use-prompts";
+export { usePromptHistory } from "./use-prompt-history";
+export type { PromptHistory } from "./use-prompt-history";
+export { addPath, branchesOf } from "./core";
+export type { BranchNode } from "./core";
 export {
   EMPTY_RECORD,
   applyAnswer,

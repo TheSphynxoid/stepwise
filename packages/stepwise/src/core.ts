@@ -52,6 +52,8 @@ export { alignTracks } from "./align-tracks";
 export type { AlignedCell, AlignedRow, TrackKeyFn, Tracks } from "./align-tracks";
 export { diffTraces, structuralEqual } from "./diff-traces";
 export type { DiffTracesOptions, TraceDiff } from "./diff-traces";
+export { addPath, branchesOf } from "./branch-history";
+export type { BranchNode } from "./branch-history";
 export { flattenChapters } from "./flatten";
 export type { FlatChapter } from "./flatten";
 export { toVerdict, pass, fail, pending } from "./evaluate";
