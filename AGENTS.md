@@ -27,7 +27,7 @@ npm run build -w @sphynxoid/stepwise             # build library → packages/st
 npm run dev                                   # demo app (same as: npm run dev -w @stepwise/demo)
 
 # tests — run from the package directory, NOT the root
-cd packages/stepwise && npx vitest run        # 426 tests (14 useSteps, 39 player (incl. stopAt), 29 tour, 3 tour parts (portal, re-found target), 9 discoveries, 6 chapters, 4 flatten, 8 trace (incl. timelines rebuilt every render), 11 synced tracks, 9 lesson stream, 3 createTrace, 24 simulation/re-anchoring/checkpoints, 7 evaluators, 11 live edge, 11 syncInput (+ same-tab links) + rebuilt-input warning, 5 barrels (root, core, kit, kit/mdx, experimental), 33 walks/graphs/diffs, 10 prompt record, 9 walk session, 46 usePrompts, 7 prompt history, 7 core boundary, 18 explainer definitions/precompute, 7 initialTrace, 26 kit explainer, 19 kit walks + StepParts + step-only bar, 18 kit predict, 9 kit Prompt, 13 kit keys/registry, 9 kit/mdx, 2 ChapterNav keeps the active chapter in view)
+cd packages/stepwise && npx vitest run        # 434 tests (14 useSteps, 39 player (incl. stopAt), 29 tour, 3 tour parts (portal, re-found target), 9 discoveries, 6 chapters, 4 flatten, 8 trace (incl. timelines rebuilt every render), 11 synced tracks, 9 lesson stream, 3 createTrace, 24 simulation/re-anchoring/checkpoints, 7 evaluators, 11 live edge, 11 syncInput (+ same-tab links) + rebuilt-input warning, 5 barrels (root, core, kit, kit/mdx, experimental), 33 walks/graphs/diffs, 10 prompt record, 9 walk session, 48 usePrompts, 7 prompt history, 7 core boundary, 19 explainer definitions/precompute, 7 initialTrace, 26 kit explainer, 19 kit walks + StepParts + step-only bar, 18 kit predict, 14 kit Prompt, 13 kit keys/registry, 9 kit/mdx, 2 ChapterNav keeps the active chapter in view)
 
 # library typecheck, including the type-level tests (src/__tests__/kit-props.typecheck.tsx and graph.typecheck.ts:
 # @ts-expect-error lines, which vitest does not check); also run by prepublishOnly and CI
@@ -138,9 +138,10 @@ POLICIES  use-step-player   timer, speed, seek, #hash deep-link, engine port,
                             rebuilt every render; initialTrace (precomputed
                             steps while input matches by content)
           use-walk          EXPERIMENTAL (./experimental): walks that branch
-                            on choices (await: true steps), always replayed
-                            from (input, seed, choices); fromGraph automata;
-                            diffTraces
+                            on choices (await: true steps); the live session
+                            continues forward, and (input, seed, choices) is
+                            replayed only on a rewind, a link or an input
+                            change; fromGraph automata; diffTraces
           use-walk-run      INTERNAL: the run under useWalk and usePrompts (walk
                             session, re-anchoring, links, stopAt gate)
           use-prompts       EXPERIMENTAL: ask the reader at a step. Prompts from
@@ -336,11 +337,11 @@ the library's theming story:
    "DTS ⚡ Build success". Tests from `packages/stepwise`, then
    `npm run typecheck` there (exit 0; the type-level tests live in it).
 2. Demo: `cd apps/demo && npm run build` → "25/25 static pages" (18 routes + OG image + `/llms.txt` + `/llms-full.txt`).
-   Then `PW_CHANNEL=msedge npx playwright test` (55 smoke tests: every route
+   Then `PW_CHANNEL=msedge npx playwright test` (56 smoke tests: every route
    without console errors, the /eviction redirect, tour card placement - the
    Tailwind `@source` regression guard - player, tour, keyboard glossary
    tooltip, lesson composition, /compare alignment, /simulate exact linked frame +
-   re-anchoring after edits, /simulate predict (stepping stops at a question, a miss reveals the answer), /adventure branch + history, /live follow + Go live, /llms.txt + /llms-full.txt, hero bar edit keeps the step, /automaton run + choices with link restore, /kit first frame in the no-JS HTML + two explainers with separate links and keys + target edit applies at once + predict loop, /llm first frame in the no-JS HTML + re-tokenizing + closed-book vs RAG answers + predict on then stepping reaches the RAG answer + nprobe miss/hit, /qa first frame in the no-JS HTML + tour once and never over a deep link + boundary probes + mutation score + tester walk with link restore + pyramid + API checks + flaky fix + live CI feed and bisect + shrink + drill persistence, /guide examples run + demo-only lines hidden + chapter bar follows the scroll + the "Ask the reader" example stops Next at its question). Set `PW_PORT` if 3123 is taken.
+   re-anchoring after edits, /simulate predict (stepping stops at a question, a miss reveals the answer), /adventure branch + history, /live follow + Go live, /llms.txt + /llms-full.txt, hero bar edit keeps the step, /automaton run + choices with link restore, /kit first frame in the no-JS HTML + two explainers with separate links and keys + target edit applies at once + predict loop + the input still edits after a predict answer, /llm first frame in the no-JS HTML + re-tokenizing + closed-book vs RAG answers + predict on then stepping reaches the RAG answer + nprobe miss/hit, /qa first frame in the no-JS HTML + tour once and never over a deep link + boundary probes + mutation score + tester walk with link restore + pyramid + API checks + flaky fix + live CI feed and bisect + shrink + drill persistence, /guide examples run + demo-only lines hidden + chapter bar follows the scroll + the "Ask the reader" example stops Next at its question). Set `PW_PORT` if 3123 is taken.
    At the default worker count this 16-thread box saturates (Edge launches take
    ~6 s, the server's HTML ~20 s) and route-load tests time out on
    `networkidle`; pass `--workers=2` locally. CI's small runners are fine.

@@ -452,14 +452,21 @@ Behaviour worth knowing:
   default gate. The `hint` is appended to `feedback` after a miss while a retry
   remains (`prompts.retries`). The guess resets at each new prompt and when the
   trace changes. `PredictApi.held` means "the playhead is on a prompt", and Check
-  with nothing picked does not use an attempt. `prompts` in the definition
-  and the `Prompt` part are the general form (section 10).
+  with nothing picked does not use an attempt. An input edit clears the
+  answers (`onInputChange: "clear"` is the `predict` block's default; a
+  definition's own `prompts.onInputChange` wins), so the view's input stays
+  editable. `prompts` in the definition and the `Prompt` part are the general
+  form (section 10).
 - `Stage` takes no props; `Narration`, `StepCode`, `ExplainerBar` take a
-  `className`; `EndNote`, `Predict` and `PredictToggle` also take children
-  (the note, the question, the switch's label; defaults "End of the run.
-  Play to replay.", "What happens next?", "Predict mode").
+  `className`; `EndNote`, `Prompt` / `Predict` and `PredictToggle` also take
+  children (the note, the question, the switch's label; defaults "End of the
+  run. Play to replay.", "What happens next?", "Predict mode"). `Prompt` also
+  takes `render`, a render prop that receives the `usePrompts` run and
+  replaces the default drawing. A free-text prompt (no `options`) needs
+  `render`: without it `Prompt` draws no options (and warns once in
+  development).
 - Custom parts read the provider: `useExplainer<Input, Step>()` returns
-  `{ step, input, setInput, editable, error, truncated, sim, predict, walk, id, theme }`.
+  `{ step, input, setInput, editable, error, truncated, sim, prompts, predict, walk, id, theme }`.
   `step` is frame 0 before playback; `sim` is the player with `steps`: the
   `useSimulation` result for a live explainer, the `useTrace` result plus
   `steps` for a recorded one (`sim.player` for your own controls either way);
@@ -575,7 +582,7 @@ const INPUT = [3, 1, 4, 2];
 // A question at every compare; the right answer is what the next frame does.
 // Module scope: a new function per render recomputes every question.
 const ask = (step: Frame, f: number, steps: readonly Frame[]) =>
-  step.kind === "compare" ? { options: ["swap", "keep"], answer: steps[f + 1].kind } : null;
+  step.kind === "compare" ? { options: ["swap", "keep"], answer: steps[f + 1]?.kind } : null;
 
 export function Quiz() {
   const run = usePrompts({ simulation: bubble, input: INPUT }, { ask });
@@ -709,7 +716,15 @@ reader's toggle (`PredictToggle`). Answers link as `${id}.a` (a walk's as
 `judge` or `ask`); set `prompts: { linkAnswers: true }` to opt in, or `false`
 for a walk whose steps' prompts carry an `answer`. `useExplainer().prompts` is
 the `usePrompts` run (`null` without `predict` or `prompts`), `.predict` the
-thin layer custom parts used before.
+thin layer custom parts used before. While answers lock the input (a
+`prompts` definition with a judged prompt, under the default `"lock"`),
+`Prompt` shows a Start over button (`restart()`), on a prompt or off it; a
+`predict` block defaults to `"clear"` instead.
+
+`Prompt` is two things: the kit's component (`@sphynxoid/stepwise/kit`) and
+the type of a prompt declaration (`./experimental`, `./core`). Importing both
+in one file clashes; alias one:
+`import type { Prompt as PromptDecl } from "@sphynxoid/stepwise/core"`.
 
 ```tsx
 import { defineExplainer, type StepwiseStep } from "@sphynxoid/stepwise/core";
@@ -723,7 +738,7 @@ export const quiz = defineExplainer<Step>({
     yield { key: "b", kind: "swap", tone: "write", label: "Swap" };
   },
   prompts: {
-    ask: (step, f, steps) => (step.kind === "compare" ? { options: ["swap", "keep"], answer: steps[f + 1].kind } : null),
+    ask: (step, f, steps) => (step.kind === "compare" ? { options: ["swap", "keep"], answer: steps[f + 1]?.kind } : null),
     retries: 1,          // one retry after a miss (default 0: the first answer settles it)
     linkAnswers: false,  // judged runs don't link answers by default; true opts in
   },

@@ -255,6 +255,26 @@ test("/kit: predict loop", async ({ page }) => {
   await expect(narration).not.toHaveText("compare a[3]=25 with target 61");
 });
 
+test("/kit: after a predict answer the input still edits, and the view follows", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/kit");
+  const b = page.locator('[data-explainer="b"]');
+  const narration = b.locator("p[aria-live]").first();
+  await b.getByRole("button", { name: "Play", exact: true }).click();
+  const question = b.getByRole("radiogroup", { name: "Your prediction" });
+  await expect(question).toBeVisible({ timeout: 5000 });
+  await question.getByRole("radio", { name: "Left" }).click();
+  await b.getByRole("button", { name: "Check" }).click();
+  await expect(b).toContainText("Not quite");
+
+  // An edit clears the answers (the predict block's default), it isn't locked out.
+  const target = b.getByRole("spinbutton", { name: "Target" });
+  await expect(target).toBeEnabled();
+  await target.fill("14");
+  await expect(narration).toHaveText(/target 14|looking for 14/);
+  await expect(b).not.toContainText("Not quite");
+});
+
 test("live: follows the edge, a reader who scrubs back stays put, Go live returns", async ({ page }) => {
   await page.goto("/live");
   const bar = page.locator("[data-stepwise]").filter({ has: page.getByRole("slider") }).last();

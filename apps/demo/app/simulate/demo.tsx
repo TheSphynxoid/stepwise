@@ -236,11 +236,8 @@ export default function SimulateDemo() {
               type="button"
               role="switch"
               aria-checked={predict}
-              onClick={() => {
-                // Off while paused at a question: let playback go on.
-                if (predict && player.held !== null) player.release();
-                setPredict(!predict);
-              }}
+              // Off while paused at a question, playback goes on by itself.
+              onClick={() => setPredict(!predict)}
               className={`rounded-md border px-3 py-1.5 text-[11px] font-mono transition ${
                 predict ? "border-primary bg-primary/15 text-primary" : "border-border text-foreground/60 hover:text-foreground"
               }`}
