@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { fail, normalizeOptions, pass, resolveInput, settledAnswer } from "../core";
+import { fail, isChoicePoint, normalizeOptions, pass, resolveInput, settledAnswer } from "../core";
 import type {
   AnyExplainerDefinition,
   ExplainerPredict,
@@ -189,7 +189,7 @@ export function PromptsExplainer<Input, S extends StepwiseStep>(
   const asking = active?.entry.source === "generator";
   const last = run.steps[run.steps.length - 1] as (S & WalkStep) | undefined;
   const awaiting =
-    walkDef !== null && last !== undefined && (last.await === true || last.prompt !== undefined) &&
+    walkDef !== null && last !== undefined && isChoicePoint(last) &&
     choiceAt(run.steps.length - 1) === undefined;
   const walkApi = useMemo<WalkApi | null>(
     () => (walkDef ? { choices, choose: respond, choiceAt, asking, awaiting, options: walkOptions } : null),

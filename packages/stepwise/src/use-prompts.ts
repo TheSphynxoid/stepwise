@@ -194,7 +194,14 @@ export function usePrompts<Input, S extends WalkStep, A = string>(
     if (c.steps !== steps || c.ask !== a) cache.current = { steps, ask: a, map: new Map() };
     const map = cache.current.map;
     if (map.has(f)) return map.get(f)!;
-    const spec = step.prompt ?? (step.await === true ? {} : undefined);
+    // Only an object `prompt` is a question: a string or null is the step's own data.
+    const own: unknown = step.prompt;
+    const spec =
+      typeof own === "object" && own !== null && !Array.isArray(own)
+        ? (own as PromptSpec)
+        : step.await === true
+          ? {}
+          : undefined;
     const overlay = a ? a(step, f, steps) : null;
     let found: Found<A, S> | null = null;
     if (spec) {

@@ -98,9 +98,11 @@ export default function AdventureDemo() {
     const entry = record.entries.find((e) => e.frame === frame);
     return entry ? settledAnswer(entry) : undefined;
   };
-  // The path's answers, in order; another kept path is one that leaves it somewhere.
+  // The path's answers, in order. Every kept path is listed except the one the
+  // reader is on (it starts with these answers); after Start over that's none.
   const path = record.entries.filter((e) => e.source === "generator" && e.settled).map((e) => settledAnswer(e));
-  const others = history.branches.filter((b) => b.some((a, i) => i < path.length && a !== path[i]));
+  const onIt = (b: readonly unknown[]) => path.length > 0 && path.length <= b.length && path.every((a, i) => a === b[i]);
+  const others = history.branches.filter((b) => !onIt(b));
 
   const blocked = active !== null && !active.entry.settled;
   const atEnd = at >= steps.length - 1;

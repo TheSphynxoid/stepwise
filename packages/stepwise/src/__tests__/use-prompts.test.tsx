@@ -409,6 +409,22 @@ describe("usePrompts", () => {
     expect(result.current.step?.label).toBe("z");
   });
 
+  it("a step whose prompt field is not an object is not a question", () => {
+    const steps = [
+      { key: "a", tone: "neutral", label: "a", prompt: "text" },
+      { key: "b", tone: "neutral", label: "b", prompt: null },
+      { key: "c", tone: "neutral", label: "c" },
+    ] as unknown as WalkStep[];
+    const { result } = renderHook(() => usePrompts({ steps }));
+    expect(result.current.active).toBeNull();
+    act(() => result.current.player.next());
+    expect(result.current.active).toBeNull();
+    act(() => result.current.player.next());
+    act(() => result.current.player.next());
+    expect(result.current.frame).toBe(2);
+    expect(result.current.active).toBeNull();
+  });
+
   it("enabled turns overlay prompts off, not generator ones", () => {
     const { result } = sorting({ defaultEnabled: false });
     expect(result.current.enabled).toBe(false);

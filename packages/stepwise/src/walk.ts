@@ -20,13 +20,18 @@ import type { StepwiseStep } from "./types";
 export type WalkStep = StepwiseStep & {
   /** The walk pauses after this step until a choice arrives (`choose`). */
   await?: boolean;
-  /** A prompt on the step; also makes it a choice point (the answer is the choice). */
+  /**
+   * A prompt on the step; also makes it a choice point (the answer is the
+   * choice). Only an object counts: a string, `null` or an array under this
+   * name is ordinary step data.
+   */
   prompt?: PromptSpec;
 };
 
-/** A choice point is an `await: true` step or a step carrying a `prompt`. */
+/** A choice point is an `await: true` step or a step whose `prompt` is an object. */
 export function isChoicePoint(step: WalkStep): boolean {
-  return step.await === true || step.prompt !== undefined;
+  const p: unknown = step.prompt;
+  return step.await === true || (typeof p === "object" && p !== null && !Array.isArray(p));
 }
 
 /** A generator whose `yield` at a choice point returns the reader's choice. */

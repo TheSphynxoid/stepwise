@@ -337,8 +337,22 @@ test("adventure: a choice branches, going back and choosing again keeps the old 
   await adv.getByRole("button", { name: "Say it" }).click();
   await expect(current).toContainText("Gull Rock");
 
+  // To the end and Start over: every kept path is still listed.
+  await next.click();
+  await commands.getByRole("button", { name: "keep the beam steady" }).click();
+  await expect(current).toContainText("Morning");
+  await adv.getByRole("button", { name: "Start over" }).click();
+  await expect(current).toContainText("Dusk");
+  const kept = history.getByRole("listitem");
+  await expect(kept.filter({ hasText: "read the logbook" })).toHaveCount(1);
+  await expect(kept.filter({ hasText: "climb the stairs" })).toHaveCount(1);
+
   // An old path can be taken again; the one left is kept in its place.
-  await history.getByRole("button", { name: /Take this path/ }).first().click();
+  await kept.filter({ hasText: "read the logbook" }).getByRole("button", { name: /Take this path/ }).click();
+  await next.click();
+  await expect(commands.getByRole("button", { name: "read the logbook" })).toHaveAttribute("aria-pressed", "true");
+  await next.click();
+  await expect(current).toContainText("Lens cracked");
   await expect(history).toContainText("climb the stairs");
 });
 
@@ -429,6 +443,32 @@ test("/llm: closed-book and retrieval answers differ", async ({ page }) => {
   const closed = await toEnd(page, "closed");
   await expect(closed.getByTestId("rag-answer")).toContainText("seven");
   const rag = await toEnd(page, "rag");
+  await expect(rag.getByTestId("rag-answer")).toContainText("five");
+});
+
+test("/llm: with predict on, answering and stepping reaches the RAG answer", async ({ page }) => {
+  // Guards step data named like a prompt: only an object `prompt` is a question.
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/llm");
+  const rag = page.locator('[data-explainer="rag"]');
+  await expect(rag.getByRole("switch", { name: "Predict before each reveal" })).toHaveAttribute("aria-checked", "true");
+  const slider = rag.getByRole("slider", { name: "Frames" });
+  const question = rag.getByRole("radiogroup", { name: "Your prediction" });
+  let answered = 0;
+  for (let i = 0; i < 10 && !(await rag.getByTestId("rag-answer").isVisible()); i++) {
+    if (await question.isVisible()) {
+      await question.getByRole("radio").first().click();
+      await rag.getByRole("button", { name: "Check" }).click();
+      const go = rag.getByRole("button", { name: "Continue" });
+      if (await go.isVisible()) await go.click();
+      answered++;
+    } else {
+      await slider.focus();
+      await page.keyboard.press("End");
+      await expect(question.or(rag.getByTestId("rag-answer"))).toBeVisible();
+    }
+  }
+  expect(answered).toBeGreaterThan(0);
   await expect(rag.getByTestId("rag-answer")).toContainText("five");
 });
 

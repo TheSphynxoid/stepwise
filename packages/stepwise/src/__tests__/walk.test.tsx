@@ -375,6 +375,22 @@ describe("prompts on walk steps", () => {
     expect(isChoicePoint(s("x"))).toBe(false);
   });
 
+  it("a string or null prompt field is plain data, not a choice point", () => {
+    type D = WalkStep & { prompt?: unknown };
+    const plain = (prompt: unknown): WalkSimulation<number, D, AB> =>
+      function* () {
+        yield { key: "a", tone: "neutral", label: "a", prompt } as D;
+        yield { key: "z", tone: "neutral", label: "z" } as D;
+      };
+    for (const value of ["text", null, ["a"]]) {
+      const r = runWalk(plain(value), 0);
+      expect(r.choicePoints).toEqual([]);
+      expect(r.awaiting).toBe(false);
+      expect(r.steps.map((x) => x.key)).toEqual(["a", "z"]);
+      expect(isChoicePoint({ key: "x", tone: "neutral", label: "x", prompt: value } as unknown as WalkStep)).toBe(false);
+    }
+  });
+
   it("an undefined choice is fed to the generator", () => {
     const seen: unknown[] = [];
     const sim: WalkSimulation<number, W, AB> = function* () {
