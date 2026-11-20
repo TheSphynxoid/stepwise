@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.7.0 — 2026-11-20
 
 - **New (experimental)**: prompts, "ask the reader at a step". `usePrompts` (from `./experimental`) records an answer per prompt, judges it (`prompt.judge`, else `judge`, else equality with `prompt.answer`, else unjudged; sync or async, a late verdict after a restart, input change or another prompt is dropped), scores it (`run.score`) and stops forward moves at an unanswered question. Prompts come from a generator step's `prompt` (the answer is the value of that `yield`, so a story branches on it) or from an `ask` overlay over any trace (predict mode). Settings: `retries` (default 0: the first answer settles a prompt), `navigation` `"gate"` / `"free"`, `autoContinue`, `enabled` / `defaultEnabled` / `readerToggle`, `onInputChange` `"lock"` / `"clear"` / `"keep"` (default: lock once a judged prompt is reached, else keep; `run.inputLocked`, `run.requestInput`, `restart()`), and `syncAnswers` (answers in the URL, restored with `syncInput` before the frame). `usePromptHistory` keeps the futures an answer cut off (`branches`, `backtracks`, `restore`). The answer record, `isChoicePoint`, `createWalkSession` and the branch tree (`addPath`, `branchesOf`) are pure and exported from `./core`.
 - **Changed (experimental)**: `prompt` on a step is meaningful. An object `prompt` makes a question / choice point (like `await: true`); a string, `null` or an array under that name stays plain step data.
@@ -17,7 +17,7 @@
 - **Fix**: `ChapterNav` keeps the active chapter in view. When the chapters don't fit, the row scrolls sideways, and the active one used to scroll off the end as the reader moved down the page. The row itself scrolls (the page doesn't).
 - **Docs**: a guide for people at [/guide](https://stepwise.thesphynx.net/guide): one goal per section, from a first player to the authoring kit, each with a live example whose code is its real source, plus common mistakes (symptom, cause, fix) and the vocabulary.
 
-## 0.6.0 — unreleased
+## 0.6.0 — 2026-11-19
 
 The authoring kit: an explainer from a definition, a view and one tag, from
 TSX or MDX. Three new entry points, all experimental (they may change in a
