@@ -27,7 +27,7 @@ npm run build -w @sphynxoid/stepwise             # build library → packages/st
 npm run dev                                   # demo app (same as: npm run dev -w @stepwise/demo)
 
 # tests — run from the package directory, NOT the root
-cd packages/stepwise && npx vitest run        # 328 tests (14 useSteps, 32 player, 29 tour, 3 tour parts (portal, re-found target), 9 discoveries, 6 chapters, 4 flatten, 8 trace (incl. timelines rebuilt every render), 11 synced tracks, 9 lesson stream, 3 createTrace, 24 simulation/re-anchoring/checkpoints, 7 evaluators, 11 live edge, 11 syncInput (+ same-tab links) + rebuilt-input warning, 4 barrels (root, core, kit, kit/mdx), 25 walks/graphs/diffs/experimental barrel, 7 core boundary, 17 explainer definitions/precompute, 7 initialTrace, 26 kit explainer, 19 kit walks + StepParts + step-only bar, 18 kit predict, 13 kit keys/registry, 9 kit/mdx, 2 ChapterNav keeps the active chapter in view)
+cd packages/stepwise && npx vitest run        # 426 tests (14 useSteps, 39 player (incl. stopAt), 29 tour, 3 tour parts (portal, re-found target), 9 discoveries, 6 chapters, 4 flatten, 8 trace (incl. timelines rebuilt every render), 11 synced tracks, 9 lesson stream, 3 createTrace, 24 simulation/re-anchoring/checkpoints, 7 evaluators, 11 live edge, 11 syncInput (+ same-tab links) + rebuilt-input warning, 5 barrels (root, core, kit, kit/mdx, experimental), 33 walks/graphs/diffs, 10 prompt record, 9 walk session, 46 usePrompts, 7 prompt history, 7 core boundary, 18 explainer definitions/precompute, 7 initialTrace, 26 kit explainer, 19 kit walks + StepParts + step-only bar, 18 kit predict, 9 kit Prompt, 13 kit keys/registry, 9 kit/mdx, 2 ChapterNav keeps the active chapter in view)
 
 # library typecheck, including the type-level tests (src/__tests__/kit-props.typecheck.tsx and graph.typecheck.ts:
 # @ts-expect-error lines, which vitest does not check); also run by prepublishOnly and CI
@@ -110,6 +110,12 @@ create-trace.ts ── createTrace<Data>().step(…).build(): typed module-scope
 simulation.ts ──── createRng (seeded), runSimulation (pure, capped): traces
                    computed from an input by a generator
 reanchor.ts ────── the pure "stay on the same step" rule (keys)
+prompts.ts ─────── the prompt answer record: one entry per prompt reached
+                   (reachEntry, applyAnswer, skipEntry, scoreOf, ...), pure
+walk-session.ts ── createWalkSession: a walk run that continues the live
+                   generator while the answers only grow, replays otherwise
+                   (public ./core export; equals runWalk by construction)
+branch-history.ts  addPath / branchesOf: the answer-list tree (pure)
 align-tracks.ts ── alignTracks, the comparison-mode table (pure)
 evaluate.ts ────── Verdict / Evaluator (pass | fail | pending, feedback)
 explainer.ts ───── EXPERIMENTAL: defineExplainer, precompute (JSON-checked
@@ -121,7 +127,8 @@ CORE      use-steps.ts      THE primitive: clamped cursor, stable callbacks,
                             re-clamps when count changes
 POLICIES  use-step-player   timer, speed, seek, #hash deep-link, engine port,
                             reduced-motion autoPlay gate, checkpoints
-                            (holdAt/held/release), jump (cursor only),
+                            (holdAt/held/release), stopAt (forward moves stop
+                            on a gated frame), jump (cursor only),
                             follow (live edge: live/goLive)
           use-trace         player bound to a typed trace (step, toneAt/titleAt);
                             keyed re-anchoring when steps change
@@ -134,6 +141,16 @@ POLICIES  use-step-player   timer, speed, seek, #hash deep-link, engine port,
                             on choices (await: true steps), always replayed
                             from (input, seed, choices); fromGraph automata;
                             diffTraces
+          use-walk-run      INTERNAL: the run under useWalk and usePrompts (walk
+                            session, re-anchoring, links, stopAt gate)
+          use-prompts       EXPERIMENTAL: ask the reader at a step. Prompts from
+                            a generator step's object `prompt` (answer = the
+                            yield's value) or an `ask` overlay; judging (sync/
+                            async, late verdicts dropped), score, gate
+                            (stopAt), input lock, syncAnswers link. Its pure
+                            helpers live in use-prompts-parts (INTERNAL)
+          use-prompt-history EXPERIMENTAL: the futures an answer cut off, as a
+                            tree (branch-history.ts); backtracks, restore
           use-evaluator     verdict as state: auto (gates) / manual (quizzes),
                             async with abort, attempts
           use-synced-tracks comparison mode: N traces under ONE player; hold
@@ -163,7 +180,11 @@ KIT       kit/explainer.tsx EXPERIMENTAL (./kit): Explainer / createExplainer
                             Choices (a walk explainer's options)
           kit/step-parts.tsx StepParts / useStepParts: the step parts around
                             any player, outside an explainer
-          kit/predict.tsx   Predict, PredictToggle
+          kit/predict.tsx   Prompt (the question on the playhead), Predict (=
+                            Prompt, a shortcut kept one release), PredictToggle
+          kit/prompts-explainer.tsx INTERNAL: the explainer over a definition
+                            that asks (`predict` as an ask overlay, `prompts`,
+                            walks): usePrompts + PredictApi/WalkApi adapters
           kit/registry.ts   which explainer owns the keyboard; duplicate hash
                             namespace warning (module state, SSR-safe)
           kit/mdx.tsx    EXPERIMENTAL (./kit/mdx, no "use client"):
@@ -270,8 +291,9 @@ What each page must keep showcasing (the feature matrix):
 |------------|--------------------------------------------------------------------------------|
 | `/`        | SaaS landing: visual hero player (`HeroPlayer`: quicksort on `useSimulation` + `PlayerBar`; click a bar mid-run to change it, the sort re-runs and keeps its step), one-primitive band, feature grid (lesson featured), theming section, light/dark toggle |
 | `/lesson`  | **Flagship composition**: `useChapters` + `ChapterNav` scroll lesson, embedded `useTrace` Dijkstra player (chapter → frame seek while paused), `useGuidedTour` intro whose steps target sections, glossary `Term`s + `GlossaryAppendix`, live three-cursor readout |
-| `/simulate`| `useSimulation` live trace (edit input mid-play, playhead keeps its step via `key`), seeded `createRng`, `#in=…&frame=…` exact replay links via `syncInput` (no hand-rolled linking), predict mode: `holdAt` checkpoints + manual `useEvaluator` |
+| `/simulate`| `useSimulation` live trace (edit input mid-play, playhead keeps its step via `key`), seeded `createRng`, `#in=…&frame=…` exact replay links via `syncInput` (no hand-rolled linking), predict mode as `usePrompts`: an `ask` overlay at every third comparison, playback and Next stop at the question, a miss reveals the answer, a score, `onInputChange: "clear"` so edits mid-quiz stay possible |
 | `/automaton`| **Experimental** transitions: `fromGraph` divisible-by-3 DFA run over a typed word (`anchor: "index"`) and drawn from `dfa.graph`; "be the automaton" `useWalk` with choice points, wrong-answer detours, re-answer truncation, `syncChoices` links |
+| `/adventure`| **Experimental** prompts on a walk: a lighthouse text adventure (`usePrompts` over a generator whose steps carry `prompt`s: picked commands and a typed name, none judged, `retries: Infinity`, `autoContinue`), Next blocked at a question, Back and answer again replays from there, `usePromptHistory` keeps the paths a changed answer cut off (listed after Start over too) |
 | `/kit`     | **Experimental** authoring kit: one `defineExplainer` (in `binary-search.explainer.ts`, imported from `./core`) + one view via `createExplainer`, wrapped by `precomputed` in the server `page.tsx`; two explainers with ids `a` / `b` (separate `a.frame` / `b.in` links, keyboard goes to the last clicked or focused, none before that), the second with a custom child layout, a field prop (`target={61}`) and `predict`. Shows both `demo.tsx` and `page.tsx` source |
 | `/llm`     | **Teaching lesson on the kit**: seven chapters (tokens, vectors, attention, sampling, hallucination, RAG, vector index), one small explainer each (`*.explainer.ts` over the pure `toy-model.ts`: hand-made 2-D vectors, ~50-token vocabulary, invented "Tidepool" rulebook), `precomputed` in the server `page.tsx`, views in `views.tsx`; `useChapters` + `ChapterNav` + glossary `Term`s/appendix in the client shell; one definition used twice via a field prop (`<Rag retrieve={false}>`); predict on five (all but the embedding map and the closed-book run). `apps/demo/scripts/check-llm-model.ts` (`npx jiti`) pins the behaviors the prose relies on (k=1 misleads, nprobe=1 misses) |
 | `/qa`      | **QA Engineer interview lesson**, the widest composition: eleven chapters over one invented system under test (`driftwood.ts`: SPEC vs SHIPPED with planted bugs). Kit explainers (`*.explainer.ts`, `precomputed` in the server `page.tsx`, predict on most), a walk explainer over `fromGraph` (be the tester, `lifecycle.walk.ts`: `defineExplainer({ walk })` + `Choices`, `#life.path` links) plus the primitives the kit can't host: `useSyncedTracks` (the pyramid), `useTrace({ follow })` + `PlayerBar live` (CI feed), `useSteps` + `useDiscoveries` (drill), first-visit `useGuidedTour` (skipped on deep links). Views split by chapter group (`views.tsx` holds the shared `Frame`). `apps/demo/scripts/check-qa-model.ts` (`npx jiti`) pins every caught/missed story. Gripes found while building it: `docs/KIT-FEEDBACK.md` |
@@ -283,7 +305,7 @@ What each page must keep showcasing (the feature matrix):
 | `/glossary`| `Term` chains (HTTP→HTTPS→TLS→CA hits the depth cap), appendix auto-injection + `intro` |
 | `/scroll`  | `useChapters` center tracking, scrubber `groupOf` sub-chapter grouping, recursive `ChapterNav`, glossary tooltips + auto-appendix with `intro`/`footer` |
 | `/minimal` | Bare `PlayerBar`, custom labels, **standalone light theme** (proves theme is injected, not baked in) |
-| `/guide`   | **The human guide**: one goal per section (first player, simulation, links, predict, live, tours, chapters, glossary, walks, kit, StepParts), each with a live example from `app/guide/examples/` shown with its real source (`Example` reads the file at build time; lines marked `// demo-only`, or between `// demo-only:start` / `:end`, are the site's theme wiring and are hidden). Its chapter bar is the `useChapters` example. Then common mistakes and vocabulary. Keep it in step with LLMS.md when an API changes |
+| `/guide`   | **The human guide**: one goal per section (first player, simulation, links, ask the reader (predict via `usePrompts` + branching walks, two examples), live, tours, chapters, glossary, kit, StepParts), each with a live example from `app/guide/examples/` shown with its real source (`Example` reads the file at build time; lines marked `// demo-only`, or between `// demo-only:start` / `:end`, are the site's theme wiring and are hidden). Its chapter bar is the `useChapters` example. Then common mistakes and vocabulary. Keep it in step with LLMS.md when an API changes |
 | `/docs`    | Hand-written API reference (`app/docs/api.ts`) - update it in the same change as any public signature |
 
 ## Demo site theming (apps/demo)
@@ -313,12 +335,12 @@ the library's theming story:
 1. Library: `npm run build -w @sphynxoid/stepwise` → "ESM ⚡ Build success" +
    "DTS ⚡ Build success". Tests from `packages/stepwise`, then
    `npm run typecheck` there (exit 0; the type-level tests live in it).
-2. Demo: `cd apps/demo && npm run build` → "24/24 static pages" (17 routes + OG image + `/llms.txt` + `/llms-full.txt`).
-   Then `PW_CHANNEL=msedge npx playwright test` (51 smoke tests: every route
+2. Demo: `cd apps/demo && npm run build` → "25/25 static pages" (18 routes + OG image + `/llms.txt` + `/llms-full.txt`).
+   Then `PW_CHANNEL=msedge npx playwright test` (55 smoke tests: every route
    without console errors, the /eviction redirect, tour card placement - the
    Tailwind `@source` regression guard - player, tour, keyboard glossary
    tooltip, lesson composition, /compare alignment, /simulate exact linked frame +
-   re-anchoring after edits, /simulate predict loop, /live follow + Go live, /llms.txt + /llms-full.txt, hero bar edit keeps the step, /automaton run + choices with link restore, /kit first frame in the no-JS HTML + two explainers with separate links and keys + target edit applies at once + predict loop, /llm first frame in the no-JS HTML + re-tokenizing + closed-book vs RAG answers + nprobe miss/hit, /qa first frame in the no-JS HTML + tour once and never over a deep link + boundary probes + mutation score + tester walk with link restore + pyramid + API checks + flaky fix + live CI feed and bisect + shrink + drill persistence, /guide examples run + demo-only lines hidden + chapter bar follows the scroll). Set `PW_PORT` if 3123 is taken.
+   re-anchoring after edits, /simulate predict (stepping stops at a question, a miss reveals the answer), /adventure branch + history, /live follow + Go live, /llms.txt + /llms-full.txt, hero bar edit keeps the step, /automaton run + choices with link restore, /kit first frame in the no-JS HTML + two explainers with separate links and keys + target edit applies at once + predict loop, /llm first frame in the no-JS HTML + re-tokenizing + closed-book vs RAG answers + predict on then stepping reaches the RAG answer + nprobe miss/hit, /qa first frame in the no-JS HTML + tour once and never over a deep link + boundary probes + mutation score + tester walk with link restore + pyramid + API checks + flaky fix + live CI feed and bisect + shrink + drill persistence, /guide examples run + demo-only lines hidden + chapter bar follows the scroll + the "Ask the reader" example stops Next at its question). Set `PW_PORT` if 3123 is taken.
    At the default worker count this 16-thread box saturates (Edge launches take
    ~6 s, the server's HTML ~20 s) and route-load tests time out on
    `networkidle`; pass `--workers=2` locally. CI's small runners are fine.

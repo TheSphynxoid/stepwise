@@ -25,10 +25,11 @@ export function llmsIndex(): string {
 
 ## Examples
 
-- [Live simulation](${SITE}/simulate): useSimulation, syncInput links, predict mode
+- [Live simulation](${SITE}/simulate): useSimulation, syncInput links, predict mode on usePrompts (score, answers locked or cleared on an edit)
 - [Explainer kit](${SITE}/kit): experimental defineExplainer + createExplainer + precomputed: a definition and a view become one component, its first frame rendered on the server; two on one page with separate links and keys, predict mode
 - [How LLMs work](${SITE}/llm): a seven-chapter lesson built with the experimental kit: tokenization, embeddings, attention, sampling with temperature, hallucination, RAG (top-k retrieval) and a vector index (nprobe vs recall), on toy 2-D data, with chapters, glossary and predict mode
 - [The QA Engineer interview](${SITE}/qa): an eleven-chapter lesson mixing the experimental kit with walks, synced tracks and a live feed: partitions and boundaries, decision tables (pairwise vs full), state transitions played as the tester (useWalk + fromGraph), coverage vs mutation testing, the test pyramid on one clock (useSyncedTracks), API status and contract checks, seeded flaky tests, a live CI feed (follow) and git bisect, minimal repro and triage, and a remembered question drill (useSteps + useDiscoveries)
+- [Text adventure](${SITE}/adventure): experimental prompts on a walk (usePrompts, usePromptHistory): a story that branches on picked and typed answers, Back to answer again, and the paths a changed answer cut off kept in history
 - [Live edge](${SITE}/live): a growing timeline with follow and Go live
 - [Automaton](${SITE}/automaton): experimental branching walks (useWalk, fromGraph): a DFA run and drawn from one declaration, and a walk that branches on the reader's answers
 - [Composed lesson](${SITE}/lesson): scroll chapters + embedded player + tour + glossary

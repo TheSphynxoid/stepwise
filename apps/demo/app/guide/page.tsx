@@ -16,7 +16,7 @@ import { Boot } from "./examples/step-parts";
 
 export const metadata: Metadata = {
   title: "Guide",
-  description: "Learn stepwise by goal: a first player, live simulations, links, predict mode, tours, scroll lessons, branching walks and the authoring kit, each with a live example.",
+  description: "Learn stepwise by goal: a first player, live simulations, links, asking the reader (predict, quizzes, branching walks), tours, scroll lessons and the authoring kit, each with a live example.",
 };
 
 // ─── Small building blocks for the prose ─────────────────────────────────────
@@ -298,12 +298,15 @@ export default function GuidePage() {
             </Watch>
           </Section>
 
-          <Section id="predict" kicker="Recipe" title="Pause and predict">
-            <When>you want the reader to think before they watch: guess the next step, then see if they were right.</When>
+          <Section id="ask" kicker="Experimental" title="Ask the reader">
+            <Experimental />
+            <When>you want the reader to think before they watch (guess the next step), or the reader&apos;s answers should change what happens next: a graded quiz, a &ldquo;choose your path&rdquo; lesson, playing the part of an automaton.</When>
             <p>
-              One hook, <C>usePrompts</C> (from <C>@sphynxoid/stepwise/experimental</C>). Its <C>ask</C> puts a question
-              on any frame; the right answer is simply what the next frame does. Playback holds at a question, Next stops
-              there until it&apos;s answered, a wrong answer reveals the right one, and <C>proceed()</C> moves on. Press play:
+              One idea, a <strong>prompt</strong>: a question at a frame. <C>usePrompts</C> (from{" "}
+              <C>@sphynxoid/stepwise/experimental</C>) records the answer, judges it when you say how, scores it, and stops
+              forward moves at a question nobody has answered. Its <C>ask</C> puts a question on any frame; the right answer
+              is simply what the next frame does. Playback holds at a question, Next stops there until it&apos;s answered, a
+              wrong answer reveals the right one, and <C>proceed()</C> moves on. Press play:
             </p>
             <Example files={["examples/predict.tsx"]}>
               <PredictSort />
@@ -313,7 +316,25 @@ export default function GuidePage() {
               <li>One try per question by default. Pass <C>retries</C> for more (<C>Infinity</C> for a story the reader can re-answer).</li>
               <li>Once an answer counts, the input is locked until <C>restart()</C>; use <C>onInputChange</C> to choose another rule.</li>
             </Watch>
+            <p>
+              A prompt can also sit on a step of a <strong>walk</strong>, a simulation that can stop and ask. A step with{" "}
+              <C>await: true</C> (or an object <C>prompt</C>) is a <strong>choice point</strong>: the run pauses there, and that{" "}
+              <C>yield</C> returns whatever the reader picked. The path taken is still a plain list of steps, so the player
+              bar, links and &ldquo;same moment&rdquo; all work as before. Go back and pick the other answer: the old ending is
+              replaced.
+            </p>
+            <Example files={["examples/walk.tsx"]}>
+              <PivotWalk />
+            </Example>
+            <p>
+              <C>useWalk</C> is the plain, always-free version; <C>usePrompts</C> adds judging, a score, the gate and answer
+              links (<C>syncAnswers</C>), and <C>usePromptHistory</C> keeps the futures an answer cut off.{" "}
+              <C>fromGraph</C> builds a walk from a state machine you can also draw. In the kit, <C>Predict</C>,{" "}
+              <C>Choices</C> and the definition&apos;s <C>predict</C> block remain as shortcuts for this release.
+            </p>
+            <SeeLive href="/adventure">a story that branches on /adventure</SeeLive>
             <SeeLive href="/simulate">predict mode on /simulate</SeeLive>
+            <SeeLive href="/automaton">walks on /automaton</SeeLive>
           </Section>
 
           <Section id="live" kicker="Recipe" title="Live timelines">
@@ -376,25 +397,6 @@ export default function GuidePage() {
               <li><C>Term</C> and <C>GlossaryAppendix</C> must sit inside the provider.</li>
             </Watch>
             <SeeLive href="/glossary">the /glossary demo</SeeLive>
-          </Section>
-
-          <Section id="walks" kicker="Experimental" title="Branching walks">
-            <Experimental />
-            <When>the reader&apos;s answers should change what happens next: a quiz that explores the wrong answer, a &ldquo;choose your path&rdquo; lesson, playing the part of an automaton.</When>
-            <p>
-              A walk is a simulation that can stop and ask. A step with <C>await: true</C> is a <strong>choice point</strong>:
-              the run pauses there, and that <C>yield</C> returns whatever the reader picked. The path taken is still a
-              plain list of steps, so the player bar, links and &ldquo;same moment&rdquo; all work as before. Go back and
-              pick the other answer: the old ending is replaced.
-            </p>
-            <Example files={["examples/walk.tsx"]}>
-              <PivotWalk />
-            </Example>
-            <p>
-              <C>useWalk</C> comes from <C>@sphynxoid/stepwise/experimental</C>. <C>syncChoices</C> puts the answers in the
-              link, and <C>fromGraph</C> builds a walk from a state machine you can also draw.
-            </p>
-            <SeeLive href="/automaton">/automaton</SeeLive>
           </Section>
 
           <Section id="kit" kicker="Experimental" title="The authoring kit">

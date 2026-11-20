@@ -301,7 +301,7 @@ test("/guide: the examples run, the code shown leaves out the site's theme wirin
 test("/guide predict example: stepping stops at the question", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/guide");
-  const ex = page.locator("#predict").getByTestId("guide-live");
+  const ex = page.locator("#ask").getByTestId("guide-live").first();
   // Input 3, 1, 4, 2: frame 1 compares 3 and 1, and Next can't pass it unanswered.
   for (let i = 0; i < 3; i++) await ex.getByRole("button", { name: "Next step" }).click();
   await expect(ex.getByText("Compare 3 and 1")).toBeVisible();

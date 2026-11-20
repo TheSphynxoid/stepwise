@@ -34,8 +34,8 @@ Recipes: https://github.com/TheSphynxoid/stepwise/blob/master/docs/RECIPES.md
 - All stable exports come from the root: `import { useTrace, PlayerBar, pass, fail } from "@sphynxoid/stepwise"`.
   Types that are type-only need `import type` (e.g. `GlossaryEntry`).
 - Experimental APIs come from their own entries and may change in a minor
-  release: branching walks (section 8) from `@sphynxoid/stepwise/experimental`,
-  the authoring kit (section 9) from `@sphynxoid/stepwise/core`,
+  release: branching walks (section 8) and prompts (section 10) from
+  `@sphynxoid/stepwise/experimental`, the authoring kit (section 9) from `@sphynxoid/stepwise/core`,
   `@sphynxoid/stepwise/kit` and `@sphynxoid/stepwise/kit/mdx`.
 
 ## The model
@@ -157,6 +157,10 @@ useEffect(() => { setGuess(null); reset(); }, [player.held, reset]); // new chec
 - Manual mode: the verdict clears when `ctx` (the guess) changes; `attempts`
   is kept until `reset()`.
 - Make every possible next frame an answer option.
+- For anything past a quick checkpoint (a retry rule, a score, stepping that
+  stops at the question, answer links, a story) use `usePrompts`
+  (section 10, experimental): it holds the hold, the verdict, the gate and the
+  record for you.
 
 ## 5. Timelines that grow while watched
 
@@ -242,6 +246,8 @@ const asking = walk.choicePoints.includes(walk.frame);
   unknown node is a type error (`fromGraph<Sym>(...)` leaves ids as `string`). Use `useWalk(dfa.simulation, word, { anchor: "index" })`
   so editing the word keeps the position.
 - `walk.lastChange` (`diffTraces`) says which steps an edit changed.
+- A step whose `prompt` is an object is a choice point too (section 10).
+  `useWalk` takes the optional `stopAt` and stays the plain, free-choice walk.
 
 ## 9. Authoring kit (experimental)
 
@@ -437,13 +443,17 @@ Behaviour worth knowing:
   leaves the keys where they were.
 - Before playback starts, frame 0 is already on screen, so the first Next
   (or ArrowRight) shows frame 1.
-- Predict mode holds **autoplay** only, at frames where `at` is true; manual
-  steps and seeks are never blocked. The answer is graded against the frame
+- Predict mode is an `ask` overlay on `usePrompts` (section 10): playback
+  holds at frames where `at` is true, and stepping with Next (or a seek ahead)
+  stops at an unanswered question too. The answer is graded against the frame
   after the held one (`truth(next, held)`), so a checkpoint on a frame with no
-  successor is skipped: playback doesn't hold there. The `hint` is appended to `feedback` after two failed
-  attempts (there is no separate hint field). The guess, the verdict and the
-  attempts reset at each new held frame, and when the trace changes while
-  held.
+  successor is skipped. The first answer settles it (no retries by default): a
+  miss reveals the answer and waits for Continue; there is no Skip under the
+  default gate. The `hint` is appended to `feedback` after a miss while a retry
+  remains (`prompts.retries`). The guess resets at each new prompt and when the
+  trace changes. `PredictApi.held` means "the playhead is on a prompt", and Check
+  with nothing picked does not use an attempt. `prompts` in the definition
+  and the `Prompt` part are the general form (section 10).
 - `Stage` takes no props; `Narration`, `StepCode`, `ExplainerBar` take a
   `className`; `EndNote`, `Predict` and `PredictToggle` also take children
   (the note, the question, the switch's label; defaults "End of the run.
@@ -500,7 +510,9 @@ export const mazeExplainer = defineExplainer({
   cuts off the old future and replays from there.
 - `choose.options` can be a function of the step; `choose.parse` checks a
   linked choice (default: one of the options when they are a list).
-- No `predict` on a walk (a type error): the choices are the question.
+- No `predict` on a walk (a type error): the choices are the question. A
+  walk's `prompts` block (and a step's `prompt`) is its prompt settings; a
+  walk explainer keeps `retries: Infinity` and `onInputChange: "keep"`.
 
 **Step parts outside an explainer** (0.6+). `Narration`, `StepCode`,
 `ExplainerBar` and `EndNote` only need a step and a player, so they also
@@ -528,8 +540,277 @@ export function Walkthrough() {
 ```
 
 A custom part that only needs the step should read `useStepParts()`, not
-`useExplainer()`: it then works in both places. `Stage`, `Predict` and
-`Choices` still need an explainer.
+`useExplainer()`: it then works in both places. `Stage`, `Prompt` / `Predict` and
+`Choices` still need an explainer (for prompts around a plain player, use
+`usePrompts`).
+
+## 10. Ask the reader: prompts (experimental)
+
+A **prompt** is a question at a frame. The reader answers, the answer is
+recorded (and judged, when you say how), and forward moves stop at an
+unanswered question. One hook, `usePrompts` (from
+`@sphynxoid/stepwise/experimental`), covers a predict-the-next-step quiz, a
+graded lesson and a story that branches on what the reader says. Prompts come
+from two places:
+
+- `ask(step, frame, steps)`: an **overlay** on any trace. The answer changes
+  nothing downstream. This is predict mode.
+- a **generator step's `prompt`**: on a walk, `yield { ..., prompt: { options } }`
+  and the answer is the value of that `yield`, so the story branches on it.
+  Only an *object* `prompt` is a question; a string, `null` or an array under
+  that name stays plain step data. A step with `await: true` is still a choice
+  point (a prompt with no options). The prompt is JSON only (`id`, `data`,
+  `options`, `answer`, `retries`, `explain`); functions come from the hook's
+  settings.
+
+```tsx
+import { PlayerBar, type Simulation, type StepwiseStep } from "@sphynxoid/stepwise";
+import { usePrompts } from "@sphynxoid/stepwise/experimental";
+
+type Frame = StepwiseStep<{ kind: string; arr: number[] }>;
+declare const bubble: Simulation<readonly number[], Frame>; // your simulation
+
+const INPUT = [3, 1, 4, 2];
+
+// A question at every compare; the right answer is what the next frame does.
+// Module scope: a new function per render recomputes every question.
+const ask = (step: Frame, f: number, steps: readonly Frame[]) =>
+  step.kind === "compare" ? { options: ["swap", "keep"], answer: steps[f + 1].kind } : null;
+
+export function Quiz() {
+  const run = usePrompts({ simulation: bubble, input: INPUT }, { ask });
+  return (
+    <>
+      <p>{run.step!.label}</p>
+      {run.active && ["swap", "keep"].map((k) => (
+        <button key={k} disabled={!!run.revealed} onClick={() => run.respond(k)}>{k}</button>
+      ))}
+      {run.revealed && <button onClick={run.proceed}>Continue</button>}
+      <PlayerBar player={run.player} toneAt={run.toneAt} titleAt={run.titleAt} />
+      <p>{run.score.passed} / {run.score.reached}</p>
+    </>
+  );
+}
+```
+
+How a prompt behaves:
+
+- **Judging**: `prompt.judge`, else the hook's `judge(answer, prompt, ctx)`,
+  else equality with `prompt.answer`, else the prompt is unjudged (any answer
+  is recorded as "answered"). A judge may be async: `run.status` reads
+  `"pending"`, and a verdict that arrives after the reader moved on (restart,
+  input change, another prompt) is dropped.
+- **First answer settles it** (`retries: 0`, the default): a miss reveals the
+  answer (`run.revealed`) and waits for `proceed()`. `retries: n` allows n
+  changes after the first answer (`Infinity` for a story). A prompt's own
+  `retries` wins over the hook's.
+- **Gate** (`navigation: "gate"`, default): Next, scrubbing and seeks stop at
+  the first unsettled prompt, and playback holds there. `navigation: "free"`
+  passes it (it counts as skipped; `run.skip()` leaves one deliberately).
+  A prompt on the last frame holds too; answering lets the run end.
+- `proceed()` moves on once the prompt is settled (`autoContinue: true` does it
+  for you). `restart()` clears the answers and score and unlocks the input.
+- **Input lock**: `onInputChange` is `"lock"` once the run has a judged prompt
+  (the input is locked after the first answer; route edits through
+  `run.requestInput(() => setInput(x))`, which returns whether it ran, and
+  disable the editor with `run.inputLocked`), `"keep"` otherwise (answers stay
+  by position or id; overlay verdicts are judged again), or `"clear"`.
+  `setInput` while locked is ignored with one dev warning; after `restart()`
+  it applies. A `hashchange` carrying a new input while locked is applied as
+  navigation.
+- `ask` is called even while prompts are disabled (answers stay recorded), so
+  the record and links never depend on `enabled`. `enabled` / `defaultEnabled`
+  / `readerToggle` switch overlay prompts on and off (generator prompts are
+  always on); `run.canToggle`, `run.setEnabled`.
+- `run.record` (one entry per prompt reached), `run.score`
+  (`{ reached, passed, failed, answered, skipped }`), `run.feedback`,
+  `run.retriesLeft`, `run.judgeError`.
+- **Answer links**: `syncAnswers: { key, serialize, parse }` puts the answers
+  in the hash (`#path=a.b..c`, a skipped prompt is empty), restored with
+  `syncInput` before the frame. A link carries each answer's final value only
+  (restored entries regain their retries); a list with a single skipped entry
+  round-trips as empty; a value `parse` rejects drops the whole list, and the
+  playhead lands on the first unsettled prompt. In the kit (below), judged runs
+  do not link answers unless you opt in.
+- **Step cap**: `maxSteps` (default 10,000) counts steps since the last prompt,
+  so a long story is not cut off. A forward run continues the live generator
+  instead of replaying it (`createWalkSession`, below).
+
+A story, with typed answers, a Back button that re-answers, and the futures an
+answer cut off kept by `usePromptHistory`:
+
+```tsx
+import { useState } from "react";
+import { PlayerBar } from "@sphynxoid/stepwise";
+import { usePromptHistory, usePrompts, type WalkSimulation, type WalkStep } from "@sphynxoid/stepwise/experimental";
+
+type Scene = WalkStep & { text: string };
+
+// A step with an object `prompt` is a question: the answer is the value of that
+// `yield`, so the story branches on it. `options` makes buttons; none, free text.
+const night: WalkSimulation<null, Scene, string> = function* () {
+  const door = yield {
+    key: "door", tone: "accent", label: "The tower", text: "Stairs, and a logbook on the desk.",
+    prompt: { id: "door", options: ["climb", { value: "log", label: "read the logbook" }] },
+  };
+  yield { key: "next", tone: "neutral", label: "Next", text: door === "log" ? "Lens cracked." : "The lamp room." };
+  const name = yield { key: "radio", tone: "accent", label: "Radio", text: "Who keeps the light?", prompt: { id: "name" } };
+  yield { key: "end", tone: "good", label: "Morning", text: `Welcome, ${name}.` };
+};
+
+export function Story() {
+  const run = usePrompts({ simulation: night, input: null }, {
+    retries: Infinity,   // the reader can go Back and answer again; the story replays from there
+    autoContinue: true,  // move on as soon as an answer settles
+    syncHash: "frame",
+    syncAnswers: { key: "path", serialize: (a: string) => encodeURIComponent(a), parse: (v: string) => decodeURIComponent(v) },
+  });
+  const history = usePromptHistory(run); // the futures an answer cut off
+  const [draft, setDraft] = useState("");
+  return (
+    <>
+      <p>{run.step?.text}</p>
+      {run.active?.prompt.options?.map((o) => {
+        const value = typeof o === "string" ? o : o.value;
+        return <button key={value} onClick={() => run.respond(value)}>{typeof o === "string" ? o : o.label}</button>;
+      })}
+      {run.active && !run.active.prompt.options && (
+        <form onSubmit={(e) => { e.preventDefault(); run.respond(draft); setDraft(""); }}>
+          <input value={draft} onChange={(e) => setDraft(e.target.value)} />
+        </form>
+      )}
+      <PlayerBar player={run.player} toneAt={run.toneAt} titleAt={run.titleAt} controls="step" />
+      {history.branches.map((b, i) => (
+        <button key={i} disabled={run.inputLocked} onClick={() => history.restore(b)}>{b.join(" > ")}</button>
+      ))}
+      <p>{history.backtracks} changed answers</p>
+    </>
+  );
+}
+```
+
+- `usePromptHistory(run, { overwrite })` returns `{ tree, branches,
+  backtracks, restore }`. It watches the run's generator answers (overlay
+  answers don't branch), keeps every list walked as a tree, counts each change
+  of a settled answer, and `restore(answers)` replays a kept branch (ignored
+  while the input is locked; starting over is not a backtrack).
+  `overwrite: true` drops the branch an answer replaced.
+- Keep `retries: Infinity` (and `onInputChange: "keep"`) for a story whose
+  answers aren't graded; judged prompts lock the input.
+
+**In the kit.** A definition's `prompts` block holds the same settings
+(`ask`, `judge`, `retries`, `navigation`, `autoContinue`, `onInputChange`,
+`linkAnswers`); answers are strings. The `Prompt` part draws the question on
+the playhead (options, Check, feedback, the reveal and Continue); `Choices` is
+`Prompt` on a run with prompts. `<Explainer promptsEnabled>` forces overlay
+prompts on (an exam) or off with no reader toggle; `predict` starts the
+reader's toggle (`PredictToggle`). Answers link as `${id}.a` (a walk's as
+`${id}.path`) only when the definition has no judged prompts (no `predict`,
+`judge` or `ask`); set `prompts: { linkAnswers: true }` to opt in, or `false`
+for a walk whose steps' prompts carry an `answer`. `useExplainer().prompts` is
+the `usePrompts` run (`null` without `predict` or `prompts`), `.predict` the
+thin layer custom parts used before.
+
+```tsx
+import { defineExplainer, type StepwiseStep } from "@sphynxoid/stepwise/core";
+import { createExplainer, Prompt, Stage, Narration, ExplainerBar, useExplainer } from "@sphynxoid/stepwise/kit";
+
+type Step = StepwiseStep<{ kind: string }>;
+export const quiz = defineExplainer<Step>({
+  name: "quiz",
+  *simulation() {
+    yield { key: "a", kind: "compare", tone: "accent", label: "Compare" };
+    yield { key: "b", kind: "swap", tone: "write", label: "Swap" };
+  },
+  prompts: {
+    ask: (step, f, steps) => (step.kind === "compare" ? { options: ["swap", "keep"], answer: steps[f + 1].kind } : null),
+    retries: 1,          // one retry after a miss (default 0: the first answer settles it)
+    linkAnswers: false,  // judged runs don't link answers by default; true opts in
+  },
+});
+
+function View() {
+  const { step } = useExplainer();
+  return <p>{step?.label}</p>;
+}
+export const Quiz = createExplainer({ definition: quiz, view: View });
+
+export const page = (
+  <Quiz id="q" promptsEnabled>
+    <Stage />
+    <Narration />
+    <Prompt>Swap, or keep?</Prompt>
+    <ExplainerBar />
+  </Quiz>
+);
+```
+
+`predict: { at, options, truth, hint }`, `Predict`, `PredictToggle` and
+`Choices` stay as shortcuts for this release: `predict` is an `ask` overlay over
+the frame after the checkpoint, `Predict` is `Prompt`. Behaviour since prompts:
+the kit settles on the first answer by default (a miss reveals the answer and
+waits for Continue; no Skip under the default gate), stepping with Next stops
+at an unanswered question (not only autoplay), `PredictApi.held` means "the
+playhead is on a prompt", and Check with nothing picked does not use an
+attempt.
+
+**`stopAt`** (additive, on `useStepPlayer`, `useTrace`, `useSimulation`,
+`useWalk`): `stopAt(frame)` returning true makes forward moves (next, seeks and
+scrubs ahead, a link jump) stop on that frame; backward moves pass. It is read
+live, so a changing function costs nothing. A `useWalk` caller that passes
+`stopAt` also gets a gated link jump. `usePrompts` uses it for its gate.
+
+```tsx
+import { useState } from "react";
+import { useTrace, type StepwiseStep } from "@sphynxoid/stepwise";
+
+const STEPS: StepwiseStep[] = [
+  { key: "a", tone: "neutral", label: "A" },
+  { key: "q", tone: "accent", label: "Question" },
+  { key: "b", tone: "good", label: "B" },
+];
+
+export function Gated() {
+  const [answered, setAnswered] = useState(false);
+  // Forward moves (next, a seek or scrub ahead, a hash link) stop on the first frame this returns true for.
+  const trace = useTrace(STEPS, { stopAt: (frame) => frame === 1 && !answered });
+  return <button onClick={() => setAnswered(true)}>{trace.player.index}</button>;
+}
+```
+
+**Pure pieces** (`@sphynxoid/stepwise/core`): the answer record
+(`reachEntry`, `applyAnswer`, `skipEntry`, `truncateAfter`, `canAnswer`,
+`retriesLeft`, `settledAnswer`, `scoreOf`, `EMPTY_RECORD`), `isChoicePoint`,
+`createWalkSession` (a walk run that continues the live generator while the
+answers only grow, and replays when it must; its result for some choices
+equals `runWalk`'s) and the branch tree (`addPath`, `branchesOf`).
+
+```ts
+import {
+  EMPTY_RECORD, addPath, applyAnswer, branchesOf, createWalkSession, reachEntry, scoreOf, settledAnswer,
+  type PromptRecord, type WalkSimulation, type WalkStep,
+} from "@sphynxoid/stepwise/core";
+
+const walk: WalkSimulation<null, WalkStep, string> = function* () {
+  const a = yield { key: "q", tone: "accent", label: "Pick", prompt: { options: ["x", "y"] } };
+  yield { key: `end.${a}`, tone: "good", label: `You picked ${a}` };
+};
+
+// A session continues the live generator while the answers only grow, and replays otherwise.
+const session = createWalkSession(walk, null, { seed: 1, maxSteps: 1000 });
+const first = session.run([]);       // stops at the question: first.awaiting
+const second = session.run(["x"]);   // continues, no replay
+session.close();
+
+// The answer record: pure bookkeeping, one entry per prompt reached.
+let rec = EMPTY_RECORD as PromptRecord<string>;
+rec = reachEntry(rec, { id: "q", frame: 0, source: "generator", judged: true, retries: 0 });
+rec = applyAnswer(rec, 0, "x", "pass");
+export const out = [
+  first.awaiting, second.steps.length, scoreOf(rec).passed, settledAnswer(rec.entries[0]),
+  branchesOf(addPath({ answers: [], children: [] }, ["x"], false)),
+];
+```
 
 ## Pitfalls checklist
 
@@ -554,3 +835,8 @@ A custom part that only needs the step should read `useStepParts()`, not
 18. A seed the reader should change or link → make it an input field (`{ seed: 7 }`) and seed `createRng` from it; `definition.seed` is fixed per definition.
 19. A kit-style page around a plain player that rebuilds the narration line and the bar by hand → wrap it in `<StepParts source={trace}>` and use the parts.
 20. A walk on `useWalk` that wants the kit's links, keys and precomputing → `defineExplainer({ walk, choose: { options } })` and `<Choices />` in the view.
+21. Next won't go past a question → under `usePrompts` that is the gate: show the question while `run.active` is set and wire its answer to `run.respond`, or pass `navigation: "free"`.
+22. `ask` (or the input) defined inline in the component → a new function or array per render recomputes every question; define them at module scope.
+23. Editing the input after answering → locked by default once a judged prompt is reached; route edits through `run.requestInput` and offer `restart()`, or set `onInputChange`.
+24. A string, `null` or array `prompt` on a step is plain data, not a question; only an object `prompt` (or `await: true`) pauses the walk.
+25. Linking a graded run's answers hands the answers over in the URL: the kit does it only for unjudged runs unless `prompts.linkAnswers` says otherwise.

@@ -97,6 +97,7 @@ export const API: ApiGroup[] = [
               { name: "onEnd", type: "() => void", desc: "Fired once when playback runs to the final frame on its own. Cleared by any cursor movement." },
               { name: "respectReducedMotion", type: "boolean", def: "true", desc: "With autoPlay, land on frame 0 but stay paused under prefers-reduced-motion." },
               { name: "holdAt", type: "(frame: number) => boolean", desc: "Checkpoints: autoplay pauses on these frames and reports held. It doesn't resume on its own: call release() (a Continue button) or press play. Manual steps and seeks are never held; each checkpoint holds once per playthrough." },
+              { name: "stopAt", type: "(frame: number) => boolean", desc: "Gate forward moves: next, a seek or scrub ahead, a hash-link jump and playback stop on the first frame this returns true for (a move that starts on a gated frame doesn't pass it). Backward moves pass. Read live through a ref, so a new function each render is fine. Also an option of useTrace, useSimulation and useWalk (for useWalk, a gated link jump too). usePrompts uses it for its gate." },
               { name: "follow", type: "boolean", def: "false", desc: "Follow the live edge of a growing timeline: when frames are appended while the reader is live (playing, or parked on the last frame), playback continues into them. A reader who scrubbed back or paused mid-trace stays put. With autoPlay, a player that mounts empty starts on the first frames. Checkpoints still hold; ignored with an engine." },
             ],
           },
@@ -797,6 +798,7 @@ export const API: ApiGroup[] = [
             title: "WalkOptions (plus every SimulationOptions field)",
             rows: [
               { name: "choices", type: "readonly Choice[]", desc: "Choices to start with (read once, on mount)." },
+              { name: "stopAt", type: "(frame: number) => boolean", desc: "As for useStepPlayer. A useWalk caller that passes it also gets a gated link jump; the plain walk stays free otherwise." },
               { name: "anchor", type: '"key" | "index"', def: '"key"', desc: "Where the playhead stays when the input changes: on the step with the same key, or at the same index (for walks where step i means \"after i inputs\", like fromGraph)." },
               { name: "syncChoices", type: "{ key, serialize, parse }", desc: "Keep the choices in the URL (#p=a.b.a). Restored together with syncInput, before the linked frame. A choice parse rejects drops the whole linked path." },
               { name: "initialTrace", type: "PrecomputedTrace<Input, S>", desc: "As for useSimulation, plus the choices: the precomputed path stands in for the run while the input matches by content, the seed matches and the choices equal trace.choices. Choice points are its await: true steps. Since 0.6." },
@@ -820,7 +822,7 @@ export const API: ApiGroup[] = [
         name: "runWalk / WalkSimulation",
         signature: "runWalk(simulation, input, opts?: { seed?, maxSteps?, choices? }): WalkResult<S>",
         summary:
-          "A walk simulation is a generator; a step with await: true is a choice point, and that yield returns the reader's choice: const pick = yield { key: \"fork\", await: true, … }. runWalk replays it purely, stopping at the first unanswered choice point. Linear simulations are walks without choice points.",
+          "A walk simulation is a generator; a step with await: true is a choice point, and that yield returns the reader's choice: const pick = yield { key: \"fork\", await: true, … }. runWalk replays it purely, stopping at the first unanswered choice point. A step whose prompt is an object (a PromptSpec) is a choice point too; a string, null or array prompt is plain step data. maxSteps counts steps since the last choice point, not the whole run. Linear simulations are walks without choice points.",
         tables: [
           {
             title: "WalkResult<S>",
@@ -887,6 +889,90 @@ export const API: ApiGroup[] = [
     ],
   },
   {
+    title: "Experimental: prompts",
+    blurb: "From @sphynxoid/stepwise/experimental (the pure pieces also from ./core): may change in a minor release. A prompt is a question at a frame: the reader answers, the answer is recorded and judged, forward moves stop at an unanswered one, and on a walk the answer can branch what comes next. Predict, Choices and the kit's predict block are shortcuts over this for one release.",
+    entries: [
+      {
+        id: "usePrompts",
+        name: "usePrompts",
+        signature: "usePrompts<Input, S extends WalkStep, A = string>(source: { steps: readonly S[] } | { simulation: Simulation<Input, S> | WalkSimulation<Input, S, A>; input: Input }, opts?: PromptsOptions<Input, S, A>): PromptsRun<S, A>",
+        summary:
+          "Ask the reader at a step. Prompts come from the run's steps (an object prompt on a yielded step, or await: true: the answer is the value of that yield, so it branches the run) or from an ask overlay (any trace; the answer changes nothing downstream). Answers are recorded, judged (prompt.judge, else judge, else equality with prompt.answer, else unjudged) and scored. Playback holds at an unsettled prompt and forward moves stop there. The first answer settles a prompt unless retries says otherwise: a miss reveals the answer and waits for proceed(). Options are those of useWalk (seed, maxSteps, anchor, syncHash, syncInput, initialTrace, autoPlay, holdAt, ...) except choices, syncChoices and stopAt.",
+        demo: "/adventure",
+        tables: [
+          {
+            title: "PromptsOptions<Input, S, A>",
+            rows: [
+              { name: "ask", type: "(step: S, frame: number, steps: readonly S[]) => Prompt<A, S> | null", desc: "Overlay prompts. Called even while prompts are disabled (answers stay recorded). Define it at module scope: a new function recomputes every question." },
+              { name: "judge", type: "(answer: A, prompt: PromptSpec<A>, ctx: PromptContext<S>) => EvaluatorResult | Promise<EvaluatorResult>", desc: "Judges every prompt that has no judge of its own (generator prompts get theirs here). May be async: status reads pending, and a late verdict after a restart, input change or another prompt is dropped." },
+              { name: "retries", type: "number", def: "0", desc: "Changes allowed after the first answer (Infinity for a story). A prompt's own retries wins." },
+              { name: "navigation", type: '"gate" | "free"', def: '"gate"', desc: "gate: forward moves stop at an unsettled prompt. free: they pass it, and it counts as skipped." },
+              { name: "autoContinue", type: "boolean", def: "false", desc: "Move on as soon as a prompt settles instead of waiting for proceed()." },
+              { name: "enabled / defaultEnabled / readerToggle", type: "boolean", def: "– / true / true", desc: "Overlay prompts on or off (controlled, or the uncontrolled start and whether the reader may toggle). Generator prompts are always on." },
+              { name: "onInputChange", type: '"lock" | "clear" | "keep"', desc: "What an input change does to the answers. lock: once answered, the input is locked until restart(). clear: answers and score are cleared. keep: answers stay (by position for generator prompts, by id for overlay prompts) and overlay verdicts are judged again. Default: lock once a judged prompt is reached, else keep. setInput while locked is ignored with one dev warning; a hashchange carrying a new input while locked is applied as navigation." },
+              { name: "syncAnswers", type: "{ key: string; serialize: (a: A) => string; parse: (v: string) => A | null }", desc: "Deep-link the answers (#key=a.b..c, a skipped prompt empty). Restored with syncInput, before the frame. A link carries each answer's final value only (restored entries regain their retries); a list holding one skipped entry round-trips as empty; a value parse rejects drops the whole list and the playhead lands on the first unsettled prompt." },
+              { name: "maxSteps", type: "number", def: "10000", desc: "Counted since the last prompt, not the whole run. A forward run continues the live generator instead of replaying." },
+            ],
+          },
+          {
+            title: "PromptsRun<S, A> (returned: every SimulationPlayer field, plus)",
+            rows: [
+              { name: "active", type: "{ prompt, entry, frame } | null", desc: "The prompt at the playhead, with its entry (a fresh open one until reached)." },
+              { name: "status", type: '"open" | "pass" | "fail" | "answered" | "skipped" | "pending" | null', desc: "The active entry's status; pending while an async judge runs; null off a prompt." },
+              { name: "feedback / judgeError / retriesLeft", type: "ReactNode / unknown / number", desc: "The last verdict's feedback, what a throwing judge threw (the answer counts as a miss), and the retries still available." },
+              { name: "revealed", type: "{ answer: A | undefined; explain: unknown } | null", desc: "Once the active entry is settled (not skipped): the right answer, if known, and explain." },
+              { name: "respond", type: "(answer: A) => void", desc: "Answer the prompt at the playhead. Off a prompt, or once final, ignored (dev warning)." },
+              { name: "skip", type: "() => void", desc: "Leave the prompt unanswered (navigation free only)." },
+              { name: "proceed", type: "() => void", desc: "Once settled: release a hold, or step on (at the end, finish the run)." },
+              { name: "restart", type: "() => void", desc: "Clear every answer and the score, unlock the input; the playhead returns to frame 0." },
+              { name: "restoreAnswers", type: "(answers: readonly (A | undefined)[]) => void", desc: "Replay a list of generator answers (a kept branch). Ignored, with a dev warning, while the input is locked." },
+              { name: "enabled / setEnabled / canToggle", type: "boolean / (on) => void / boolean", desc: "Overlay prompts on or off; the reader's toggle is ignored when enabled is controlled or while the input is locked." },
+              { name: "inputLocked / requestInput", type: "boolean / (apply: () => void) => boolean", desc: "Under lock, true once the reader has answered. requestInput runs an input change (() => setInput(x)) unless locked and returns whether it ran." },
+              { name: "record / score", type: "PromptRecord<A> / PromptScore", desc: "One entry per prompt reached; { reached, passed, failed, answered, skipped }." },
+            ],
+          },
+          {
+            title: "PromptSpec<A> (what a step's prompt or an ask overlay declares; Prompt<A, S> adds judge)",
+            rows: [
+              { name: "id", type: "string", desc: "Defaults to the step's key, else the frame number." },
+              { name: "options", type: "readonly (string | { value: string; label: string })[]", desc: "Picked answers; without options the answer is free (typed)." },
+              { name: "answer / retries / explain / data", type: "A / number / unknown / unknown", desc: "The right answer (judged by equality), this prompt's retries, what to show after it settles, and anything else your view needs. A step's prompt holds JSON only, so a generator can emit it." },
+              { name: "judge", type: "(answer: A, ctx: PromptContext<S>) => EvaluatorResult | Promise<EvaluatorResult>", desc: "Overlay prompts only (functions come from the hook's settings)." },
+            ],
+          },
+        ],
+      },
+      {
+        id: "usePromptHistory",
+        name: "usePromptHistory",
+        signature: "usePromptHistory<S extends WalkStep, A>(run: PromptsRun<S, A>, opts?: { overwrite?: boolean }): PromptHistory<A>",
+        summary:
+          "Keep the futures an answer cut off. Watches a run's generator answers (overlay answers don't branch the run) and keeps every list walked in a tree; each change of a settled answer is a backtrack. Starting over (restart, a restored branch) is not.",
+        demo: "/adventure",
+        tables: [
+          {
+            title: "PromptHistory<A> (returned)",
+            rows: [
+              { name: "tree", type: "BranchNode<A>", desc: "Every answer list walked, as a tree (the root's list is empty)." },
+              { name: "branches", type: "readonly (readonly (A | undefined)[])[]", desc: "Each kept future: a leaf's full answer list." },
+              { name: "backtracks", type: "number", desc: "How many times a settled generator answer was changed." },
+              { name: "restore", type: "(answers) => void", desc: "Replay a kept branch. Ignored while the run's input is locked." },
+              { name: "overwrite (option)", type: "boolean", def: "false", desc: "Drop a branch when another replaces it." },
+            ],
+          },
+        ],
+      },
+      {
+        id: "promptRecord",
+        name: "createWalkSession / the prompt record",
+        signature: "createWalkSession<Input, S extends WalkStep, Choice>(simulation, input, opts?: { seed?, maxSteps? }): { run(choices): WalkResult<S>; close(): void }\nreachEntry / applyAnswer / skipEntry / truncateAfter / canAnswer / retriesLeft / settledAnswer / scoreOf / EMPTY_RECORD",
+        summary:
+          "Pure, in ./core (no React). A walk session keeps the generator alive at the choice point it stopped on and, when the next call's choices extend the previous call's, sends it the new answers; it replays only when it must (a changed earlier answer, a dead generator). Continuing equals replaying: the cap and the choice-point rule are runWalk's. The answer record holds one entry per prompt reached ({ id, frame, source, judged, retries, attempts, status, settled }); every function returns a new record, or the same object when nothing changes. addPath and branchesOf build the branch tree.",
+        tables: [],
+      },
+    ],
+  },
+  {
     title: "Experimental: authoring kit",
     blurb: "From @sphynxoid/stepwise/core, @sphynxoid/stepwise/kit and @sphynxoid/stepwise/kit/mdx: may change in a minor release. An explainer is a definition (pure data, ./core), a view bound to it by createExplainer (client, ./kit) and, on a server, a precomputed wrapper (./kit/mdx). The parts are flat PascalCase components with serializable props, so they compose from MDX.",
     entries: [
@@ -902,7 +988,10 @@ export const API: ApiGroup[] = [
             rows: [
               { name: "createRng / runSimulation", type: "function", desc: "Seeded randomness and the pure runner (see runSimulation above)." },
               { name: "createTrace", type: "function", desc: "Typed trace builder." },
-              { name: "runWalk / fromGraph", type: "function", desc: "Walks and automata (experimental, see above)." },
+              { name: "runWalk / isChoicePoint / fromGraph", type: "function", desc: "Walks and automata (experimental, see above)." },
+              { name: "createWalkSession", type: "function", desc: "A walk run that continues forward instead of replaying (see Experimental: prompts)." },
+              { name: "reachEntry / applyAnswer / skipEntry / truncateAfter / canAnswer / retriesLeft / settledAnswer / scoreOf / EMPTY_RECORD", type: "function", desc: "The prompt answer record (see Experimental: prompts)." },
+              { name: "addPath / branchesOf", type: "function", desc: "The branch tree behind usePromptHistory." },
               { name: "reanchor / stepKey", type: "function", desc: "The re-anchoring rule and its default key (step.key)." },
               { name: "alignTracks", type: "function", desc: "Comparison-mode alignment table." },
               { name: "diffTraces / structuralEqual", type: "function", desc: "What an edit changed." },
@@ -932,17 +1021,30 @@ export const API: ApiGroup[] = [
               { name: "seed", type: "number | string", def: "0", desc: "Seed for ctx.rng." },
               { name: "maxSteps", type: "number", def: "10000", desc: "Step cap; precompute throws when a run hits it." },
               { name: "input", type: "ExplainerInput<Input>", desc: "{ default, serialize?, parse? }. Leave it out for an explainer with nothing to edit (a recorded walkthrough): the input is null and there are no field props; a simulation that reads an input must declare one. For a seed the reader can change or link, make it an input field and seed createRng from it. With serialize and parse, a linked explainer keeps the input in the URL (#in=, or #<id>.in=); parse returns null to ignore a malformed link." },
-              { name: "predict", type: "ExplainerPredict<S>", desc: "Checkpoints for predict mode (below)." },
+              { name: "predict", type: "ExplainerPredict<S>", desc: "Checkpoints for predict mode (below): a shortcut for this release, an ask overlay over the frame after the checkpoint." },
+              { name: "prompts", type: "ExplainerPrompts<S>", desc: "Prompt settings (below). Also on a walk definition: its choice points, and any prompt on a step, are its prompts." },
+            ],
+          },
+          {
+            title: "ExplainerPrompts<S> (answers are strings; defaults as usePrompts, except a walk: retries Infinity, onInputChange keep)",
+            rows: [
+              { name: "ask", type: "(step: S, frame: number, steps: readonly S[]) => Prompt<string, S> | null", desc: "An overlay prompt for a frame, or null. On a walk, steps is the path so far." },
+              { name: "judge", type: "(answer, prompt, ctx) => EvaluatorResult | Promise<EvaluatorResult>", desc: "Judges every prompt that has no judge of its own." },
+              { name: "retries", type: "number", def: "0", desc: "Changes allowed after the first answer. A prompt's own retries wins." },
+              { name: "navigation", type: '"gate" | "free"', def: '"gate"', desc: "Forward moves stop at an unsettled prompt, or pass it." },
+              { name: "autoContinue", type: "boolean", def: "false", desc: "Move on as soon as a prompt settles, instead of waiting for Continue." },
+              { name: "onInputChange", type: '"lock" | "clear" | "keep"', desc: "What an input edit does to the answers. Default: lock once a judged prompt is reached, else keep." },
+              { name: "linkAnswers", type: "boolean", desc: "Link the answers in the hash (<id>.a; a walk's <id>.path). Default: only when the definition has no judged prompts (no predict, judge or ask), since a link carries the answers. A walk whose steps' prompts carry an answer should set false." },
             ],
           },
           {
             title: "ExplainerPredict<S>",
             rows: [
-              { name: "at", type: "(step: S, frame: number, next: S) => boolean", desc: "Hold autoplay here. next is the frame the guess is graded against, so a checkpoint can depend on what is about to happen without a lookahead field in the trace. A checkpoint on a frame with no successor is skipped: the guess is graded against the next frame, so there is nothing to grade." },
+              { name: "at", type: "(step: S, frame: number, next: S) => boolean", desc: "Ask here: playback holds, and stepping with Next stops until it is answered. next is the frame the guess is graded against, so a checkpoint can depend on what is about to happen without a lookahead field in the trace. A checkpoint on a frame with no successor is skipped: the guess is graded against the next frame, so there is nothing to grade." },
               { name: "options", type: "readonly (string | { value, label })[]", desc: "Answer options. A bare string gets a capitalized label (\"left\" shows \"Left\")." },
               { name: "truth", type: "(next: S | undefined, held: S) => string | undefined", desc: "The correct option value, judged from the frame after the held one." },
               { name: "feedback", type: "(guess, truth, held) => string | undefined", desc: "Custom message for a graded guess; the defaults are \"Right.\" and \"Not quite.\"." },
-              { name: "hint", type: "string", desc: "Appended to the feedback after two failed attempts." },
+              { name: "hint", type: "string", desc: "Appended to the feedback after a miss while a retry remains (see prompts.retries; the default settles on the first answer, so set retries for a hint to show)." },
             ],
           },
           {
@@ -1001,7 +1103,8 @@ export const API: ApiGroup[] = [
               { name: "id", type: "string", desc: "Hash namespace: <id>.frame and <id>.in, and <id>.path for a walk's choices. Two linked explainers on a page without distinct ids share keys (development builds warn once)." },
               { name: "link", type: "boolean", def: "true", desc: "Keep the frame in the URL hash, and the input when the definition has serialize and parse." },
               { name: "autoPlay", type: "boolean", def: "false", desc: "Start playing on mount (reduced motion keeps it paused)." },
-              { name: "predict", type: "boolean", def: "false", desc: "Start in predict mode. Read once; the reader owns it after (PredictToggle)." },
+              { name: "predict", type: "boolean", desc: "Start the reader's toggle on (PredictToggle). Read once; the reader owns it after. Default: off for a predict block, on for prompts." },
+              { name: "promptsEnabled", type: "boolean", desc: "Overlay prompts (predict, prompts.ask) forced on (an exam) or off, with no reader toggle. Generator prompts are always on." },
               { name: "keys", type: "boolean", def: "true", desc: "ArrowRight / ArrowLeft / Space, routed to the explainer the reader last clicked or focused. Until the reader clicks or focuses one (and after the active one unmounts), no explainer takes the keys, so Space scrolls the page. With keys={false} the explainer takes no part in routing: touching it leaves the keys with the others." },
               THEME_ROW,
               CLASS_ROW,
@@ -1028,7 +1131,8 @@ export const API: ApiGroup[] = [
               { name: "error", type: "unknown", desc: "What the simulation threw (the trace keeps the steps before it); null when it ran clean, and for a recorded explainer. Development builds log it once: [stepwise] <name>: the simulation threw: <message>." },
               { name: "truncated", type: "boolean", desc: "maxSteps cut the run short. Always false for a recorded explainer." },
               { name: "sim", type: "TracePlayer<S> & { steps }", desc: "The player and the trace (sim.player for your own controls): the useSimulation result for a live explainer, the useTrace result plus steps for a recorded one." },
-              { name: "predict", type: "PredictApi | null", desc: "Predict mode's state; null without a predict block." },
+              { name: "prompts", type: "PromptsRun<S, string> | null", desc: "The usePrompts run (see Experimental: prompts); null unless the definition has predict or prompts." },
+              { name: "predict", type: "PredictApi | null", desc: "The thin layer Prompt draws: the picked option held until Check. Non-null whenever prompts is." },
               { name: "walk", type: "WalkApi | null", desc: "A walk's choices (below); null for a simulation and a recorded explainer." },
               { name: "id / theme", type: "string | undefined / StepwiseTheme", desc: "As passed (theme defaults to defaultTheme)." },
             ],
@@ -1037,14 +1141,14 @@ export const API: ApiGroup[] = [
             title: "PredictApi",
             rows: [
               { name: "enabled / setEnabled", type: "boolean / (on: boolean) => void", desc: "Checkpoints hold autoplay only while enabled. Turning it off while held releases." },
-              { name: "held", type: "boolean", desc: "Autoplay is parked on a checkpoint. Manual steps and seeks are never blocked." },
+              { name: "held", type: "boolean", desc: "The playhead is on a prompt." },
               { name: "options", type: "readonly PredictOption[]", desc: "The normalized options." },
               { name: "guess / setGuess", type: "string | null / (value: string) => void", desc: "The chosen option value." },
-              { name: "check", type: "() => void", desc: "Grade the guess against the frame after the held one." },
+              { name: "check", type: "() => void", desc: "Answer with the guess (prompts.respond). With nothing picked it only says Pick an answer first and uses no attempt." },
               { name: "status", type: "VerdictStatus | null", desc: "null until checked, and again after the guess changes." },
-              { name: "feedback", type: "ReactNode", desc: "The verdict's feedback, with the hint appended after two failed attempts (there is no separate hint field)." },
-              { name: "attempts", type: "number", desc: "Checks at this checkpoint. Guess, verdict and attempts reset at each new held frame and when the trace changes while held." },
-              { name: "release", type: "() => void", desc: "Leave the checkpoint and resume playing." },
+              { name: "feedback", type: "ReactNode", desc: "The verdict's feedback, with the definition's hint appended after a miss while a retry remains." },
+              { name: "attempts", type: "number", desc: "Answers given at this prompt. The guess resets at each new prompt and when the trace changes." },
+              { name: "release", type: "() => void", desc: "Once the prompt is settled: move on (prompts.proceed)." },
             ],
           },
           {
@@ -1062,10 +1166,10 @@ export const API: ApiGroup[] = [
       },
       {
         id: "explainerParts",
-        name: "Stage / Narration / StepCode / ExplainerBar / EndNote / Choices / Predict / PredictToggle",
-        signature: "<Stage />  <Narration />  <StepCode />  <ExplainerBar />  <EndNote>…</EndNote>  <Choices label?>…</Choices>  <Predict>…</Predict>  <PredictToggle />",
+        name: "Stage / Narration / StepCode / ExplainerBar / EndNote / Choices / Prompt / Predict / PredictToggle",
+        signature: "<Stage />  <Narration />  <StepCode />  <ExplainerBar />  <EndNote>…</EndNote>  <Choices label?>…</Choices>  <Prompt render?>…</Prompt>  <Predict>…</Predict>  <PredictToggle />",
         summary:
-          "The parts: each reads the provider and renders one thing, with serializable props only, so they read the same in TSX and MDX. Stage renders the view and takes no props. Choices (a walk) renders one button per option, disabled off a choice point and pressed on the answer given there; children are a visible prompt, label names the group (default \"Choose\"); nothing for a simulation. Narration, StepCode, ExplainerBar and EndNote need only a step and a player, so they also work in a StepParts (below) around a plain player. The others take a className, and three take children as prose: Narration the step label (aria-live); StepCode the step's code (nothing without); ExplainerBar a PlayerBar for the explainer (controls=\"step\" drops Play, the default for a walk explainer, whose keyboard also leaves Space to the page; controls=\"full\" brings it back); EndNote shows once playback ran to the end (children are the note, default \"End of the run. Play to replay.\"); Predict the question at a held checkpoint (radios, Check, then Continue or Skip; children are the question, default \"What happens next?\"); PredictToggle switches predict mode (children are its label, default \"Predict mode\"). Predict and PredictToggle render nothing without a predict block.",
+          "The parts: each reads the provider and renders one thing, with serializable props only, so they read the same in TSX and MDX. Stage renders the view and takes no props. Choices (a walk) renders one button per option, disabled off a choice point and pressed on the answer given there; children are a visible prompt, label names the group (default \"Choose\"); nothing for a simulation. Narration, StepCode, ExplainerBar and EndNote need only a step and a player, so they also work in a StepParts (below) around a plain player. The others take a className, and three take children as prose: Narration the step label (aria-live); StepCode the step's code (nothing without); ExplainerBar a PlayerBar for the explainer (controls=\"step\" drops Play, the default for a walk explainer, whose keyboard also leaves Space to the page; controls=\"full\" brings it back); EndNote shows once playback ran to the end (children are the note, default \"End of the run. Play to replay.\"); Prompt the question on the playhead (one radio per option, Check for a judged prompt, the feedback, tries left, then the reveal and Continue once it settles; no Skip under the default gate; children are the question, default \"What happens next?\"; render replaces all of it and receives the run); PredictToggle switches overlay prompts (children are its label, default \"Predict mode\"; nothing when there is nothing to toggle or promptsEnabled is set). Predict is Prompt, and Choices is Prompt on an explainer with prompts: both stay as shortcuts for this release. Prompt and PredictToggle render nothing without predict or prompts in the definition.",
         demo: "/kit",
         tables: [],
       },
@@ -1102,7 +1206,7 @@ export const API: ApiGroup[] = [
         name: "stepwiseComponents",
         signature: "export function useMDXComponents(c: MDXComponents) { return { ...stepwiseComponents, ...c }; }",
         summary:
-          "From @sphynxoid/stepwise/kit/mdx: Term, GlossaryAppendix, Stage, Narration, StepCode, Predict, PredictToggle, ExplainerBar, EndNote and Choices as one map, to spread into mdx-components.tsx or an MDX provider's components. Your own explainers are not in it: import them in the MDX file or add them to the map.",
+          "From @sphynxoid/stepwise/kit/mdx: Term, GlossaryAppendix, Stage, Narration, StepCode, Prompt, Predict, PredictToggle, ExplainerBar, EndNote and Choices as one map, to spread into mdx-components.tsx or an MDX provider's components. Your own explainers are not in it: import them in the MDX file or add them to the map.",
         tables: [],
       },
     ],
