@@ -182,6 +182,19 @@ describe("defineExplainer / precompute", () => {
     expect(out.steps).toEqual(client.steps);
     expect(out.choices).toEqual([]);
   });
+
+  it("a definition without prompts or predict precomputes the whole run, as its client (useSimulation) plays it", () => {
+    type P = { key: string; tone: "neutral"; label: string; await?: boolean; prompt?: { text: string } };
+    const plain = function* (): Generator<P, void, unknown> {
+      yield { key: "a", tone: "neutral", label: "a", await: true };
+      yield { key: "b", tone: "neutral", label: "b", prompt: { text: "just data" } };
+      yield { key: "c", tone: "neutral", label: "c" };
+    };
+    const def = defineExplainer({ name: "plain", simulation: plain, input: { default: null } });
+    const out = precompute(def);
+    expect(out.steps.map((st) => st.key)).toEqual(["a", "b", "c"]);
+    expect(out.choices).toBeUndefined();
+  });
 });
 
 describe("resolveInput", () => {

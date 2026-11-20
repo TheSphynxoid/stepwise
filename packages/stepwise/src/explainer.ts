@@ -1,4 +1,5 @@
 import type { Prompt, PromptContext, PromptSpec } from "./prompts";
+import { runSimulation } from "./simulation";
 import type { Simulation } from "./simulation";
 import type { EvaluatorResult, StepwiseStep } from "./types";
 import { isChoicePoint, runWalk } from "./walk";
@@ -247,22 +248,27 @@ export function precompute<Input, S extends StepwiseStep>(
   const label = precomputeLabel(def);
   const used = input === undefined ? def.input.default : input;
   assertJsonInput(def, used);
-  // A walk may end on an unanswered choice point: that is where the reader
-  // starts. A simulation runs the same way (any iterable, its values sent
-  // back ignored), so one with step prompts stops at its first prompt, as the
-  // client's run does before any answer.
+  // Precompute the way the client will play it. A walk may end on an
+  // unanswered choice point: that is where the reader starts. A simulation
+  // with prompts or predict runs on prompts on the client (any iterable, sent
+  // values ignored), so it stops at its first step prompt too. A plain
+  // simulation plays through useSimulation, which runs to the end whatever its
+  // steps look like, so it is precomputed whole.
+  const prompted = Boolean(def.walk || def.prompts || def.predict);
   const run = def.walk
     ? runWalk(def.walk, used, { seed: def.seed, maxSteps: def.maxSteps, choices: choices ?? [] })
-    : runWalk(asWalkOf(def.simulation!), used, { seed: def.seed, maxSteps: def.maxSteps });
+    : prompted
+      ? runWalk(asWalkOf(def.simulation!), used, { seed: def.seed, maxSteps: def.maxSteps })
+      : { ...runSimulation(def.simulation!, used, { seed: def.seed, maxSteps: def.maxSteps }), choicePoints: [] as number[], used: 0 };
   if (run.error !== null && run.error !== undefined) {
     const e = run.error;
     throw new Error(`${label}: simulation threw: ${e instanceof Error ? e.message : String(e)}`);
   }
   if (run.truncated) {
     const cap = def.maxSteps ?? 10_000;
-    const prompted = run.steps.some((st) => isChoicePoint(st as WalkStep));
+    const sincePrompt = prompted && run.steps.some((st) => isChoicePoint(st as WalkStep));
     throw new Error(
-      prompted
+      sincePrompt
         ? `${label}: simulation hit maxSteps (${cap} steps since the last prompt); raise maxSteps or fix a non-terminating run`
         : `${label}: simulation hit maxSteps (${cap}); raise maxSteps or fix a non-terminating run`
     );
