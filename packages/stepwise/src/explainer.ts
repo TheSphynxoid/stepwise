@@ -1,5 +1,4 @@
 import type { Prompt, PromptContext, PromptSpec } from "./prompts";
-import { runSimulation } from "./simulation";
 import type { Simulation } from "./simulation";
 import type { EvaluatorResult, StepwiseStep } from "./types";
 import { isChoicePoint, runWalk } from "./walk";
@@ -213,6 +212,13 @@ function findNonJson(value: unknown, path: string, ancestors = new Set<object>()
   }
 }
 
+/** A simulation (any iterable) as a walk: the values sent back are ignored. */
+function asWalkOf<Input, S extends StepwiseStep>(sim: Simulation<Input, S>): WalkSimulation<Input, S & WalkStep, unknown> {
+  return function* (input, ctx) {
+    yield* sim(input, ctx) as Iterable<S & WalkStep>;
+  };
+}
+
 const precomputeLabel = (def: { name?: string }) => `[stepwise] precompute(${JSON.stringify(def.name ?? "explainer")})`;
 
 /**
@@ -241,11 +247,13 @@ export function precompute<Input, S extends StepwiseStep>(
   const label = precomputeLabel(def);
   const used = input === undefined ? def.input.default : input;
   assertJsonInput(def, used);
-  // A walk may end on an unanswered choice point: that is where the reader starts.
-  const walked = def.walk
+  // A walk may end on an unanswered choice point: that is where the reader
+  // starts. A simulation runs the same way (any iterable, its values sent
+  // back ignored), so one with step prompts stops at its first prompt, as the
+  // client's run does before any answer.
+  const run = def.walk
     ? runWalk(def.walk, used, { seed: def.seed, maxSteps: def.maxSteps, choices: choices ?? [] })
-    : null;
-  const run = walked ?? runSimulation(def.simulation!, used, { seed: def.seed, maxSteps: def.maxSteps });
+    : runWalk(asWalkOf(def.simulation!), used, { seed: def.seed, maxSteps: def.maxSteps });
   if (run.error !== null && run.error !== undefined) {
     const e = run.error;
     throw new Error(`${label}: simulation threw: ${e instanceof Error ? e.message : String(e)}`);
@@ -263,7 +271,9 @@ export function precompute<Input, S extends StepwiseStep>(
     const bad = findNonJson(run.steps[i], `steps[${i}]`);
     if (bad) throw new Error(`${label}: ${bad.path} is not JSON-serializable (${bad.kind})`);
   }
-  if (walked) return { input: used, seed: run.seed, steps: run.steps, choices: (choices ?? []).slice(0, walked.used) };
+  if (def.walk) return { input: used, seed: run.seed, steps: run.steps, choices: (choices ?? []).slice(0, run.used) };
+  // `choices` only where a prompt was met: a trace without one stays as it was.
+  if (run.choicePoints.length > 0) return { input: used, seed: run.seed, steps: run.steps, choices: [] };
   return { input: used, seed: run.seed, steps: run.steps };
 }
 

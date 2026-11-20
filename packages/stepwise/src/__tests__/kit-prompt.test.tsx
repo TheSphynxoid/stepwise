@@ -101,10 +101,80 @@ describe("Prompt part", () => {
     expect(screen.getByTestId("i").textContent).toBe("2");
   });
 
-  it("the input is not editable after the first answer under lock", () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  it("a predict explainer stays editable after an answer, and an edit clears the answers", () => {
     render(
       <Explainer definition={counting} view={View} link={false} predict>
+        <Stage />
+        <Prompt />
+        <PredictToggle />
+      </Explainer>
+    );
+    act(() => api.sim.player.next());
+    fireEvent.click(screen.getByRole("radio", { name: "Down" }));
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+    expect(api.prompts!.status).toBe("fail");
+    expect(api.prompts!.inputLocked).toBe(false);
+    expect(api.editable).toBe(true);
+    expect((screen.getByRole("switch") as HTMLButtonElement).disabled).toBe(false);
+    expect(screen.queryByRole("button", { name: "Start over" })).toBeNull();
+    act(() => api.setInput(4));
+    expect(api.sim.steps).toHaveLength(4);
+    expect(api.prompts!.record.entries.some((e) => e.settled)).toBe(false);
+    expect(api.prompts!.score.answered).toBe(0);
+  });
+
+  it("a definition that keeps the lock shows Start over, which unlocks", () => {
+    const locking = defineExplainer({ ...counting, prompts: { onInputChange: "lock" } });
+    render(
+      <Explainer definition={locking} view={View} link={false} predict>
+        <Stage />
+        <Prompt />
+      </Explainer>
+    );
+    expect(screen.queryByRole("button", { name: "Start over" })).toBeNull();
+    act(() => api.sim.player.next());
+    fireEvent.click(screen.getByRole("radio", { name: "Up" }));
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+    expect(api.editable).toBe(false);
+    // Off the prompt too: the way out stays on screen while the input is locked.
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    expect(screen.getByTestId("i").textContent).toBe("2");
+    fireEvent.click(screen.getByRole("button", { name: "Start over" }));
+    expect(api.editable).toBe(true);
+    expect(screen.getByTestId("i").textContent).toBe("0");
+    expect(screen.queryByRole("button", { name: "Start over" })).toBeNull();
+    act(() => api.setInput(5));
+    expect(api.sim.steps).toHaveLength(5);
+  });
+
+  it("a free-text prompt without render draws no options, and warns once in dev", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const free = defineExplainer({
+      name: "free",
+      simulation: countSim,
+      input: { default: 3 },
+      prompts: { ask: (s: CountStep) => (s.i === 1 ? {} : null) },
+    });
+    render(
+      <Explainer definition={free} view={View} link={false}>
+        <Stage />
+        <Prompt />
+      </Explainer>
+    );
+    act(() => api.sim.player.next());
+    expect(api.prompts!.active?.frame).toBe(1);
+    expect(screen.queryByRole("radiogroup")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Check" })).toBeNull();
+    const calls = warn.mock.calls.filter((c) => String(c[0]).includes("render"));
+    expect(calls).toHaveLength(1);
+    expect(String(calls[0][0])).toMatch(/^\[stepwise\] Prompt/);
+  });
+
+  it("the input is not editable after the first answer under lock", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const locking = defineExplainer({ ...counting, prompts: { onInputChange: "lock" } });
+    render(
+      <Explainer definition={locking} view={View} link={false} predict>
         <Stage />
         <Prompt />
         <PredictToggle />
@@ -253,5 +323,38 @@ describe("walk with prompts in the default layout", () => {
     render(<Explainer definition={promptedForks} view={Blank} id="w" />);
     fireEvent.click(screen.getByRole("radio", { name: "Bee" }));
     expect(window.location.hash).toContain("w.path=b");
+  });
+
+  it("a linked path outside choose's option list is rejected", () => {
+    let seen: ExplainerApi | null = null;
+    function Spy() {
+      seen = useExplainer();
+      return null;
+    }
+    window.history.replaceState(null, "", "#w.path=zz&w.frame=1");
+    render(<Explainer definition={promptedForks} view={Spy} id="w" />);
+    expect(seen!.walk!.choices).toEqual([]);
+    cleanup();
+    window.history.replaceState(null, "", "#w.path=b&w.frame=1");
+    render(<Explainer definition={promptedForks} view={Spy} id="w" />);
+    expect(seen!.walk!.choices).toEqual(["b"]);
+    expect(seen!.sim.step!.label).toBe("took b");
+  });
+
+  it("a linked path accepts a step's own prompt option outside choose's list", () => {
+    const ownWalk: WalkSimulation<null, Fork, string> = function* () {
+      const c = yield { key: "start", tone: "neutral", label: "start", prompt: { options: ["x", "y"] } };
+      yield { key: `after.${c}`, tone: "neutral", label: `took ${c}` };
+    };
+    const own = defineExplainer({ name: "own", walk: ownWalk, choose: { options: ["a", "b"] }, prompts: {} });
+    let seen: ExplainerApi | null = null;
+    function Spy() {
+      seen = useExplainer();
+      return null;
+    }
+    window.history.replaceState(null, "", "#o.path=x&o.frame=1");
+    render(<Explainer definition={own} view={Spy} id="o" />);
+    expect(seen!.walk!.choices).toEqual(["x"]);
+    expect(seen!.sim.step!.label).toBe("took x");
   });
 });

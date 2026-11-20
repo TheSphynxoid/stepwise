@@ -214,6 +214,34 @@ describe("usePrompts", () => {
     expect(result.current.player.held).toBeNull();
   });
 
+  it("a hold whose prompt is turned off is released, and playback goes on", () => {
+    vi.useFakeTimers();
+    const { result, rerender } = renderHook(
+      ({ on }: { on: boolean }) => usePrompts({ steps: STEPS }, { ask: askTwo, autoPlay: true, enabled: on }),
+      { initialProps: { on: true } }
+    );
+    for (let i = 0; i < 3; i++) act(() => vi.advanceTimersByTime(1000));
+    expect(result.current.frame).toBe(1);
+    expect(result.current.player.held).toBe(1);
+    rerender({ on: false });
+    expect(result.current.player.held).toBeNull();
+    act(() => vi.advanceTimersByTime(1000));
+    expect(result.current.frame).toBe(2);
+  });
+
+  it("a hold the page's own holdAt keeps is not released when the prompt goes", () => {
+    vi.useFakeTimers();
+    const { result, rerender } = renderHook(
+      ({ on }: { on: boolean }) =>
+        usePrompts({ steps: STEPS }, { ask: askTwo, autoPlay: true, enabled: on, holdAt: (f) => f === 1 }),
+      { initialProps: { on: true } }
+    );
+    for (let i = 0; i < 3; i++) act(() => vi.advanceTimersByTime(1000));
+    expect(result.current.player.held).toBe(1);
+    rerender({ on: false });
+    expect(result.current.player.held).toBe(1);
+  });
+
   it("a prompt on the last frame holds, settles, then the run ends (generator)", () => {
     vi.useFakeTimers();
     received = [];

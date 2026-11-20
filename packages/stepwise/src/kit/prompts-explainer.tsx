@@ -7,6 +7,7 @@ import type {
   ExplainerPredict,
   ExplainerPrompts,
   PrecomputedTrace,
+  PredictOption,
   Prompt as PromptDecl,
   Simulation,
   VerdictStatus,
@@ -47,6 +48,16 @@ function predictAsk<S extends StepwiseStep>(def: ExplainerPredict<S>) {
   };
 }
 
+/** True when `value` is one of a step's own `prompt.options` (an object prompt). */
+function ownOptionOf(steps: readonly StepwiseStep[], value: string): boolean {
+  return steps.some((st) => {
+    const p: unknown = (st as WalkStep).prompt;
+    if (typeof p !== "object" || p === null || Array.isArray(p)) return false;
+    const options = (p as { options?: readonly (string | PredictOption)[] }).options;
+    return options !== undefined && normalizeOptions(options).some((o) => o.value === value);
+  });
+}
+
 /**
  * An explainer whose definition asks (`predict` or `prompts`): a simulation
  * or a walk, on usePrompts. The answers link as `${id}.a` (a walk's as
@@ -81,15 +92,17 @@ export function PromptsExplainer<Input, S extends StepwiseStep>(
   // overlay (whose prompts usually carry an answer).
   const judged = Boolean(predictDef || settings.judge || settings.ask);
   const linkAnswers = link && (settings.linkAnswers ?? !judged);
-  // A step's own `prompt.options` are unknown until the walk is replayed, so
-  // a walk's linked answer is checked against `choose` only by its own parse.
+  // A walk's linked answer: one of a known step's own `prompt.options` (the
+  // steps reached so far, up to the first unanswered choice when a link is
+  // read), else whatever `choose` accepts (its parse, or its option list).
+  const stepsRef = useRef<readonly StepwiseStep[]>([]);
   const syncAnswers = !linkAnswers
     ? undefined
     : chooseDef
       ? {
           key: hashKey(id, "path"),
           serialize: (a: string) => a,
-          parse: (v: string) => (chooseDef.parse ? chooseDef.parse(v) : v === "" ? null : v),
+          parse: (v: string) => (ownOptionOf(stepsRef.current, v) ? v : parseChoice(chooseDef, v)),
         }
       : { key: hashKey(id, "a"), serialize: (a: string) => a, parse: (v: string) => v };
   const source = (
@@ -110,24 +123,20 @@ export function PromptsExplainer<Input, S extends StepwiseStep>(
     autoContinue: settings.autoContinue,
     // The walk shortcut keeps a walk's choices free (Settled in review 1).
     retries: settings.retries ?? (walkDef ? Infinity : undefined),
-    onInputChange: settings.onInputChange ?? (walkDef ? "keep" : undefined),
+    // A `predict` block clears its answers on an input edit (Ruling 13): its
+    // views edit the input freely, and a lock there had no way out.
+    onInputChange: settings.onInputChange ?? (walkDef ? "keep" : predictDef ? "clear" : undefined),
     enabled: promptsEnabled,
     // A `predict` block starts off (predict mode, as before); `prompts` start on.
     defaultEnabled: props.predict ?? !predictDef,
   });
+  stepsRef.current = run.steps;
   useReportError(definition.name, run.error);
   const { requestInput, respond, proceed, record, active } = run;
   const setInput = useCallback(
     (next: Input | ((prev: Input) => Input)) => void requestInput(() => setInputState(next)),
     [requestInput]
   );
-
-  // A prompt that is gone while playback holds on it (prompts turned off, an
-  // input edit moved it): nothing is left to wait for.
-  const { held, release } = run.player;
-  useEffect(() => {
-    if (held !== null && !active) release();
-  }, [held, active, release]);
 
   // The picked option, kept until Check; cleared at every new prompt and trace.
   const [guess, setGuessState] = useState<string | null>(null);

@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from "vitest";
-import { EXPLAINER_PROP_NAMES, createRng, defineExplainer, fromGraph, normalizeOptions, precompute, resolveInput } from "../core";
+import { EXPLAINER_PROP_NAMES, createRng, createWalkSession, defineExplainer, fromGraph, normalizeOptions, precompute, resolveInput } from "../core";
 
 type CountStep = { key: string; tone: "neutral"; label: string; i: number; probe?: unknown };
 
@@ -166,6 +166,21 @@ describe("defineExplainer / precompute", () => {
     const out = precompute(def);
     expect(out.steps).toHaveLength(word.length + 1);
     expect(out.steps[0].node).toBe("a");
+  });
+
+  it("a simulation with step prompts precomputes up to its first prompt, like a client run with no answers", () => {
+    type Q = { key: string; tone: "neutral"; label: string; prompt?: { options: string[] } };
+    const asks = function* (n: number): Generator<Q, void, string | undefined> {
+      yield { key: "start", tone: "neutral" as const, label: "start" } as Q;
+      const a = yield { key: "q1", tone: "neutral" as const, label: "q1", prompt: { options: ["x", "y"] } } as Q;
+      for (let i = 0; i < n; i++) yield { key: `after${i}.${String(a)}`, tone: "neutral" as const, label: "after" } as Q;
+    };
+    const def = defineExplainer({ name: "asks", simulation: asks, input: { default: 2 }, prompts: {} });
+    const out = precompute(def);
+    const client = createWalkSession(asks as never, 2, {}).run([]);
+    expect(out.steps.map((st) => st.key)).toEqual(["start", "q1"]);
+    expect(out.steps).toEqual(client.steps);
+    expect(out.choices).toEqual([]);
   });
 });
 

@@ -608,6 +608,16 @@ export function usePrompts<Input, S extends WalkStep, A = string>(
     }
   });
 
+  // A prompt that is gone while playback holds on it (prompts turned off, an
+  // input change moved it): nothing is left to wait for, unless the page's
+  // own `holdAt` keeps the frame.
+  const held = player.held;
+  useEffect(() => {
+    if (held === null || held !== frame || found) return;
+    if (live.current.holdAt?.(held, stepsRef.current[held])) return;
+    release();
+  }, [held, frame, found, release]);
+
   const recorded = found ? entryAt(record, frame, found.id) : undefined;
   const active: ActivePrompt<A, S> | null = useMemo(() => {
     if (!found) return null;

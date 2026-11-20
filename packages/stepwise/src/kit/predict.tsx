@@ -1,6 +1,6 @@
 "use client";
 
-import { isValidElement, type ReactElement, type ReactNode } from "react";
+import { isValidElement, useEffect, useRef, type ReactElement, type ReactNode } from "react";
 import { cn } from "../cn";
 import { canAnswer } from "../core";
 import type { StepwiseStep } from "../types";
@@ -10,6 +10,8 @@ import { useExplainer, usePromptsToggle } from "./explainer";
 // The prompt parts. The state lives in the provider (the run is an option of
 // the simulation it plays); these only draw it. Both render nothing without
 // prompts in the definition, so a layout can include them unconditionally.
+
+const isDev = typeof process !== "undefined" && process.env?.NODE_ENV !== "production";
 
 /** `explain` is the author's: drawn when it is something React can draw. */
 const drawable = (x: unknown): x is ReactNode =>
@@ -21,7 +23,10 @@ const drawable = (x: unknown): x is ReactNode =>
  * judged prompt (an unjudged one is answered by the pick), the feedback, the
  * tries left, then the reveal (the right answer, `explain`) and Continue once
  * it settles. `render` replaces all of it and receives the run. Renders
- * nothing off a prompt, and while playback moves on past a settled one.
+ * nothing off a prompt, and while playback moves on past a settled one;
+ * while answers lock the input (`onInputChange: "lock"`), a Start over
+ * button (`restart()`) stays on screen, on a prompt or off it. A free-text
+ * prompt (no options) needs `render`: without it, no options are drawn.
  */
 export function Prompt({
   children,
@@ -33,15 +38,35 @@ export function Prompt({
   className?: string;
 }): ReactElement | null {
   const { prompts: run, predict, theme } = useExplainer();
-  if (!run?.active || !predict) return null;
-  const { entry } = run.active;
-  if (entry.settled && run.player.playing) return null;
+  const active = run?.active && predict ? run.active : null;
+  const freeText = active !== null && !render && predict!.options.length === 0;
+  const warned = useRef(false);
+  useEffect(() => {
+    if (!freeText || warned.current || !isDev) return;
+    warned.current = true;
+    console.warn("[stepwise] Prompt: this prompt has no options (free text); pass `render` to draw its input.");
+  }, [freeText]);
+  if (!run || !predict) return null;
+  const button = (variant: "ghost" | "outline" | "primary") =>
+    cn(theme.buttonBase, theme.buttonVariants[variant], "h-7 px-2.5 text-xs disabled:opacity-40");
+  const startOver = run.inputLocked ? (
+    <button type="button" onClick={run.restart} className={button("ghost")}>
+      Start over
+    </button>
+  ) : null;
+  const shown = active !== null && !(active.entry.settled && run.player.playing);
+  if (!shown) {
+    return startOver ? (
+      <div data-stepwise="" className={cn("flex", className)}>
+        {startOver}
+      </div>
+    ) : null;
+  }
+  const { entry } = active;
   if (render) return <>{render(run)}</>;
   const { options, guess, setGuess, check, feedback } = predict;
   const open = canAnswer(entry) && run.status !== "pending";
   const picked = entry.judged ? guess : (entry.attempts[entry.attempts.length - 1] ?? null);
-  const button = (variant: "ghost" | "outline" | "primary") =>
-    cn(theme.buttonBase, theme.buttonVariants[variant], "h-7 px-2.5 text-xs disabled:opacity-40");
   const revealed = run.revealed;
   const answerLabel =
     revealed?.answer === undefined ? undefined : (options.find((o) => o.value === revealed.answer)?.label ?? revealed.answer);
@@ -50,23 +75,25 @@ export function Prompt({
     <div data-stepwise="" className={cn(theme.surface, "flex flex-col gap-2 rounded-sm p-3", className)}>
       {/* A div, not a p: MDX wraps multi-line children in their own <p>. */}
       <div className="text-sm text-foreground/85">{children ?? "What happens next?"}</div>
-      <div role="radiogroup" aria-label="Your prediction" className="flex flex-wrap gap-2">
-        {options.map((o) => (
-          <button
-            key={o.value}
-            type="button"
-            role="radio"
-            aria-checked={picked === o.value}
-            disabled={!open}
-            onClick={() => (entry.judged ? setGuess(o.value) : run.respond(o.value))}
-            className={button(picked === o.value ? "primary" : "outline")}
-          >
-            {o.label}
-          </button>
-        ))}
-      </div>
+      {!freeText && (
+        <div role="radiogroup" aria-label="Your prediction" className="flex flex-wrap gap-2">
+          {options.map((o) => (
+            <button
+              key={o.value}
+              type="button"
+              role="radio"
+              aria-checked={picked === o.value}
+              disabled={!open}
+              onClick={() => (entry.judged ? setGuess(o.value) : run.respond(o.value))}
+              className={button(picked === o.value ? "primary" : "outline")}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="flex flex-wrap items-center gap-2">
-        {entry.judged && !entry.settled && (
+        {entry.judged && !entry.settled && !freeText && (
           <button type="button" onClick={check} disabled={!open} className={button("primary")}>
             Check
           </button>
@@ -81,6 +108,7 @@ export function Prompt({
             {triesLeft === 1 ? "1 try left" : `${triesLeft} tries left`}
           </span>
         )}
+        {startOver}
       </div>
       <p aria-live="polite" className="min-h-5 text-xs text-foreground/85">
         {feedback}
